@@ -144,7 +144,7 @@ impl App {
         self.focus = previous.focus;
         self.terminal_focused = previous.terminal_focused;
         self.help_overlay_visible = previous.help_overlay_visible;
-        self.restore_mascot_scale(previous.mascot_scale);
+        self.tui_runtime_state = previous.tui_runtime_state.clone();
         self.layer_scroll_offset = previous.layer_scroll_offset;
         let previous_selection = previous.workspace_state_snapshot();
         if previous_selection.selected_psd_path.is_some()
@@ -195,7 +195,8 @@ impl App {
             eye_blink: None,
             mouth_flap: None,
             eye_blink_targets: tui_config.eye_blink_targets.clone(),
-            mascot_scale: tui_runtime_state.mascot_scale,
+            tui_runtime_state,
+            mascot_scale: None,
             layer_scroll_margin_ratio: tui_config.layer_scroll_margin_ratio,
             layer_scroll_offset: 0,
             screen_height_px,
@@ -209,7 +210,6 @@ impl App {
             focus: FocusPane::Library,
         };
 
-        app.restore_mascot_scale(tui_runtime_state.mascot_scale);
         app.restore_selection(restored_state);
         app.refresh_selected_psd_state()?;
         if !startup_loading {

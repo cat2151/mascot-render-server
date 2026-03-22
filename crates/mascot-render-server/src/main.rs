@@ -63,7 +63,7 @@ fn main() -> Result<()> {
         config.squash_bounce,
     )
     .window_size();
-    let history_path = window_history_path();
+    let history_path = window_history_path(&config);
     let saved_window_position = match load_window_position(&history_path) {
         Ok(position) => position,
         Err(error) => {
@@ -164,6 +164,7 @@ impl MascotApp {
                 eprintln!("transparent background click-through is disabled: {error:#}");
                 TransparentHitTestWindow::disabled()
             });
+        let history_path = window_history_path(&config);
 
         let mut app = Self {
             config_path,
@@ -181,7 +182,7 @@ impl MascotApp {
             control_rx,
             transparent_hit_test,
             window_layout: initial_window_layout,
-            window_history: WindowHistoryTracker::new(window_history_path(), saved_window_position),
+            window_history: WindowHistoryTracker::new(history_path, saved_window_position),
         };
         if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
             eprintln!("{error:#}");
@@ -270,6 +271,8 @@ impl MascotApp {
         let blink_source_changed = self.config.zip_path != next_config.zip_path
             || self.config.psd_path_in_zip != next_config.psd_path_in_zip
             || self.config.display_diff_path != next_config.display_diff_path;
+        let history_path_changed = self.config.zip_path != next_config.zip_path
+            || self.config.psd_path_in_zip != next_config.psd_path_in_zip;
 
         self.config = next_config;
 
@@ -289,10 +292,29 @@ impl MascotApp {
             );
         }
 
+        let mut restored_window_position = None;
         if png_changed || blink_source_changed {
             self.refresh_closed_eye_skin(ctx)?;
         }
+        if history_path_changed {
+            let history_path = window_history_path(&self.config);
+            let saved_window_position = match load_window_position(&history_path) {
+                Ok(saved_window_position) => saved_window_position,
+                Err(error) => {
+                    eprintln!(
+                        "warning: failed to load mascot window history {}: {error:#}",
+                        history_path.display()
+                    );
+                    None
+                }
+            };
+            self.window_history = WindowHistoryTracker::new(history_path, saved_window_position);
+            restored_window_position = saved_window_position;
+        }
         self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        if let Some(position) = restored_window_position {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(position));
+        }
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(window_title(
             &self.config,
             &self.config_path,
