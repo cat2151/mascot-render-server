@@ -1,79 +1,81 @@
 # mascot-render-server
 
-Desktop mascot (simplified version). Written in Rust.
+A simplified desktop mascot, written in Rust.
 
 ## Features
 - Easy installation. Just place the zip file.
-- Effortless editing. Intuitively change outfits and poses using the TUI.
-- Fun reactions. Click on the head and...
+- Easy editing. Intuitively change outfits and poses using the TUI.
+- Amusing reactions. Click the head to...
 - This is a simplified version. It has limited features, so a playful spirit is required.
 
-## install
+## Install
 
 ```
 cargo install --force --git https://github.com/cat2151/mascot-render-server mascot-render-server psd-viewer-tui
 ```
 
-## Preparation
+## Setup
 
 Rust is required.
 
-Please place the following three zip files into `C:/Users/<YOUR NAME>/AppData/Local/mascot-render-server/assets/zip/`.
+Please place the following three zip files in `C:/Users/<YOUR NAME>/AppData/Local/mascot-render-server/assets/zip/`.
 
-Created by Ahiru Sakamoto
+By Sakamoto Ahiru:
 - `ずんだもん立ち絵素材2.3.zip`
 - `ずんだもん立ち絵素材V3.2.zip`
 - `ずんだもん立ち絵素材改1.1.1.zip`
 
-## Execution
+## Run
 
 ```
 psd-viewer-tui
 ```
 
-- The following actions will be performed automatically:
-    - Unzipping the zip files
-    - Analyzing the PSD files contained in the zip files
-    - Analyzing the layers within the PSD files
-    - Displaying the desktop mascot
+- The following will be performed automatically:
+    - Zip file extraction
+    - Analysis of PSD files contained in the zip
+    - Analysis of layers within the PSD
+    - Display of the desktop mascot
         - It will be displayed with default layers.
 
-- Changing outfit and pose layers will alter the appearance.
+- Changing outfit or pose layers will alter its appearance.
 
 - For detailed features, please refer to the on-screen help.
 
-## Settings
+## Configuration
 - mascot-render-server.toml
     - transparent_background_click_through
-        - If set to true, it becomes very heavy, but reduces "confusion from dragging empty space".
+        - If set to `true`, it will become very resource-intensive, but it can reduce the "confusion from dragging empty space".
     - flash_blue_background_on_transparent_input
-        - If set to true, when you try to click or drag empty space, it will flash a blue background for 1 second to notify you.
+        - If set to `true`, when you attempt to click or drag empty space, it will flash a blue background for 1 second to notify you.
 
 ## Architecture
 - Modular
-    - Implemented by emphasizing reusability and splitting into small crates, each with a specific responsibility.
+    - Implemented by dividing into small crates, prioritizing reusability and separating responsibilities.
 - Sixel
-    - For fallback in case the desktop mascot doesn't run, a preview of the mascot will be displayed in the terminal.
-- Format
-    - Management formats like ghost or shell have not been implemented.
-        - Currently, testing has only been done with Zundamon standing pose materials created by Ahiru Sakamoto.
-        - It might be possible to use it generically by rewriting the toml file, but this is unconfirmed.
+    - For fallback in case the desktop mascot fails to run, a preview of the mascot will be displayed in the terminal.
+- PSDTool
+    - Supports the extended formats "radio button conversion" and "forced display" of [PSDTool](https://oov.github.io/psdtool/manual.html), achieving comfortable editing.
+- format
+    - Management formats like ghost or shell are not implemented.
+        - Currently, it has only been tested with Zundamon character portrait materials created by Sakamoto Ahiru.
+            - It might be possible to use it generically by rewriting the toml file, but this is unconfirmed.
 
-## About vendor/
+## About `vendor/`
 
-`vendor/rawpsd` is a vendored copy with AI-assisted fixes applied to a bug in the `rawpsd` library.
+`vendor/rawpsd` is a vendored copy that includes AI-assisted fixes for bugs in the `rawpsd` library.
 
-## Prerequisites
-- This is a personal application, not intended for others to use. If you need similar functionality, cloning or creating your own is recommended.
-- Destructive changes are frequent. Even if someone builds related functionality, it might become unusable the very next day.
+## Assumptions
+- This is an application for personal use, not intended for others. If you desire similar functionality, it is recommended to clone or create your own.
+- Destructive changes are made frequently. Even if someone were to build related functionality, it might become unusable the next day.
 
 ## Goals of this application
-- PoC. To demonstrate that a useful personal application can be built with Codex CLI (Codex Plus 30-day free trial) (demonstrated).
-- PSD. To easily handle PSD files in Rust.
-- Desktop Mascot. To easily implement a desktop mascot in Rust.
+- PoC. To demonstrate that useful applications can be created for personal use with Codex CLI (Codex Plus 30-day free trial) (demonstrated).
+- PSD. Easy handling of PSD files with Rust.
+- Desktop Mascot. Easy implementation of desktop mascots with Rust.
 - Eye blinking and lip-syncing.
-- Server. To easily control the desktop mascot from other applications via an HTTP REST API.
+- Server. Easy manipulation of the desktop mascot from other applications via HTTP REST API.
 
-## Out of scope
-- Establishing a new high-functional general-purpose desktop mascot common standard, preparing a governance system for it, and continuous operation.
-- Support. Responding to requests and suggestions.
+## Out of Scope
+- Establishment of a new high-functionality general-purpose desktop mascot common standard, development of a governance system for it, and continuous operation.
+- Support. Responding to requests or suggestions.
