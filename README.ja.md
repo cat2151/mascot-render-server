@@ -63,7 +63,8 @@ psd-viewer-tui
 
 ## vendor/ について
 
-`vendor/rawpsd` は [rawpsd](https://github.com/wareya/rawpsd-rs) ライブラリの不具合に対して、AI 支援で修正を入れた vendored copy です。
+- `vendor/rawpsd` は [rawpsd](https://github.com/wareya/rawpsd-rs) ライブラリの不具合に対して、AI支援で修正を入れた vendored copy です。
+- mascot-render-serverで取り扱うpsdを読もうとするとpanicしていたので、そこをCodex CLIに修正させたものです。
 
 ## 前提
 - 自分用のアプリですので、他の人が使うことを想定していません。似たような機能がほしいときはcloneや自作をおすすめします。
