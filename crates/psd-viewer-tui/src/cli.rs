@@ -61,8 +61,8 @@ Usage:
   psd-viewer-tui update
 
 Options:
-  update       Stop running binaries and reinstall both binaries.
-  -h, --help  Show this help.
+  update          Stop running binaries and reinstall both binaries.
+  -h, --help      Show this help.
 
 Default local data directory:
   {}
