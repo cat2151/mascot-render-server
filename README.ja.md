@@ -10,13 +10,13 @@
 
 ## install
 
+Rustが必要です。
+
 ```
 cargo install --force --git https://github.com/cat2151/mascot-render-server mascot-render-server psd-viewer-tui
 ```
 
 ## 準備
-
-Rustが必要です。
 
 次の3つのzipファイルを `C:/Users/<YOUR NAME>/AppData/Local/mascot-render-server/assets/zip/` に配置してください。
 
