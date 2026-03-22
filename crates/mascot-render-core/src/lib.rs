@@ -6,8 +6,8 @@ mod eye_blink;
 mod layer_name_format;
 mod logging;
 mod mascot;
-mod mascot_paths;
 mod mascot_motion;
+mod mascot_paths;
 mod model;
 mod psd;
 mod render;
@@ -49,6 +49,6 @@ pub use variation::{
     variation_render_meta_path, variation_spec_path,
 };
 pub use workspace_paths::{
-    workspace_cache_root, workspace_log_root, workspace_path, workspace_relative_display_path,
-    workspace_root,
+    local_data_root, workspace_cache_root, workspace_log_root, workspace_path,
+    workspace_relative_display_path, workspace_root,
 };

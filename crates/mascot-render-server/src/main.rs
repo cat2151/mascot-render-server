@@ -1,8 +1,12 @@
 mod app_support;
+mod cli;
 mod eye_blink;
 mod eye_blink_timing;
 mod window_history;
 
+#[cfg(test)]
+#[path = "tests/cli.rs"]
+mod cli_tests;
 #[cfg(test)]
 #[path = "tests/window_history.rs"]
 mod window_history_tests;
@@ -13,6 +17,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{anyhow, Context, Result};
+use cli::{parse_cli, CliAction};
 use eframe::egui::{self, Color32, Pos2, Rect, Vec2};
 use eframe::{App, CreationContext, NativeOptions};
 use mascot_render_server::{
@@ -30,14 +35,20 @@ use app_support::{
 };
 use eye_blink::{render_closed_eye_png, EyeBlinkLoop};
 use mascot_render_core::{
-    load_mascot_config, load_mascot_image, mascot_runtime_state_path, parse_mascot_config_path,
-    Core, CoreConfig, MascotConfig, MascotImageData, MotionState, MotionTransform,
+    load_mascot_config, load_mascot_image, mascot_runtime_state_path, Core, CoreConfig,
+    MascotConfig, MascotImageData, MotionState, MotionTransform,
 };
 
 const SKIN_CACHE_CAPACITY: usize = 16;
 
 fn main() -> Result<()> {
-    let config_path = parse_mascot_config_path(std::env::args_os())?;
+    let config_path = match parse_cli(std::env::args_os())? {
+        CliAction::Run(config_path) => config_path,
+        CliAction::PrintHelp(help) => {
+            println!("{help}");
+            return Ok(());
+        }
+    };
     let config = load_mascot_config(&config_path)?;
     let image = load_mascot_image(&config.png_path)?;
     let base_size = size_vec(image.width, image.height, config.scale);
@@ -492,4 +503,3 @@ impl App for MascotApp {
         }
     }
 }
-

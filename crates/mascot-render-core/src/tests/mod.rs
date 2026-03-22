@@ -8,3 +8,4 @@ mod mascot_motion;
 mod psd;
 mod render;
 mod variation;
+mod workspace_paths;

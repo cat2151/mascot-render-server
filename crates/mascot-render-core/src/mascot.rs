@@ -6,9 +6,9 @@ use anyhow::{anyhow, bail, Context, Result};
 use image::ImageReader;
 use serde::{Deserialize, Serialize};
 
-pub use crate::mascot_paths::{mascot_config_path, mascot_runtime_state_path};
 use crate::mascot_motion::{BounceAnimationConfig, HeadHitbox, SquashBounceAnimationConfig};
 use crate::mascot_paths::unix_timestamp;
+pub use crate::mascot_paths::{mascot_config_path, mascot_runtime_state_path};
 
 const DEFAULT_MAX_EDGE: f32 = 480.0;
 const DEFAULT_SCREEN_HEIGHT_RATIO: f32 = 0.33;
@@ -181,8 +181,9 @@ pub fn parse_mascot_config_path(args: impl IntoIterator<Item = OsString>) -> Res
         }
 
         bail!(
-            "unsupported positional argument '{}'; use --config <path> or mascot-render-server.toml",
-            arg.to_string_lossy()
+            "unsupported positional argument '{}'; use --config <path> or the default config at {}",
+            arg.to_string_lossy(),
+            mascot_config_path().display()
         );
     }
 

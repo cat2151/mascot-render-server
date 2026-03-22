@@ -4,12 +4,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sha2::{Digest, Sha256};
 
 use crate::cache::default_cache_root;
-use crate::workspace_paths::{workspace_path, workspace_root};
+use crate::workspace_paths::{local_data_path, relative_to_known_root};
 
 const MASCOT_CONFIG_PATH: &str = "mascot-render-server.toml";
 
 pub fn mascot_config_path() -> PathBuf {
-    workspace_path(MASCOT_CONFIG_PATH)
+    local_data_path(MASCOT_CONFIG_PATH)
 }
 
 pub fn mascot_runtime_state_path(config_path: &Path) -> PathBuf {
@@ -32,7 +32,7 @@ pub fn unix_timestamp() -> u64 {
 
 fn hash_config_path(config_path: &Path) -> String {
     let mut hasher = Sha256::new();
-    let relative_path = config_path.strip_prefix(workspace_root()).unwrap_or(config_path);
+    let relative_path = relative_to_known_root(config_path);
     hasher.update(relative_path.to_string_lossy().as_bytes());
     let digest = hasher.finalize();
     digest[..6]

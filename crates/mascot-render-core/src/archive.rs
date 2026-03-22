@@ -6,14 +6,14 @@ use anyhow::{Context, Result};
 use encoding_rs::SHIFT_JIS;
 use zip::ZipArchive;
 
-use crate::workspace_paths::{workspace_path, workspace_relative_display_path};
+use crate::workspace_paths::{local_data_path, workspace_relative_display_path};
 
 pub const ZIP_INPUT_DIRS: [&str; 2] = ["assets/inbox", "assets/zip"];
 
 pub fn existing_zip_sources() -> Vec<PathBuf> {
     ZIP_INPUT_DIRS
         .iter()
-        .map(workspace_path)
+        .map(local_data_path)
         .filter(|path| path.is_dir())
         .collect()
 }

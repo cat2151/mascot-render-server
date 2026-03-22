@@ -4,8 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use mascot_render_core::{
-    default_eye_blink_targets, migrate_eye_blink_layers, workspace_cache_root, workspace_path,
-    workspace_root, EyeBlinkTarget,
+    default_eye_blink_targets, local_data_root, migrate_eye_blink_layers, workspace_cache_root,
+    EyeBlinkTarget,
 };
 use serde::{Deserialize, Serialize};
 
@@ -192,7 +192,7 @@ pub(crate) fn ensure_tui_config_split(
 }
 
 pub(crate) fn tui_config_path() -> PathBuf {
-    workspace_path(TUI_CONFIG_PATH)
+    local_data_root().join(TUI_CONFIG_PATH)
 }
 
 pub(crate) fn tui_runtime_state_path(config_path: &Path) -> PathBuf {
@@ -285,7 +285,10 @@ fn unix_timestamp() -> u64 {
 }
 
 fn sanitize_runtime_state_name(path: &Path) -> String {
-    let relative_path = path.strip_prefix(workspace_root()).unwrap_or(path);
+    let relative_path = path
+        .strip_prefix(local_data_root())
+        .or_else(|_| path.strip_prefix(mascot_render_core::workspace_root()))
+        .unwrap_or(path);
     let sanitized = relative_path
         .to_string_lossy()
         .chars()
@@ -303,4 +306,3 @@ fn sanitize_runtime_state_name(path: &Path) -> String {
         sanitized
     }
 }
-

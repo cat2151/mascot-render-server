@@ -1,5 +1,6 @@
 mod activity_indicator;
 mod app;
+mod cli;
 mod display_diff_state;
 mod server_motion_sync;
 mod server_preview_sync;
@@ -9,6 +10,9 @@ mod tui_history;
 mod ui;
 mod workspace_state;
 
+#[cfg(test)]
+#[path = "tests/cli.rs"]
+mod cli_tests;
 #[cfg(test)]
 #[path = "tests/display_diff_state.rs"]
 mod display_diff_state_tests;
@@ -38,6 +42,7 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
 use anyhow::Result;
+use cli::{parse_cli, CliAction};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use mascot_render_client::hide_mascot_render_server;
 use ratatui::Terminal;
@@ -49,6 +54,11 @@ use server_preview_sync::ServerPreviewSync;
 use terminal::{Backend, TerminalGuard};
 
 fn main() -> Result<()> {
+    if let CliAction::PrintHelp(help) = parse_cli(std::env::args_os())? {
+        println!("{help}");
+        return Ok(());
+    }
+
     let screen_height_px = detect_screen_height_px();
     let mut terminal = TerminalGuard::new()?;
     let app = App::loading(screen_height_px);
@@ -360,4 +370,3 @@ impl Drop for HideMascotRenderServerOnDrop {
         let _ = hide_mascot_render_server();
     }
 }
-
