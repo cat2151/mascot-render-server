@@ -22,7 +22,7 @@ use mascot_render_core::{
 
 use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override, LayerRow};
 use crate::tui_config::{
-    tui_config_path, tui_runtime_state_path, DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
+    tui_config_path, tui_runtime_state_path, TuiRuntimeState, DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
 };
 use crate::tui_history::{save_tui_history, TuiHistory};
 use crate::workspace_state::save_workspace_state;
@@ -62,6 +62,7 @@ pub(crate) struct App {
     eye_blink: Option<EyeBlinkAnimation>,
     mouth_flap: Option<MouthFlapAnimation>,
     eye_blink_targets: Vec<EyeBlinkTarget>,
+    tui_runtime_state: TuiRuntimeState,
     mascot_scale: Option<f32>,
     layer_scroll_margin_ratio: f32,
     layer_scroll_offset: usize,
@@ -99,6 +100,7 @@ impl App {
             eye_blink: None,
             mouth_flap: None,
             eye_blink_targets: default_eye_blink_targets(),
+            tui_runtime_state: TuiRuntimeState::default(),
             mascot_scale: None,
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
             layer_scroll_offset: 0,
@@ -433,6 +435,17 @@ impl App {
         self.save_tui_history()
     }
 
+    fn current_runtime_state_paths(&self) -> Option<(&Path, &Path)> {
+        let zip_path = self
+            .selected_zip_entry()
+            .map(|entry| entry.zip_path.as_path())?;
+        let psd_path_in_zip = self
+            .current_psd_document
+            .as_ref()
+            .map(|document| document.psd_path_in_zip.as_path())?;
+        Some((zip_path, psd_path_in_zip))
+    }
+
     fn refresh_selected_psd_state(&mut self) -> Result<()> {
         self.current_psd_document = None;
         self.current_preview_png_path = None;
@@ -456,6 +469,7 @@ impl App {
 
         self.layer_rows = resolve_layer_rows(&document, &variation);
         self.current_psd_document = Some(document);
+        self.restore_current_psd_mascot_scale()?;
         self.sync_preview_for_variation(&zip_path, &psd_path, &psd_path_in_zip, &psd_entry)?;
         self.sync_current_mascot_config()?;
         self.sync_selection_bounds();

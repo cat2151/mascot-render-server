@@ -1,11 +1,15 @@
 use std::fs;
+use std::path::PathBuf;
 use std::time::Instant;
 
 use eframe::egui::Pos2;
-use mascot_render_core::workspace_cache_root;
+use mascot_render_core::{
+    workspace_cache_root, BounceAnimationConfig, HeadHitbox, MascotConfig,
+    SquashBounceAnimationConfig,
+};
 
 use crate::window_history::{
-    load_window_position, WindowHistoryTracker, WINDOW_HISTORY_SAVE_DEBOUNCE,
+    load_window_position, window_history_path, WindowHistoryTracker, WINDOW_HISTORY_SAVE_DEBOUNCE,
 };
 
 #[test]
@@ -57,4 +61,29 @@ fn tracker_saves_after_position_stabilizes() {
 
     let loaded = load_window_position(&path).expect("should read saved history");
     assert_eq!(loaded, Some(Pos2::new(20.0, 30.0)));
+}
+
+#[test]
+fn window_history_path_is_scoped_per_psd() {
+    let left = window_history_path(&mascot_config("/workspace/a.zip", "body/front.psd"));
+    let right = window_history_path(&mascot_config("/workspace/b.zip", "body/front.psd"));
+    let different_psd = window_history_path(&mascot_config("/workspace/a.zip", "body/back.psd"));
+
+    assert_ne!(left, right);
+    assert_ne!(left, different_psd);
+}
+
+fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
+    MascotConfig {
+        png_path: PathBuf::from("/workspace/render.png"),
+        scale: Some(1.0),
+        zip_path: PathBuf::from(zip_path),
+        psd_path_in_zip: PathBuf::from(psd_path_in_zip),
+        display_diff_path: None,
+        transparent_background_click_through: false,
+        flash_blue_background_on_transparent_input: true,
+        head_hitbox: HeadHitbox::default(),
+        bounce: BounceAnimationConfig::default(),
+        squash_bounce: SquashBounceAnimationConfig::default(),
+    }
 }

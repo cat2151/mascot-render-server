@@ -31,6 +31,50 @@ impl Default for TuiConfig {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct TuiRuntimeState {
+    pub(crate) legacy_mascot_scale: Option<f32>,
+    pub(crate) psd_states: Vec<PsdRuntimeState>,
+}
+
+impl TuiRuntimeState {
+    pub(crate) fn mascot_scale_for_psd(
+        &self,
+        zip_path: &Path,
+        psd_path_in_zip: &Path,
+    ) -> Option<f32> {
+        self.psd_states
+            .iter()
+            .find(|state| state.zip_path == zip_path && state.psd_path_in_zip == psd_path_in_zip)
+            .and_then(|state| state.mascot_scale)
+    }
+
+    pub(crate) fn set_mascot_scale_for_psd(
+        &mut self,
+        zip_path: PathBuf,
+        psd_path_in_zip: PathBuf,
+        mascot_scale: Option<f32>,
+    ) {
+        let mascot_scale = sanitize_scale(mascot_scale);
+        if let Some(state) = self
+            .psd_states
+            .iter_mut()
+            .find(|state| state.zip_path == zip_path && state.psd_path_in_zip == psd_path_in_zip)
+        {
+            state.mascot_scale = mascot_scale;
+        } else if mascot_scale.is_some() {
+            self.psd_states.push(PsdRuntimeState {
+                zip_path,
+                psd_path_in_zip,
+                mascot_scale,
+            });
+        }
+        self.psd_states = sanitize_psd_states(std::mem::take(&mut self.psd_states));
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(crate) struct PsdRuntimeState {
+    pub(crate) zip_path: PathBuf,
+    pub(crate) psd_path_in_zip: PathBuf,
     pub(crate) mascot_scale: Option<f32>,
 }
 
@@ -57,7 +101,10 @@ impl Default for TuiConfigFile {
 #[serde(default)]
 struct TuiRuntimeStateFile {
     version: u32,
-    mascot_scale: Option<f32>,
+    #[serde(default, alias = "mascot_scale")]
+    legacy_mascot_scale: Option<f32>,
+    #[serde(default)]
+    psd_states: Vec<PsdRuntimeState>,
     updated_at: u64,
 }
 
@@ -65,7 +112,8 @@ impl Default for TuiRuntimeStateFile {
     fn default() -> Self {
         Self {
             version: TUI_RUNTIME_STATE_VERSION,
-            mascot_scale: None,
+            legacy_mascot_scale: None,
+            psd_states: Vec::new(),
             updated_at: 0,
         }
     }
@@ -75,7 +123,8 @@ impl From<&TuiRuntimeState> for TuiRuntimeStateFile {
     fn from(state: &TuiRuntimeState) -> Self {
         Self {
             version: TUI_RUNTIME_STATE_VERSION,
-            mascot_scale: sanitize_scale(state.mascot_scale),
+            legacy_mascot_scale: sanitize_scale(state.legacy_mascot_scale),
+            psd_states: sanitize_psd_states(state.psd_states.clone()),
             updated_at: unix_timestamp(),
         }
     }
@@ -137,7 +186,8 @@ pub(crate) fn load_tui_runtime_state(config_path: &Path) -> Result<TuiRuntimeSta
         .with_context(|| format!("failed to read TUI config {}", config_path.display()))?;
     match toml::from_str::<LegacyTuiConfigFile>(&bytes) {
         Ok(file) if file.version == TUI_CONFIG_VERSION => Ok(TuiRuntimeState {
-            mascot_scale: sanitize_scale(file.mascot_scale),
+            legacy_mascot_scale: sanitize_scale(file.mascot_scale),
+            psd_states: Vec::new(),
         }),
         Ok(_) => Ok(TuiRuntimeState::default()),
         Err(_) => Ok(TuiRuntimeState::default()),
@@ -184,7 +234,9 @@ pub(crate) fn ensure_tui_config_split(
     }
 
     let runtime_state_path = tui_runtime_state_path(config_path);
-    if !runtime_state_path.exists() && runtime_state.mascot_scale.is_some() {
+    if !runtime_state_path.exists()
+        && (runtime_state.legacy_mascot_scale.is_some() || !runtime_state.psd_states.is_empty())
+    {
         save_tui_runtime_state(config_path, runtime_state)?;
     }
 
@@ -207,7 +259,8 @@ fn load_tui_runtime_state_file(path: &Path) -> Result<TuiRuntimeState> {
         .with_context(|| format!("failed to read TUI runtime state {}", path.display()))?;
     match serde_json::from_slice::<TuiRuntimeStateFile>(&bytes) {
         Ok(file) if file.version == TUI_RUNTIME_STATE_VERSION => Ok(TuiRuntimeState {
-            mascot_scale: sanitize_scale(file.mascot_scale),
+            legacy_mascot_scale: sanitize_scale(file.legacy_mascot_scale),
+            psd_states: sanitize_psd_states(file.psd_states),
         }),
         Ok(_) => Ok(TuiRuntimeState::default()),
         Err(_) => Ok(TuiRuntimeState::default()),
@@ -228,6 +281,25 @@ fn static_config_needs_normalization(path: &Path) -> Result<bool> {
 
 fn sanitize_scale(scale: Option<f32>) -> Option<f32> {
     scale.filter(|value| value.is_finite() && *value > 0.0)
+}
+
+fn sanitize_psd_states(states: Vec<PsdRuntimeState>) -> Vec<PsdRuntimeState> {
+    states
+        .into_iter()
+        .filter_map(|state| {
+            let zip_path = state.zip_path;
+            let psd_path_in_zip = state.psd_path_in_zip;
+            let mascot_scale = sanitize_scale(state.mascot_scale);
+            if zip_path.as_os_str().is_empty() || psd_path_in_zip.as_os_str().is_empty() {
+                return None;
+            }
+            mascot_scale.map(|mascot_scale| PsdRuntimeState {
+                zip_path,
+                psd_path_in_zip,
+                mascot_scale: Some(mascot_scale),
+            })
+        })
+        .collect()
 }
 
 fn sanitize_layer_scroll_margin_ratio(ratio: f32) -> f32 {

@@ -1,11 +1,12 @@
 use anyhow::Result;
+use std::path::PathBuf;
 
 use mascot_render_core::{
     default_mascot_scale_for_screen_height, load_mascot_image, mascot_config_path,
     mascot_window_size, write_mascot_config, MascotTarget,
 };
 
-use crate::tui_config::{save_tui_runtime_state, tui_config_path, TuiRuntimeState};
+use crate::tui_config::{save_tui_runtime_state, tui_config_path};
 
 use super::App;
 
@@ -92,14 +93,56 @@ impl App {
         self.mascot_scale = sanitize_scale(mascot_scale);
     }
 
+    pub(super) fn restore_current_psd_mascot_scale(&mut self) -> Result<()> {
+        let Some((zip_path, psd_path_in_zip)) =
+            self.current_runtime_state_paths()
+                .map(|(zip_path, psd_path_in_zip)| {
+                    (zip_path.to_path_buf(), psd_path_in_zip.to_path_buf())
+                })
+        else {
+            self.restore_mascot_scale(None);
+            return Ok(());
+        };
+
+        if let Some(scale) = self
+            .tui_runtime_state
+            .mascot_scale_for_psd(&zip_path, &psd_path_in_zip)
+        {
+            self.restore_mascot_scale(Some(scale));
+            return Ok(());
+        }
+
+        let legacy_scale = self.tui_runtime_state.legacy_mascot_scale;
+        self.restore_mascot_scale(legacy_scale);
+        if legacy_scale.is_some() {
+            self.persist_psd_mascot_scale(zip_path, psd_path_in_zip, legacy_scale)?;
+        }
+        Ok(())
+    }
+
     fn persist_mascot_scale(&mut self, scale: f32) -> Result<()> {
         self.mascot_scale = sanitize_scale(Some(scale));
-        save_tui_runtime_state(
-            &tui_config_path(),
-            &TuiRuntimeState {
-                mascot_scale: self.mascot_scale,
-            },
-        )
+        let Some((zip_path, psd_path_in_zip)) =
+            self.current_runtime_state_paths()
+                .map(|(zip_path, psd_path_in_zip)| {
+                    (zip_path.to_path_buf(), psd_path_in_zip.to_path_buf())
+                })
+        else {
+            return save_tui_runtime_state(&tui_config_path(), &self.tui_runtime_state);
+        };
+        self.persist_psd_mascot_scale(zip_path, psd_path_in_zip, self.mascot_scale)
+    }
+
+    fn persist_psd_mascot_scale(
+        &mut self,
+        zip_path: PathBuf,
+        psd_path_in_zip: PathBuf,
+        scale: Option<f32>,
+    ) -> Result<()> {
+        self.tui_runtime_state
+            .set_mascot_scale_for_psd(zip_path, psd_path_in_zip, scale);
+        self.tui_runtime_state.legacy_mascot_scale = None;
+        save_tui_runtime_state(&tui_config_path(), &self.tui_runtime_state)
     }
 }
 

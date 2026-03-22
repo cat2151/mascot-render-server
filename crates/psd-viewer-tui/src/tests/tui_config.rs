@@ -1,8 +1,9 @@
 use std::fs;
+use std::path::PathBuf;
 
 use crate::tui_config::{
     ensure_tui_config_split, load_tui_config, load_tui_runtime_state, save_tui_config,
-    save_tui_runtime_state, tui_runtime_state_path, TuiConfig, TuiRuntimeState,
+    save_tui_runtime_state, tui_runtime_state_path, PsdRuntimeState, TuiConfig, TuiRuntimeState,
     DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
 };
 use mascot_render_core::workspace_cache_root;
@@ -50,7 +51,7 @@ fn tui_config_round_trips_static_settings() {
 }
 
 #[test]
-fn tui_runtime_state_round_trips_mascot_scale() {
+fn tui_runtime_state_round_trips_mascot_scale_per_psd() {
     let config_path = workspace_cache_root().join("test-tui-runtime/psd-viewer-tui.toml");
     let runtime_state_path = tui_runtime_state_path(&config_path);
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-runtime"));
@@ -59,7 +60,19 @@ fn tui_runtime_state_round_trips_mascot_scale() {
     save_tui_runtime_state(
         &config_path,
         &TuiRuntimeState {
-            mascot_scale: Some(0.37),
+            legacy_mascot_scale: None,
+            psd_states: vec![
+                PsdRuntimeState {
+                    zip_path: PathBuf::from("/workspace/a.zip"),
+                    psd_path_in_zip: PathBuf::from("a/body.psd"),
+                    mascot_scale: Some(0.37),
+                },
+                PsdRuntimeState {
+                    zip_path: PathBuf::from("/workspace/b.zip"),
+                    psd_path_in_zip: PathBuf::from("b/face.psd"),
+                    mascot_scale: Some(0.91),
+                },
+            ],
         },
     )
     .expect("should write TUI runtime state");
@@ -68,7 +81,19 @@ fn tui_runtime_state_round_trips_mascot_scale() {
     assert_eq!(
         loaded,
         TuiRuntimeState {
-            mascot_scale: Some(0.37),
+            legacy_mascot_scale: None,
+            psd_states: vec![
+                PsdRuntimeState {
+                    zip_path: PathBuf::from("/workspace/a.zip"),
+                    psd_path_in_zip: PathBuf::from("a/body.psd"),
+                    mascot_scale: Some(0.37),
+                },
+                PsdRuntimeState {
+                    zip_path: PathBuf::from("/workspace/b.zip"),
+                    psd_path_in_zip: PathBuf::from("b/face.psd"),
+                    mascot_scale: Some(0.91),
+                },
+            ],
         }
     );
 }
@@ -178,7 +203,8 @@ second_layer_name = "closed"
     assert_eq!(
         runtime_state,
         TuiRuntimeState {
-            mascot_scale: Some(0.41),
+            legacy_mascot_scale: Some(0.41),
+            psd_states: Vec::new(),
         }
     );
 }

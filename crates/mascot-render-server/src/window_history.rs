@@ -1,10 +1,12 @@
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use eframe::egui::{self, Pos2, Vec2};
-use mascot_render_core::workspace_cache_root;
+use mascot_render_core::{workspace_cache_root, MascotConfig};
 use serde::{Deserialize, Serialize};
 
 const WINDOW_HISTORY_VERSION: u32 = 1;
@@ -84,8 +86,11 @@ impl WindowHistoryTracker {
     }
 }
 
-pub(crate) fn window_history_path() -> PathBuf {
-    workspace_cache_root().join("history_server.json")
+pub(crate) fn window_history_path(config: &MascotConfig) -> PathBuf {
+    workspace_cache_root().join(format!(
+        "history_server_{}.json",
+        sanitize_window_history_name(&config.zip_path, &config.psd_path_in_zip)
+    ))
 }
 
 pub(crate) fn load_window_position(path: &Path) -> Result<Option<Pos2>> {
@@ -152,4 +157,29 @@ fn unix_timestamp() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_secs())
         .unwrap_or_default()
+}
+
+fn sanitize_window_history_name(zip_path: &Path, psd_path_in_zip: &Path) -> String {
+    let mut hasher = DefaultHasher::new();
+    zip_path.hash(&mut hasher);
+    psd_path_in_zip.hash(&mut hasher);
+    let psd_name = psd_path_in_zip
+        .file_stem()
+        .unwrap_or(psd_path_in_zip.as_os_str())
+        .to_string_lossy();
+    let sanitized = psd_name
+        .chars()
+        .map(|ch| match ch {
+            'a'..='z' | 'A'..='Z' | '0'..='9' => ch,
+            _ => '_',
+        })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string();
+
+    if sanitized.is_empty() {
+        format!("psd_{:016x}", hasher.finish())
+    } else {
+        format!("{sanitized}_{:016x}", hasher.finish())
+    }
 }
