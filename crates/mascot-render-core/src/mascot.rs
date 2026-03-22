@@ -30,6 +30,7 @@ pub struct MascotConfig {
     pub zip_path: PathBuf,
     pub psd_path_in_zip: PathBuf,
     pub display_diff_path: Option<PathBuf>,
+    pub always_bouncing: bool,
     pub transparent_background_click_through: bool,
     pub flash_blue_background_on_transparent_input: bool,
     pub head_hitbox: HeadHitbox,
@@ -50,6 +51,7 @@ pub struct MascotTarget {
 #[serde(default)]
 struct MascotStaticConfigFile {
     version: u32,
+    always_bouncing: bool,
     transparent_background_click_through: bool,
     #[serde(alias = "debug_flash_blue_background_on_transparent_input")]
     flash_blue_background_on_transparent_input: bool,
@@ -63,6 +65,7 @@ impl Default for MascotStaticConfigFile {
     fn default() -> Self {
         Self {
             version: MASCOT_CONFIG_VERSION,
+            always_bouncing: false,
             transparent_background_click_through: false,
             flash_blue_background_on_transparent_input: true,
             head_hitbox: HeadHitbox::default(),
@@ -134,6 +137,7 @@ struct LegacyMascotConfigFile {
     zip_path: PathBuf,
     psd_path_in_zip: PathBuf,
     display_diff_path: Option<PathBuf>,
+    always_bouncing: bool,
     transparent_background_click_through: bool,
     #[serde(alias = "debug_flash_blue_background_on_transparent_input")]
     flash_blue_background_on_transparent_input: bool,
@@ -152,6 +156,7 @@ impl Default for LegacyMascotConfigFile {
             zip_path: PathBuf::new(),
             psd_path_in_zip: PathBuf::new(),
             display_diff_path: None,
+            always_bouncing: false,
             transparent_background_click_through: false,
             flash_blue_background_on_transparent_input: true,
             head_hitbox: HeadHitbox::default(),
@@ -202,6 +207,7 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
         zip_path: runtime_target.zip_path,
         psd_path_in_zip: runtime_target.psd_path_in_zip,
         display_diff_path: runtime_target.display_diff_path,
+        always_bouncing: static_config.always_bouncing,
         transparent_background_click_through: static_config.transparent_background_click_through,
         flash_blue_background_on_transparent_input: static_config
             .flash_blue_background_on_transparent_input,

@@ -188,6 +188,8 @@ impl MascotApp {
             window_layout: initial_window_layout,
             window_history: WindowHistoryTracker::new(history_path, saved_window_position),
         };
+        app.motion
+            .set_always_bouncing(app.config.always_bouncing, Instant::now());
         if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
             eprintln!("{error:#}");
         }
@@ -279,6 +281,8 @@ impl MascotApp {
             || self.config.psd_path_in_zip != next_config.psd_path_in_zip;
 
         self.config = next_config;
+        self.motion
+            .set_always_bouncing(self.config.always_bouncing, Instant::now());
 
         if png_changed {
             let next_png_path = self.config.png_path.clone();

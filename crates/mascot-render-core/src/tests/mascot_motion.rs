@@ -123,3 +123,45 @@ fn shake_motion_finishes_after_requested_duration() {
     assert_eq!(finished, MotionTransform::identity());
     assert!(!motion.is_active());
 }
+
+#[test]
+fn always_bouncing_restarts_squash_bounce_when_idle() {
+    let mut motion = MotionState::new();
+    let now = Instant::now();
+    let bounce = BounceAnimationConfig::default();
+    let squash_bounce = SquashBounceAnimationConfig {
+        duration_ms: 100,
+        ..SquashBounceAnimationConfig::default()
+    };
+
+    motion.set_always_bouncing(true, now);
+
+    let running = motion.sample(now + Duration::from_millis(40), bounce, squash_bounce);
+    let restarted = motion.sample(now + Duration::from_millis(100), bounce, squash_bounce);
+    let second_cycle = motion.sample(now + Duration::from_millis(140), bounce, squash_bounce);
+
+    assert!(running.scale_x > 1.0);
+    assert_eq!(restarted, MotionTransform::identity());
+    assert!(second_cycle.scale_x > 1.0);
+    assert!(motion.is_active());
+}
+
+#[test]
+fn disabling_always_bouncing_stops_idle_animation() {
+    let mut motion = MotionState::new();
+    let now = Instant::now();
+
+    motion.set_always_bouncing(true, now);
+    assert!(motion.is_active());
+
+    motion.set_always_bouncing(false, now + Duration::from_millis(10));
+
+    let transform = motion.sample(
+        now + Duration::from_millis(20),
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+    );
+
+    assert_eq!(transform, MotionTransform::identity());
+    assert!(!motion.is_active());
+}

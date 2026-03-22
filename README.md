@@ -44,6 +44,8 @@ psd-viewer-tui
 
 ## Settings
 - mascot-render-server.toml
+    - always_bouncing
+        - If set to true, it keeps a small squash/stretch breathing-like motion running continuously for UX experiments.
     - transparent_background_click_through
         - If set to true, it becomes very resource-intensive, but reduces "confusion from dragging empty space".
     - flash_blue_background_on_transparent_input

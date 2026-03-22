@@ -95,6 +95,7 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
         zip_path: PathBuf::from(zip_path),
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         display_diff_path: None,
+        always_bouncing: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,
         head_hitbox: HeadHitbox::default(),
