@@ -1,4 +1,5 @@
 pub(crate) mod eye_blink;
+mod info;
 mod layer_scroll;
 pub(crate) mod library;
 mod mascot_scale;
@@ -11,19 +12,15 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use ratatui::style::{Color, Style};
-use ratatui::text::{Line, Span};
+use ratatui::style::Color;
 
 use mascot_render_core::{
-    default_eye_blink_targets, display_path, mascot_config_path, mascot_runtime_state_path,
-    variation_png_path, variation_spec_path, Core, CoreConfig, DisplayDiff, EyeBlinkTarget,
-    PsdDocument, PsdEntry, RenderRequest, ZipEntry,
+    default_eye_blink_targets, display_path, variation_png_path, variation_spec_path, Core,
+    CoreConfig, DisplayDiff, EyeBlinkTarget, PsdDocument, PsdEntry, RenderRequest, ZipEntry,
 };
 
 use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override, LayerRow};
-use crate::tui_config::{
-    tui_config_path, tui_runtime_state_path, TuiRuntimeState, DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
-};
+use crate::tui_config::{TuiRuntimeState, DEFAULT_LAYER_SCROLL_MARGIN_RATIO};
 use crate::tui_history::{save_tui_history, TuiHistory};
 use crate::workspace_state::save_workspace_state;
 use eye_blink::EyeBlinkAnimation;
@@ -31,8 +28,8 @@ use mouth_flap::MouthFlapAnimation;
 pub(crate) use startup::{spawn_startup_loader, StartupEvent};
 use support::{current_preview_status, psd_path_in_zip};
 
-const MONOKAI_YELLOW: Color = Color::Rgb(230, 219, 116);
-const MONOKAI_PINK: Color = Color::Rgb(249, 38, 114);
+pub(crate) const MONOKAI_YELLOW: Color = Color::Rgb(230, 219, 116);
+pub(crate) const MONOKAI_PINK: Color = Color::Rgb(249, 38, 114);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FocusPane {
@@ -278,134 +275,6 @@ impl App {
             self.current_variation_spec_path.as_deref(),
         );
         Ok(true)
-    }
-
-    pub(crate) fn info_lines(&self) -> Vec<Line<'static>> {
-        let mut lines = Vec::new();
-        if let Some(zip) = self.selected_zip_entry() {
-            lines.push(Line::from(format!(
-                "Selected ZIP: {} | hash={}",
-                display_path(&zip.zip_path),
-                zip.zip_hash
-            )));
-        }
-
-        if let Some(psd) = self.selected_psd_entry() {
-            lines.push(Line::from(format!(
-                "Selected PSD: {} | {}",
-                psd.file_name, psd.metadata
-            )));
-
-            if let Some(rendered_png_path) = &psd.rendered_png_path {
-                lines.push(Line::from(format!(
-                    "Default PNG: {}",
-                    display_path(rendered_png_path)
-                )));
-            }
-
-            if let Some(error) = &psd.error {
-                lines.push(Line::from(vec![
-                    Span::styled("PSD Parse: ", Style::default().fg(MONOKAI_PINK)),
-                    Span::raw(error.clone()),
-                ]));
-            } else if let Some(warning) = psd.render_warnings.first() {
-                lines.push(Line::from(vec![
-                    Span::styled("Render Warning: ", Style::default().fg(MONOKAI_YELLOW)),
-                    Span::raw(warning.clone()),
-                ]));
-            }
-
-            if let Some(log_path) = &psd.log_path {
-                lines.push(Line::from(format!(
-                    "Failure Log: {}",
-                    display_path(log_path)
-                )));
-            }
-        }
-
-        if let Some(preview_png_path) = &self.current_preview_png_path {
-            lines.push(Line::from(format!(
-                "Preview PNG: {}",
-                display_path(preview_png_path)
-            )));
-        }
-
-        lines.push(Line::from(match self.preview_backend {
-            PreviewBackend::MascotServer => {
-                "Preview Backend: mascot-render-server window".to_string()
-            }
-            PreviewBackend::Sixel => "Preview Backend: sixel in TUI".to_string(),
-        }));
-        lines.push(Line::from(format!(
-            "Mascot Scale: {} of original | TUI TOML: {}",
-            self.mascot_scale
-                .map(|scale| format!("{:.1}%", scale * 100.0))
-                .unwrap_or_else(|| "auto".to_string()),
-            display_path(&tui_config_path())
-        )));
-        lines.push(Line::from(format!(
-            "TUI Runtime State: {}",
-            display_path(&tui_runtime_state_path(&tui_config_path()))
-        )));
-
-        if let Some(variation_spec_path) = &self.current_variation_spec_path {
-            lines.push(Line::from(format!(
-                "Variation JSON: {}",
-                display_path(variation_spec_path)
-            )));
-        }
-
-        if let Some(node) = self.selected_layer_row() {
-            lines.push(Line::from(format!(
-                "Selected Node: {}",
-                node.display_label().trim_start()
-            )));
-        }
-
-        lines.push(Line::from(format!(
-            "Mascot Render Server TOML: {}",
-            display_path(&mascot_config_path())
-        )));
-        lines.push(Line::from(format!(
-            "Mascot Runtime State: {}",
-            display_path(&mascot_runtime_state_path(&mascot_config_path()))
-        )));
-
-        lines
-    }
-
-    pub(crate) fn log_lines(&self) -> Vec<Line<'static>> {
-        vec![Line::from(vec![
-            Span::styled("Message: ", Style::default().fg(MONOKAI_YELLOW)),
-            Span::raw(self.status.clone()),
-        ])]
-    }
-
-    pub(crate) fn help_line(&self) -> Line<'static> {
-        let help_action = if self.help_overlay_visible {
-            "close help"
-        } else {
-            "help"
-        };
-        Line::from(format!(
-            "q: quit | ?: {help_action} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space: toggle | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
-        ))
-    }
-
-    pub(crate) fn help_overlay_lines(&self) -> Vec<Line<'static>> {
-        vec![
-            Line::from("Press ? to close help."),
-            Line::from(""),
-            Line::from("q: quit"),
-            Line::from("j/k or Up/Down: move selection"),
-            Line::from("h/l or Left/Right: switch pane"),
-            Line::from("PageUp/PageDown: page scroll"),
-            Line::from("Space: toggle selected layer"),
-            Line::from("-/+: mascot scale"),
-            Line::from("t: mouth flap preview"),
-            Line::from("m: eye blink preview"),
-            Line::from("s: shake mascot"),
-        ]
     }
 
     fn save_selection(&self) -> Result<()> {
