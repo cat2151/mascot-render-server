@@ -22,6 +22,12 @@ timeout /t 3 /nobreak >nul\r\n\
 taskkill /F /IM {server} >nul 2>nul\r\n\
 taskkill /F /IM {tui} >nul 2>nul\r\n\
 {cmd}\r\n\
+if %ERRORLEVEL% neq 0 (\r\n\
+  echo Update failed with error %ERRORLEVEL%.\r\n\
+  echo The update script will not be deleted so you can inspect or rerun it.\r\n\
+  pause\r\n\
+  exit /b %ERRORLEVEL%\r\n\
+)\r\n\
 del \"%~f0\"\r\n",
         server = UPDATE_EXECUTABLES[0],
         tui = UPDATE_EXECUTABLES[1],

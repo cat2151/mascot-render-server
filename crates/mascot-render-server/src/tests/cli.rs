@@ -9,6 +9,8 @@ use crate::cli::{help_text, parse_cli, CliAction};
 fn help_text_lists_local_data_defaults() {
     let help = help_text();
 
+    assert!(help.contains("Commands:\n  update"));
+    assert!(help.contains("Options:\n  --config <path>"));
     assert!(help.contains(&local_data_root().display().to_string()));
     assert!(help.contains(&workspace_cache_root().display().to_string()));
     assert!(help.contains(&mascot_config_path().display().to_string()));

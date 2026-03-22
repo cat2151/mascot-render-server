@@ -15,5 +15,8 @@ fn windows_update_bat_stops_both_binaries_and_reinstalls_workspace() {
     assert!(bat.contains("taskkill /F /IM mascot-render-server.exe >nul 2>nul"));
     assert!(bat.contains("taskkill /F /IM psd-viewer-tui.exe >nul 2>nul"));
     assert!(bat.contains(&workspace_install_command()));
+    assert!(bat.contains("if %ERRORLEVEL% neq 0 ("));
+    assert!(bat.contains("The update script will not be deleted so you can inspect or rerun it."));
+    assert!(bat.contains("pause"));
     assert!(bat.contains("del \"%~f0\""));
 }

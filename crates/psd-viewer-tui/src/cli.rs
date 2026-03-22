@@ -16,13 +16,16 @@ pub(crate) fn parse_cli(args: impl IntoIterator<Item = OsString>) -> Result<CliA
     let mut args = args.into_iter();
     let _program = args.next();
 
-    if let Some(arg) = args.next() {
-        if arg == "--help" || arg == "-h" {
+    match args.next() {
+        None => return Ok(CliAction::Run),
+        Some(arg) if arg == "--help" || arg == "-h" => {
             return Ok(CliAction::PrintHelp(help_text()));
         }
-
-        if arg == "update" {
+        Some(arg) if arg == "update" => {
             if let Some(next) = args.next() {
+                if next == "--help" || next == "-h" {
+                    return Ok(CliAction::PrintHelp(help_text()));
+                }
                 bail!(
                     "unsupported argument '{}' after 'update'; run with --help for usage",
                     next.to_string_lossy()
@@ -30,21 +33,19 @@ pub(crate) fn parse_cli(args: impl IntoIterator<Item = OsString>) -> Result<CliA
             }
             return Ok(CliAction::Update);
         }
-
-        if arg.to_string_lossy().starts_with('-') {
+        Some(arg) if arg.to_string_lossy().starts_with('-') => {
             bail!(
                 "unsupported argument '{}'; run with --help for usage",
                 arg.to_string_lossy()
             );
         }
-
-        bail!(
-            "unsupported positional argument '{}'; run with --help for usage",
-            arg.to_string_lossy()
-        );
+        Some(arg) => {
+            bail!(
+                "unsupported positional argument '{}'; run with --help for usage",
+                arg.to_string_lossy()
+            );
+        }
     }
-
-    Ok(CliAction::Run)
 }
 
 pub(crate) fn help_text() -> String {
@@ -60,8 +61,10 @@ Usage:
   psd-viewer-tui
   psd-viewer-tui update
 
-Options:
+Commands:
   update          Stop running binaries and reinstall both binaries.
+
+Options:
   -h, --help      Show this help.
 
 Default local data directory:

@@ -48,9 +48,11 @@ Usage:
   mascot-render-server [--config <path>]
   mascot-render-server update
 
+Commands:
+  update           Stop running binaries and reinstall both binaries.
+
 Options:
   --config <path>  Use a custom mascot static config TOML.
-  update           Stop running binaries and reinstall both binaries.
   -h, --help       Show this help.
 
 Default local data directory:
