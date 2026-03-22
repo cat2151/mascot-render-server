@@ -63,7 +63,7 @@ psd-viewer-tui
 
 ## vendor/ について
 
-`vendor/rawpsd` は `rawpsd` ライブラリの不具合に対して、AI 支援で修正を入れた vendored copy です。
+`vendor/rawpsd` は [rawpsd](https://github.com/wareya/rawpsd-rs) ライブラリの不具合に対して、AI 支援で修正を入れた vendored copy です。
 
 ## 前提
 - 自分用のアプリですので、他の人が使うことを想定していません。似たような機能がほしいときはcloneや自作をおすすめします。
