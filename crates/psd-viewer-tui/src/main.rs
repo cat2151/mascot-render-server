@@ -23,6 +23,9 @@ mod eye_blink_tests;
 #[path = "tests/help_overlay.rs"]
 mod help_overlay_tests;
 #[cfg(test)]
+#[path = "tests/keybindings.rs"]
+mod keybindings_tests;
+#[cfg(test)]
 #[path = "tests/library.rs"]
 mod library_tests;
 #[cfg(test)]
@@ -193,7 +196,7 @@ fn run_app(
                     KeyCode::Right | KeyCode::Char('l') if key.modifiers == KeyModifiers::NONE => {
                         app.move_focus_right();
                     }
-                    KeyCode::Char(' ') if key.modifiers == KeyModifiers::NONE => {
+                    code if is_layer_toggle_key(code, key.modifiers) => {
                         let predicted_preview_path =
                             app.predicted_preview_png_path_for_selected_toggle();
                         if let Some(predicted_preview_path) = predicted_preview_path {
@@ -362,6 +365,10 @@ fn current_activity_message(
 
 fn page_step_for_terminal(height: u16) -> usize {
     usize::from(height.saturating_sub(14).max(1))
+}
+
+fn is_layer_toggle_key(code: KeyCode, modifiers: KeyModifiers) -> bool {
+    modifiers == KeyModifiers::NONE && matches!(code, KeyCode::Char(' ') | KeyCode::Enter)
 }
 
 fn detect_screen_height_px() -> Option<u16> {

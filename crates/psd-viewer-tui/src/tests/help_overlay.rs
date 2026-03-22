@@ -10,6 +10,10 @@ fn footer_help_line_lists_quit_before_help() {
         line_text(app.help_line()).starts_with("q: quit | ?: help |"),
         "footer should list quit before help"
     );
+    assert!(
+        line_text(app.help_line()).contains("Space/Enter: toggle"),
+        "footer should advertise both layer toggle keys"
+    );
 }
 
 #[test]
@@ -37,7 +41,7 @@ fn help_overlay_lines_include_close_hint_and_layer_toggle() {
 
     assert_eq!(lines[0], "Press ? to close help.");
     assert!(
-        lines.contains(&"Space: toggle selected layer".to_string()),
+        lines.contains(&"Space/Enter: toggle selected layer".to_string()),
         "help overlay should describe layer toggling"
     );
 }
