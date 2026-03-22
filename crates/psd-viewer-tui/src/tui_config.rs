@@ -290,7 +290,7 @@ fn sanitize_psd_states(states: Vec<PsdRuntimeState>) -> Vec<PsdRuntimeState> {
             let zip_path = state.zip_path;
             let psd_path_in_zip = state.psd_path_in_zip;
             let mascot_scale = sanitize_scale(state.mascot_scale);
-            if zip_path.as_os_str().is_empty() || psd_path_in_zip.as_os_str().is_empty() {
+            if !has_meaningful_path(&zip_path) || !has_meaningful_path(&psd_path_in_zip) {
                 return None;
             }
             mascot_scale.map(|mascot_scale| PsdRuntimeState {
@@ -354,6 +354,10 @@ fn unix_timestamp() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_secs())
         .unwrap_or_default()
+}
+
+fn has_meaningful_path(path: &Path) -> bool {
+    path.components().next().is_some() && !path.to_string_lossy().trim().is_empty()
 }
 
 fn sanitize_runtime_state_name(path: &Path) -> String {
