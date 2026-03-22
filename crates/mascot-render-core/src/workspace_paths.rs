@@ -47,7 +47,7 @@ pub fn workspace_relative_display_path(path: &Path) -> String {
         .replace('\\', "/")
 }
 
-pub fn relative_to_known_root<'a>(path: &'a Path) -> &'a Path {
+pub fn relative_to_known_root(path: &Path) -> &Path {
     path.strip_prefix(local_data_root())
         .or_else(|_| path.strip_prefix(workspace_root()))
         .unwrap_or(path)

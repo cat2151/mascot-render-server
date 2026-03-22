@@ -47,4 +47,3 @@ pub fn apply_motion_timeline_request(
 
     Ok(())
 }
-

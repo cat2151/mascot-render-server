@@ -94,4 +94,3 @@ pub(crate) fn selected_row_index(
         )
     })
 }
-

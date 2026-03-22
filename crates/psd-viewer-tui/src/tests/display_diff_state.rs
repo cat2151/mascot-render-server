@@ -32,9 +32,9 @@ fn toggle_layer_override_hides_group_children() {
     assert!(toggle_layer_override(&mut display_diff, &document, 0));
 
     let rows = resolve_layer_rows(&document, &display_diff);
-    assert_eq!(rows[0].visible, false);
-    assert_eq!(rows[1].visible, false);
-    assert_eq!(rows[2].visible, false);
+    assert!(!rows[0].visible);
+    assert!(!rows[1].visible);
+    assert!(!rows[2].visible);
 }
 
 #[test]
@@ -61,18 +61,9 @@ fn starred_layers_in_same_group_become_exclusive_when_enabled() {
     assert!(toggle_layer_override(&mut display_diff, &document, 2));
 
     let rows = resolve_layer_rows(&document, &display_diff);
-    assert_eq!(
-        rows[1].visible, false,
-        "other starred sibling should be hidden"
-    );
-    assert_eq!(
-        rows[2].visible, true,
-        "selected starred layer should be visible"
-    );
-    assert_eq!(
-        rows[3].visible, true,
-        "non-starred sibling should stay unchanged"
-    );
+    assert!(!rows[1].visible, "other starred sibling should be hidden");
+    assert!(rows[2].visible, "selected starred layer should be visible");
+    assert!(rows[3].visible, "non-starred sibling should stay unchanged");
 }
 
 #[test]
@@ -97,14 +88,11 @@ fn visible_starred_layer_cannot_be_hidden_directly() {
 
     assert!(!toggle_layer_override(&mut display_diff, &document, 1));
     let rows = resolve_layer_rows(&document, &display_diff);
-    assert_eq!(
-        rows[1].visible, true,
+    assert!(
+        rows[1].visible,
         "currently visible starred layer should stay visible"
     );
-    assert_eq!(
-        rows[2].visible, false,
-        "other starred layer should stay hidden"
-    );
+    assert!(!rows[2].visible, "other starred layer should stay hidden");
 }
 
 #[test]
@@ -128,10 +116,7 @@ fn mandatory_layers_stay_visible_and_cannot_be_hidden() {
 
     assert!(!toggle_layer_override(&mut display_diff, &document, 1));
     let rows = resolve_layer_rows(&document, &display_diff);
-    assert_eq!(
-        rows[1].visible, true,
-        "mandatory layer should remain visible"
-    );
+    assert!(rows[1].visible, "mandatory layer should remain visible");
     assert!(
         display_diff.visibility_overrides.is_empty(),
         "mandatory no-op should not create overrides"
@@ -164,16 +149,13 @@ fn starred_layers_do_not_hide_nested_group_variants() {
     assert!(toggle_layer_override(&mut display_diff, &document, 4));
 
     let rows = resolve_layer_rows(&document, &display_diff);
-    assert_eq!(
-        rows[1].visible, true,
+    assert!(
+        rows[1].visible,
         "outer group starred layer should not be affected"
     );
-    assert_eq!(
-        rows[3].visible, false,
-        "nested starred sibling should be hidden"
-    );
-    assert_eq!(
-        rows[4].visible, true,
+    assert!(!rows[3].visible, "nested starred sibling should be hidden");
+    assert!(
+        rows[4].visible,
         "selected nested starred layer should be visible"
     );
 }
@@ -203,14 +185,8 @@ fn starred_groups_become_exclusive_at_same_depth() {
     assert!(toggle_layer_override(&mut display_diff, &document, 3));
 
     let rows = resolve_layer_rows(&document, &display_diff);
-    assert_eq!(
-        rows[0].visible, false,
-        "other starred group should be hidden"
-    );
-    assert_eq!(
-        rows[3].visible, true,
-        "selected starred group should be visible"
-    );
+    assert!(!rows[0].visible, "other starred group should be hidden");
+    assert!(rows[3].visible, "selected starred group should be visible");
 }
 
 #[test]
@@ -238,12 +214,9 @@ fn starred_group_and_starred_layer_are_exclusive_at_same_depth() {
     assert!(toggle_layer_override(&mut display_diff, &document, 1));
 
     let rows = resolve_layer_rows(&document, &display_diff);
-    assert_eq!(
-        rows[1].visible, true,
-        "selected starred group should be visible"
-    );
-    assert_eq!(
-        rows[4].visible, false,
+    assert!(rows[1].visible, "selected starred group should be visible");
+    assert!(
+        !rows[4].visible,
         "same-depth starred layer should be hidden by starred group selection"
     );
 }
@@ -274,4 +247,3 @@ fn finds_named_exclusive_pair_in_same_scope() {
     let pair = find_named_exclusive_pair(&document, "ほあー", "むふ");
     assert_eq!(pair, Some((2, 1)));
 }
-

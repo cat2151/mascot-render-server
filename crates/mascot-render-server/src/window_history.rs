@@ -153,4 +153,3 @@ fn unix_timestamp() -> u64 {
         .map(|value| value.as_secs())
         .unwrap_or_default()
 }
-

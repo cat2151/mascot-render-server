@@ -27,4 +27,3 @@ pub(super) fn psd_path_in_zip(psd_path: &Path, extracted_dir: &Path, fallback: &
         .map(Path::to_path_buf)
         .unwrap_or_else(|_| fallback.to_path_buf())
 }
-

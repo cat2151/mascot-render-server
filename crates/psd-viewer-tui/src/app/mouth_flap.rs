@@ -31,6 +31,15 @@ struct MouthFlapFrame {
     variation_spec_path: Option<PathBuf>,
 }
 
+#[derive(Clone, Copy)]
+struct MouthFlapFrameContext<'a> {
+    zip_path: &'a Path,
+    psd_path_in_zip: &'a Path,
+    psd_entry: &'a PsdEntry,
+    document: &'a PsdDocument,
+    base_variation: &'a DisplayDiff,
+}
+
 impl App {
     pub(crate) fn start_mouth_flap_preview(&mut self) -> bool {
         let outcome = self.start_mouth_flap_preview_inner();
@@ -128,7 +137,7 @@ impl App {
             .variations
             .get(&selected_psd_path)
             .cloned()
-            .unwrap_or_else(DisplayDiff::new);
+            .unwrap_or_default();
         let (first_row_index, second_row_index) =
             find_named_exclusive_pair(document, FIRST_FRAME_NAME, SECOND_FRAME_NAME).ok_or_else(
                 || {
@@ -138,25 +147,16 @@ impl App {
                     )
                 },
             )?;
+        let frame_context = MouthFlapFrameContext {
+            zip_path: &zip_path,
+            psd_path_in_zip: &psd_path_in_zip,
+            psd_entry: &psd_entry,
+            document,
+            base_variation: &base_variation,
+        };
         let frames = [
-            self.build_mouth_flap_frame(
-                &zip_path,
-                &psd_path_in_zip,
-                &psd_entry,
-                document,
-                &base_variation,
-                first_row_index,
-                FIRST_FRAME_NAME,
-            )?,
-            self.build_mouth_flap_frame(
-                &zip_path,
-                &psd_path_in_zip,
-                &psd_entry,
-                document,
-                &base_variation,
-                second_row_index,
-                SECOND_FRAME_NAME,
-            )?,
+            self.build_mouth_flap_frame(frame_context, first_row_index, FIRST_FRAME_NAME)?,
+            self.build_mouth_flap_frame(frame_context, second_row_index, SECOND_FRAME_NAME)?,
         ];
 
         Ok(MouthFlapAnimation::new(
@@ -168,17 +168,14 @@ impl App {
 
     fn build_mouth_flap_frame(
         &self,
-        zip_path: &Path,
-        psd_path_in_zip: &Path,
-        psd_entry: &PsdEntry,
-        document: &PsdDocument,
-        base_variation: &DisplayDiff,
+        context: MouthFlapFrameContext<'_>,
         row_index: usize,
         label: &'static str,
     ) -> Result<MouthFlapFrame, String> {
-        let variation = ensure_named_row_visible(base_variation, document, row_index, label)?;
+        let variation =
+            ensure_named_row_visible(context.base_variation, context.document, row_index, label)?;
         let (preview_png_path, variation_spec_path) =
-            self.render_preview_for_spec(zip_path, psd_path_in_zip, psd_entry, &variation)?;
+            self.render_preview_for_spec(context, &variation)?;
 
         Ok(MouthFlapFrame {
             label,
@@ -189,24 +186,22 @@ impl App {
 
     fn render_preview_for_spec(
         &self,
-        zip_path: &Path,
-        psd_path_in_zip: &Path,
-        psd_entry: &PsdEntry,
+        context: MouthFlapFrameContext<'_>,
         display_diff: &DisplayDiff,
     ) -> Result<(PathBuf, Option<PathBuf>), String> {
         if display_diff.is_default() {
-            let preview_png_path = psd_entry
-                .rendered_png_path
-                .clone()
-                .ok_or_else(|| format!("default PNG is missing for {}", psd_entry.file_name))?;
+            let preview_png_path =
+                context.psd_entry.rendered_png_path.clone().ok_or_else(|| {
+                    format!("default PNG is missing for {}", context.psd_entry.file_name)
+                })?;
             return Ok((preview_png_path, None));
         }
 
         let rendered = self
             .core
             .render_png(RenderRequest {
-                zip_path: zip_path.to_path_buf(),
-                psd_path_in_zip: psd_path_in_zip.to_path_buf(),
+                zip_path: context.zip_path.to_path_buf(),
+                psd_path_in_zip: context.psd_path_in_zip.to_path_buf(),
                 display_diff: display_diff.clone(),
             })
             .map_err(|error| error.to_string())?;
@@ -334,4 +329,3 @@ impl MouthFlapAnimation {
         self.is_finished(now)
     }
 }
-

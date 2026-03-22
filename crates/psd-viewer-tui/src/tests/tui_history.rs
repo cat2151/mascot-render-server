@@ -36,4 +36,3 @@ fn invalid_tui_history_falls_back_to_default() {
     let loaded = load_tui_history(&cache_root).expect("invalid history should fall back");
     assert_eq!(loaded, TuiHistory::default());
 }
-

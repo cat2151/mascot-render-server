@@ -135,4 +135,3 @@ fn wait_for_notify(notified: &AtomicUsize) {
 
     panic!("mascot control server did not notify ui");
 }
-

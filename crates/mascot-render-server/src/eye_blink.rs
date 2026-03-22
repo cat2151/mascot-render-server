@@ -126,7 +126,7 @@ fn load_current_display_diff(config: &MascotConfig) -> DisplayDiff {
         .display_diff_path
         .as_deref()
         .and_then(|path| load_variation_spec(path, &config.zip_path, &config.psd_path_in_zip))
-        .unwrap_or_else(DisplayDiff::new)
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -144,4 +144,3 @@ impl EyeBlinkLoop {
         self.current_deadline()
     }
 }
-

@@ -251,4 +251,3 @@ fn content_rect(image_rect: Rect, image_size: [u32; 2], content_bounds: AlphaBou
     );
     Rect::from_min_max(min, max)
 }
-

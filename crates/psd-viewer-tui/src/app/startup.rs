@@ -19,6 +19,15 @@ pub(crate) enum StartupEvent {
     Ready(Result<App>),
 }
 
+struct LoadedEntriesContext {
+    restored_state: WorkspaceState,
+    tui_config: crate::tui_config::TuiConfig,
+    tui_runtime_state: TuiRuntimeState,
+    screen_height_px: Option<u16>,
+    startup_notice: Option<String>,
+    status: String,
+}
+
 pub(crate) fn spawn_startup_loader(screen_height_px: Option<u16>) -> Receiver<StartupEvent> {
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
@@ -84,12 +93,16 @@ impl App {
             let snapshot = Self::from_loaded_entries(
                 core.clone(),
                 cached_zip_entries,
-                restored_state.clone(),
-                tui_config.clone(),
-                tui_runtime_state.clone(),
-                screen_height_px,
-                Some("Validating ZIP/PSD cache against source ZIPs in background...".to_string()),
-                snapshot_status,
+                LoadedEntriesContext {
+                    restored_state: restored_state.clone(),
+                    tui_config: tui_config.clone(),
+                    tui_runtime_state: tui_runtime_state.clone(),
+                    screen_height_px,
+                    startup_notice: Some(
+                        "Validating ZIP/PSD cache against source ZIPs in background...".to_string(),
+                    ),
+                    status: snapshot_status,
+                },
             )?;
             snapshot_ready(snapshot);
             progress("Cached ZIP/PSD snapshot is ready. Validating source ZIPs...".to_string());
@@ -115,12 +128,14 @@ impl App {
         Self::from_loaded_entries(
             core,
             zip_entries,
-            restored_state,
-            tui_config,
-            tui_runtime_state,
-            screen_height_px,
-            None,
-            ready_status,
+            LoadedEntriesContext {
+                restored_state,
+                tui_config,
+                tui_runtime_state,
+                screen_height_px,
+                startup_notice: None,
+                status: ready_status,
+            },
         )
     }
 
@@ -154,13 +169,16 @@ impl App {
     fn from_loaded_entries(
         core: Core,
         zip_entries: Vec<mascot_render_core::ZipEntry>,
-        restored_state: WorkspaceState,
-        tui_config: crate::tui_config::TuiConfig,
-        tui_runtime_state: TuiRuntimeState,
-        screen_height_px: Option<u16>,
-        startup_notice: Option<String>,
-        status: String,
+        context: LoadedEntriesContext,
     ) -> Result<Self> {
+        let LoadedEntriesContext {
+            restored_state,
+            tui_config,
+            tui_runtime_state,
+            screen_height_px,
+            startup_notice,
+            status,
+        } = context;
         let startup_loading = startup_notice.is_some();
         let mut app = Self {
             status,
@@ -218,4 +236,3 @@ mod tests {
         assert_eq!(loaded.selected_layer_index, 7);
     }
 }
-

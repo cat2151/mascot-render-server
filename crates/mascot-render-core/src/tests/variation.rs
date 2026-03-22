@@ -3,8 +3,8 @@ use std::path::PathBuf;
 
 use crate::{
     load_variation_spec, save_variation_spec, variation_hash, variation_png_path,
-    variation_render_meta_path, variation_spec_path, DisplayDiff, LayerVisibilityOverride,
-    workspace_cache_root, workspace_path,
+    variation_render_meta_path, variation_spec_path, workspace_cache_root, workspace_path,
+    DisplayDiff, LayerVisibilityOverride,
 };
 
 #[test]

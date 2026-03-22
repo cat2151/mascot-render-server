@@ -298,4 +298,3 @@ mod tests {
         assert_eq!(app.selected_layer_index, 5);
     }
 }
-

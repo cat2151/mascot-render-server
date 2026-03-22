@@ -78,4 +78,3 @@ fn sample_psd(path: &str, file_name: &str) -> PsdEntry {
         ..PsdEntry::default()
     }
 }
-

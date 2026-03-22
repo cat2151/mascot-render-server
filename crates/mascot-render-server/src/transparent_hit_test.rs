@@ -9,9 +9,22 @@ use eframe::egui::{Pos2, Rect};
 use eframe::CreationContext;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
 const HIT_TEST_ALPHA_THRESHOLD: u8 = 8;
 #[cfg(target_os = "windows")]
 const TRANSPARENT_INPUT_DEBUG_FLASH_DURATION: Duration = Duration::from_secs(1);
+
+#[derive(Debug, Clone)]
+pub struct TransparentHitTestUpdate {
+    pub now: Instant,
+    pub enabled: bool,
+    pub debug_flash_enabled: bool,
+    pub alpha_mask: Arc<[u8]>,
+    pub image_size: [u32; 2],
+    pub image_rect: Rect,
+    pub pixels_per_point: f32,
+}
+
 pub struct TransparentHitTestWindow {
     #[cfg(target_os = "windows")]
     inner: Option<WindowsTransparentHitTestWindow>,
@@ -28,7 +41,7 @@ impl TransparentHitTestWindow {
         {
             let hwnd = hwnd_from_creation_context(cc)?;
             let inner = WindowsTransparentHitTestWindow::install(hwnd, cc.egui_ctx.clone())?;
-            return Ok(Self { inner: Some(inner) });
+            Ok(Self { inner: Some(inner) })
         }
         #[cfg(not(target_os = "windows"))]
         {
@@ -36,48 +49,22 @@ impl TransparentHitTestWindow {
             Ok(Self::disabled())
         }
     }
-    pub fn update(
-        &mut self,
-        now: Instant,
-        enabled: bool,
-        debug_flash_enabled: bool,
-        alpha_mask: Arc<[u8]>,
-        image_size: [u32; 2],
-        image_rect: Rect,
-        pixels_per_point: f32,
-    ) {
+    pub fn update(&mut self, update: TransparentHitTestUpdate) {
         #[cfg(target_os = "windows")]
         if let Some(inner) = &mut self.inner {
-            inner.update(
-                now,
-                enabled,
-                debug_flash_enabled,
-                alpha_mask,
-                image_size,
-                image_rect,
-                pixels_per_point,
-            );
+            inner.update(update);
         }
         #[cfg(not(target_os = "windows"))]
         {
-            let _ = (
-                now,
-                enabled,
-                debug_flash_enabled,
-                alpha_mask,
-                image_size,
-                image_rect,
-                pixels_per_point,
-            );
+            let _ = update;
         }
     }
     pub fn transparent_input_visual_remaining(&self, now: Instant) -> Option<Duration> {
         #[cfg(target_os = "windows")]
         {
-            return self
-                .inner
+            self.inner
                 .as_ref()
-                .and_then(|inner| inner.transparent_input_visual_remaining(now));
+                .and_then(|inner| inner.transparent_input_visual_remaining(now))
         }
         #[cfg(not(target_os = "windows"))]
         {
@@ -139,16 +126,16 @@ impl WindowsTransparentHitTestWindow {
         }
         Ok(Self { hwnd, state })
     }
-    fn update(
-        &mut self,
-        now: Instant,
-        enabled: bool,
-        debug_flash_enabled: bool,
-        alpha_mask: Arc<[u8]>,
-        image_size: [u32; 2],
-        image_rect: Rect,
-        pixels_per_point: f32,
-    ) {
+    fn update(&mut self, update: TransparentHitTestUpdate) {
+        let TransparentHitTestUpdate {
+            now,
+            enabled,
+            debug_flash_enabled,
+            alpha_mask,
+            image_size,
+            image_rect,
+            pixels_per_point,
+        } = update;
         unsafe {
             let state = self.state.as_mut();
             state.enabled = enabled;

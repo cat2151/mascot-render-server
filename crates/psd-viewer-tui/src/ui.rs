@@ -421,4 +421,3 @@ fn apply_dim(style: Style, focused: bool) -> Style {
         style.add_modifier(Modifier::DIM)
     }
 }
-

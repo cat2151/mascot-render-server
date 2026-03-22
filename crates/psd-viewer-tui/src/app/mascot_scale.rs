@@ -111,4 +111,3 @@ fn legacy_scale_from_image_height(width: u32, height: u32) -> f32 {
     let [_, scaled_height] = mascot_window_size(width, height, None);
     scaled_height / height.max(1) as f32
 }
-

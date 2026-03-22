@@ -31,6 +31,15 @@ struct EyeBlinkFrame {
     variation_spec_path: Option<PathBuf>,
 }
 
+#[derive(Clone, Copy)]
+struct EyeBlinkFrameContext<'a> {
+    zip_path: &'a Path,
+    psd_path_in_zip: &'a Path,
+    psd_entry: &'a PsdEntry,
+    document: &'a PsdDocument,
+    base_variation: &'a DisplayDiff,
+}
+
 impl App {
     pub(crate) fn clear_preview_animations(&mut self) {
         self.eye_blink = None;
@@ -131,24 +140,23 @@ impl App {
             .variations
             .get(&selected_psd_path)
             .cloned()
-            .unwrap_or_else(DisplayDiff::new);
+            .unwrap_or_default();
         let resolved = resolve_eye_blink_rows(document, &base_variation, &target)?;
+        let frame_context = EyeBlinkFrameContext {
+            zip_path: &zip_path,
+            psd_path_in_zip: &psd_path_in_zip,
+            psd_entry: &psd_entry,
+            document,
+            base_variation: &base_variation,
+        };
         let frames = [
             self.build_eye_blink_frame(
-                &zip_path,
-                &psd_path_in_zip,
-                &psd_entry,
-                document,
-                &base_variation,
+                frame_context,
                 resolved.open_row_index,
                 &resolved.open_label,
             )?,
             self.build_eye_blink_frame(
-                &zip_path,
-                &psd_path_in_zip,
-                &psd_entry,
-                document,
-                &base_variation,
+                frame_context,
                 resolved.closed_row_index,
                 &resolved.closed_label,
             )?,
@@ -166,21 +174,14 @@ impl App {
 
     fn build_eye_blink_frame(
         &self,
-        zip_path: &Path,
-        psd_path_in_zip: &Path,
-        psd_entry: &PsdEntry,
-        document: &PsdDocument,
-        base_variation: &DisplayDiff,
+        context: EyeBlinkFrameContext<'_>,
         row_index: usize,
         label: &str,
     ) -> Result<EyeBlinkFrame, String> {
-        let variation = ensure_named_row_visible(base_variation, document, row_index, label)?;
-        let (preview_png_path, variation_spec_path) = self.render_eye_blink_preview_for_spec(
-            zip_path,
-            psd_path_in_zip,
-            psd_entry,
-            &variation,
-        )?;
+        let variation =
+            ensure_named_row_visible(context.base_variation, context.document, row_index, label)?;
+        let (preview_png_path, variation_spec_path) =
+            self.render_eye_blink_preview_for_spec(context, &variation)?;
 
         Ok(EyeBlinkFrame {
             label: label.to_string(),
@@ -191,24 +192,22 @@ impl App {
 
     fn render_eye_blink_preview_for_spec(
         &self,
-        zip_path: &Path,
-        psd_path_in_zip: &Path,
-        psd_entry: &PsdEntry,
+        context: EyeBlinkFrameContext<'_>,
         display_diff: &DisplayDiff,
     ) -> Result<(PathBuf, Option<PathBuf>), String> {
         if display_diff.is_default() {
-            let preview_png_path = psd_entry
-                .rendered_png_path
-                .clone()
-                .ok_or_else(|| format!("default PNG is missing for {}", psd_entry.file_name))?;
+            let preview_png_path =
+                context.psd_entry.rendered_png_path.clone().ok_or_else(|| {
+                    format!("default PNG is missing for {}", context.psd_entry.file_name)
+                })?;
             return Ok((preview_png_path, None));
         }
 
         let rendered = self
             .core
             .render_png(RenderRequest {
-                zip_path: zip_path.to_path_buf(),
-                psd_path_in_zip: psd_path_in_zip.to_path_buf(),
+                zip_path: context.zip_path.to_path_buf(),
+                psd_path_in_zip: context.psd_path_in_zip.to_path_buf(),
                 display_diff: display_diff.clone(),
             })
             .map_err(|error| error.to_string())?;
@@ -299,4 +298,3 @@ impl EyeBlinkAnimation {
             .min(default_timeout)
     }
 }
-

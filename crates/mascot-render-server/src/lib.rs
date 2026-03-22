@@ -21,6 +21,7 @@ pub use mascot_control::{
 pub use mascot_skin_cache::MascotSkinCache;
 pub use motion_timeline::{apply_motion_timeline_request, validate_motion_timeline_request};
 pub use transparent_hit_test::captures_logical_point;
+pub use transparent_hit_test::TransparentHitTestUpdate;
 pub use transparent_hit_test::TransparentHitTestWindow;
 pub use window_layout::{
     alpha_bounds_from_mask, anchored_inner_origin, transformed_image_rect, AlphaBounds,

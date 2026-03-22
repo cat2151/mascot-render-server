@@ -269,4 +269,3 @@ pub(crate) fn descriptor(
         depth,
     }
 }
-

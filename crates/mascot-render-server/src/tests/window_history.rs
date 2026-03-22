@@ -58,4 +58,3 @@ fn tracker_saves_after_position_stabilizes() {
     let loaded = load_window_position(&path).expect("should read saved history");
     assert_eq!(loaded, Some(Pos2::new(20.0, 30.0)));
 }
-

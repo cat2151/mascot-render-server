@@ -15,7 +15,7 @@ pub(crate) fn parse_cli(args: impl IntoIterator<Item = OsString>) -> Result<CliA
     let mut args = args.into_iter();
     let _program = args.next();
 
-    for arg in args {
+    if let Some(arg) = args.next() {
         if arg == "--help" || arg == "-h" {
             return Ok(CliAction::PrintHelp(help_text()));
         }

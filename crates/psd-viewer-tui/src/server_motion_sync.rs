@@ -3,8 +3,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use mascot_render_client::{MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep};
-use mascot_render_server::play_mascot_render_server_timeline;
 use mascot_render_core::mascot_config_path;
+use mascot_render_server::play_mascot_render_server_timeline;
 
 const SERVER_MOTION_ACTIVITY_MESSAGE: &str = "Sending mascot shake timeline...";
 const SERVER_MOTION_ACTIVITY_MIN_VISIBLE: Duration = Duration::from_millis(250);
@@ -88,4 +88,3 @@ fn shake_timeline_request() -> MotionTimelineRequest {
         }],
     }
 }
-

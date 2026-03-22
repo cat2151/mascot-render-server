@@ -29,4 +29,3 @@ fn eye_blink_target_lookup_returns_none_for_unknown_psd() {
 
     assert!(find_eye_blink_target(&targets, "missing.psd").is_none());
 }
-

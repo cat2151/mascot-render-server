@@ -38,7 +38,9 @@ fn find_workspace_root(start: &Path) -> Option<PathBuf> {
         .ancestors()
         .find(|candidate| {
             candidate.join("Cargo.toml").is_file()
-                && candidate.join("crates/tui-sixel-preview/Cargo.toml").is_file()
+                && candidate
+                    .join("crates/tui-sixel-preview/Cargo.toml")
+                    .is_file()
         })
         .map(Path::to_path_buf)
 }

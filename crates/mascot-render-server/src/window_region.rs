@@ -126,7 +126,7 @@ impl WindowRegionCache {
 
 #[cfg(target_os = "windows")]
 pub(crate) fn apply_click_through_window_region(hwnd: HWND, rects: &[PhysicalRect]) -> Result<()> {
-    let region = create_region_from_rects(&rects)?;
+    let region = create_region_from_rects(rects)?;
     let applied = unsafe { SetWindowRgn(hwnd, region, 1) };
     if applied == 0 {
         unsafe {
@@ -200,34 +200,30 @@ pub(crate) fn build_opaque_region_rects(
             }
 
             if let Some(start_x) = run_start.take() {
-                merge_or_insert_opaque_rect(
-                    &mut rects,
-                    &mut active_rects,
-                    &mut next_active_rects,
-                    start_x,
-                    x as u32,
-                    width,
-                    left,
-                    width_phys,
-                    top_px,
-                    bottom_px,
-                );
+                if let Some(rect) = opaque_run_rect(
+                    start_x, x as u32, width, left, width_phys, top_px, bottom_px,
+                ) {
+                    merge_or_insert_opaque_rect(
+                        &mut rects,
+                        &mut active_rects,
+                        &mut next_active_rects,
+                        rect,
+                    );
+                }
             }
         }
 
         if let Some(start_x) = run_start {
-            merge_or_insert_opaque_rect(
-                &mut rects,
-                &mut active_rects,
-                &mut next_active_rects,
-                start_x,
-                width,
-                width,
-                left,
-                width_phys,
-                top_px,
-                bottom_px,
-            );
+            if let Some(rect) =
+                opaque_run_rect(start_x, width, width, left, width_phys, top_px, bottom_px)
+            {
+                merge_or_insert_opaque_rect(
+                    &mut rects,
+                    &mut active_rects,
+                    &mut next_active_rects,
+                    rect,
+                );
+            }
         }
 
         rects.extend(active_rects.into_values());
@@ -272,6 +268,24 @@ fn merge_or_insert_opaque_rect(
     rects: &mut Vec<PhysicalRect>,
     active_rects: &mut HashMap<(i32, i32), PhysicalRect>,
     next_active_rects: &mut HashMap<(i32, i32), PhysicalRect>,
+    rect: PhysicalRect,
+) {
+    let key = (rect.left, rect.right);
+    if let Some(mut active_rect) = active_rects.remove(&key) {
+        if active_rect.bottom == rect.top {
+            active_rect.bottom = rect.bottom;
+            next_active_rects.insert(key, active_rect);
+            return;
+        }
+        rects.push(active_rect);
+        next_active_rects.insert(key, rect);
+        return;
+    }
+    next_active_rects.insert(key, rect);
+}
+
+#[cfg(target_os = "windows")]
+fn opaque_run_rect(
     start_x: u32,
     end_x: u32,
     width: u32,
@@ -279,29 +293,15 @@ fn merge_or_insert_opaque_rect(
     width_phys: f32,
     top_px: i32,
     bottom_px: i32,
-) {
+) -> Option<PhysicalRect> {
     let left_px = physical_axis_boundary(left, width_phys, start_x, width);
     let right_px = physical_axis_boundary(left, width_phys, end_x, width);
-    if left_px < right_px {
-        let key = (left_px, right_px);
-        let rect = PhysicalRect {
-            left: left_px,
-            top: top_px,
-            right: right_px,
-            bottom: bottom_px,
-        };
-        if let Some(mut active_rect) = active_rects.remove(&key) {
-            if active_rect.bottom == top_px {
-                active_rect.bottom = bottom_px;
-                next_active_rects.insert(key, active_rect);
-                return;
-            }
-            rects.push(active_rect);
-            next_active_rects.insert(key, rect);
-            return;
-        }
-        next_active_rects.insert(key, rect);
-    }
+    (left_px < right_px).then_some(PhysicalRect {
+        left: left_px,
+        top: top_px,
+        right: right_px,
+        bottom: bottom_px,
+    })
 }
 
 #[cfg(target_os = "windows")]

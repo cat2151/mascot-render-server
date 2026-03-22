@@ -202,7 +202,7 @@ impl App {
             .variations
             .get(&selected_psd_path)
             .cloned()
-            .unwrap_or_else(DisplayDiff::new);
+            .unwrap_or_default();
         if !toggle_layer_override(&mut variation, document, row_index) {
             return None;
         }
@@ -258,7 +258,7 @@ impl App {
         let variation = self
             .variations
             .entry(selected_psd_path.clone())
-            .or_insert_with(DisplayDiff::new);
+            .or_default();
         if !toggle_layer_override(variation, &document, row_index) {
             return Ok(false);
         }
@@ -452,11 +452,7 @@ impl App {
         let psd_path = psd_entry.path.clone();
         let psd_path_in_zip = psd_path_in_zip(&psd_path, &extracted_dir, &psd_path);
         let document = psd_entry.to_document(&zip_path, &psd_path_in_zip);
-        let variation = self
-            .variations
-            .entry(psd_path.clone())
-            .or_insert_with(DisplayDiff::new)
-            .clone();
+        let variation = self.variations.entry(psd_path.clone()).or_default().clone();
 
         self.layer_rows = resolve_layer_rows(&document, &variation);
         self.current_psd_document = Some(document);
@@ -473,11 +469,7 @@ impl App {
         psd_path_in_zip: &Path,
         psd_entry: &PsdEntry,
     ) -> Result<()> {
-        let variation = self
-            .variations
-            .get(psd_path)
-            .cloned()
-            .unwrap_or_else(DisplayDiff::new);
+        let variation = self.variations.get(psd_path).cloned().unwrap_or_default();
         if variation.is_default() {
             self.current_preview_png_path = psd_entry.rendered_png_path.clone();
             self.current_variation_spec_path = None;
@@ -494,4 +486,3 @@ impl App {
         Ok(())
     }
 }
-

@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use eframe::egui::{self, ColorImage, TextureHandle, TextureOptions, Vec2};
-use mascot_render_server::{alpha_bounds_from_mask, AlphaBounds};
 use mascot_render_core::{mascot_window_size, MascotConfig, MascotImageData};
+use mascot_render_server::{alpha_bounds_from_mask, AlphaBounds};
 
 const CONTENT_BOUNDS_ALPHA_THRESHOLD: u8 = 1;
 
@@ -74,4 +74,3 @@ pub(crate) fn content_bounds(image_size: [u32; 2], alpha_mask: &[u8]) -> AlphaBo
         },
     )
 }
-

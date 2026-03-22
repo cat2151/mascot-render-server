@@ -128,4 +128,3 @@ fn anchored_inner_origin_preserves_canvas_coordinates_across_layouts() {
     let next_canvas_origin = next_origin + next_layout.canvas_origin_offset(Vec2::new(100.0, 80.0));
     assert_eq!(previous_canvas_origin, next_canvas_origin);
 }
-

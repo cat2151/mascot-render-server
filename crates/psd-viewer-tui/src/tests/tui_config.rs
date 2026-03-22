@@ -222,4 +222,3 @@ second_layer_name = "closed"
         "runtime state should be persisted"
     );
 }
-

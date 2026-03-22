@@ -23,7 +23,7 @@ use eframe::{App, CreationContext, NativeOptions};
 use mascot_render_server::{
     anchored_inner_origin, apply_motion_timeline_request, captures_logical_point,
     start_mascot_control_server_with_notify, AlphaBounds, MascotControlCommand, MascotSkinCache,
-    MascotWindowLayout, TransparentHitTestWindow,
+    MascotWindowLayout, TransparentHitTestUpdate, TransparentHitTestWindow,
 };
 use window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
@@ -187,16 +187,17 @@ impl MascotApp {
             eprintln!("{error:#}");
         }
         app.refresh_window_layout(&cc.egui_ctx, app.window_layout, app.base_size);
-        app.transparent_hit_test.update(
-            Instant::now(),
-            app.config.transparent_background_click_through,
-            app.config.flash_blue_background_on_transparent_input,
-            Arc::clone(&app.open_skin.alpha_mask),
-            app.open_skin.image_size,
-            app.window_layout
+        app.transparent_hit_test.update(TransparentHitTestUpdate {
+            now: Instant::now(),
+            enabled: app.config.transparent_background_click_through,
+            debug_flash_enabled: app.config.flash_blue_background_on_transparent_input,
+            alpha_mask: Arc::clone(&app.open_skin.alpha_mask),
+            image_size: app.open_skin.image_size,
+            image_rect: app
+                .window_layout
                 .image_rect(app.base_size, MotionTransform::identity()),
-            cc.egui_ctx.pixels_per_point(),
-        );
+            pixels_per_point: cc.egui_ctx.pixels_per_point(),
+        });
         app
     }
 
@@ -416,15 +417,15 @@ impl App for MascotApp {
             &self.open_skin
         };
         let texture_id = active_skin.texture.id();
-        self.transparent_hit_test.update(
+        self.transparent_hit_test.update(TransparentHitTestUpdate {
             now,
-            self.config.transparent_background_click_through,
-            self.config.flash_blue_background_on_transparent_input,
-            Arc::clone(&active_skin.alpha_mask),
-            active_skin.image_size,
+            enabled: self.config.transparent_background_click_through,
+            debug_flash_enabled: self.config.flash_blue_background_on_transparent_input,
+            alpha_mask: Arc::clone(&active_skin.alpha_mask),
+            image_size: active_skin.image_size,
             image_rect,
-            ctx.pixels_per_point(),
-        );
+            pixels_per_point: ctx.pixels_per_point(),
+        });
         let transparent_input_visual_remaining = self
             .transparent_hit_test
             .transparent_input_visual_remaining(now)
