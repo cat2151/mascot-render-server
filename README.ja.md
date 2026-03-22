@@ -54,6 +54,8 @@ psd-viewer-tui
     - 再利用性を重視し、責務ごとの小さなクレートに分割して実装してあります。
 - Sixel
     - デスクトップマスコットが万一動かない場合のフォールバック用で、terminalにマスコットのpreviewが表示されます。
+- PSDTool
+    - [PSDTool](https://oov.github.io/psdtool/manual.html)の拡張フォーマット「ラジオボタン化」「強制表示化」に対応し、快適なeditを実現しています。
 - format
     - ghostやshellなどの管理formatの実現はできていません
         - 現状、坂本アヒル様作ずんだもん立ち絵素材でのみtestをしています
