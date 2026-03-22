@@ -1,1 +1,1 @@
-# mascot-render-server
+dumm. 自動生成されます

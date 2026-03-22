@@ -1,0 +1,13 @@
+[workspace]
+members = [
+    "crates/mascot-render-core",
+    "crates/psd-viewer-tui",
+    "crates/mascot-render-client",
+    "crates/tui-sixel-preview",
+    "crates/mascot-render-server",
+]
+resolver = "2"
+
+[patch.crates-io]
+rawpsd = { path = "vendor/rawpsd" }
+

@@ -1,0 +1,18 @@
+[package]
+name = "psd-viewer-tui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+crossterm = "0.29"
+mascot-render-client = { path = "../mascot-render-client" }
+mascot-render-server = { path = "../mascot-render-server" }
+ratatui = "0.30"
+ratatui-image = { version = "10", default-features = false, features = ["crossterm"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+tui-sixel-preview = { path = "../tui-sixel-preview" }
+mascot-render-core = { path = "../mascot-render-core" }
+

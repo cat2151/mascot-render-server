@@ -1,0 +1,495 @@
+mod app_support;
+mod eye_blink;
+mod eye_blink_timing;
+mod window_history;
+
+#[cfg(test)]
+#[path = "tests/window_history.rs"]
+mod window_history_tests;
+
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, Receiver};
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime};
+
+use anyhow::{anyhow, Context, Result};
+use eframe::egui::{self, Color32, Pos2, Rect, Vec2};
+use eframe::{App, CreationContext, NativeOptions};
+use mascot_render_server::{
+    anchored_inner_origin, apply_motion_timeline_request, captures_logical_point,
+    start_mascot_control_server_with_notify, AlphaBounds, MascotControlCommand, MascotSkinCache,
+    MascotWindowLayout, TransparentHitTestWindow,
+};
+use window_history::{
+    current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
+};
+
+use app_support::{
+    alpha_mask, cached_skin_from_image, content_bounds, path_modified_at, size_vec, window_title,
+    CachedSkin,
+};
+use eye_blink::{render_closed_eye_png, EyeBlinkLoop};
+use mascot_render_core::{
+    load_mascot_config, load_mascot_image, mascot_runtime_state_path, parse_mascot_config_path,
+    Core, CoreConfig, MascotConfig, MascotImageData, MotionState, MotionTransform,
+};
+
+const SKIN_CACHE_CAPACITY: usize = 16;
+
+fn main() -> Result<()> {
+    let config_path = parse_mascot_config_path(std::env::args_os())?;
+    let config = load_mascot_config(&config_path)?;
+    let image = load_mascot_image(&config.png_path)?;
+    let base_size = size_vec(image.width, image.height, config.scale);
+    let initial_alpha_mask = alpha_mask(&image.rgba);
+    let initial_content_bounds =
+        content_bounds([image.width, image.height], initial_alpha_mask.as_ref());
+    let window_size = MascotWindowLayout::new(
+        base_size,
+        [image.width, image.height],
+        initial_content_bounds,
+        config.bounce,
+        config.squash_bounce,
+    )
+    .window_size();
+    let history_path = window_history_path();
+    let saved_window_position = match load_window_position(&history_path) {
+        Ok(position) => position,
+        Err(error) => {
+            eprintln!(
+                "failed to load mascot window history {}: {error:#}",
+                history_path.display()
+            );
+            None
+        }
+    };
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title(window_title(&config, &config_path))
+        .with_inner_size(window_size)
+        .with_active(false)
+        .with_resizable(false)
+        .with_decorations(false)
+        .with_transparent(true)
+        .with_always_on_top()
+        .with_title_shown(false);
+    if let Some(position) = saved_window_position {
+        viewport = viewport.with_position(position);
+    }
+    let native_options = NativeOptions {
+        viewport,
+        centered: saved_window_position.is_none(),
+        persist_window: false,
+        ..Default::default()
+    };
+
+    let app_name = "mascot render server";
+    eframe::run_native(
+        app_name,
+        native_options,
+        Box::new(move |cc| {
+            let (control_tx, control_rx) = mpsc::channel();
+            let repaint_ctx = cc.egui_ctx.clone();
+            let notify = Arc::new(move || repaint_ctx.request_repaint());
+            let _control_server =
+                start_mascot_control_server_with_notify(control_tx, Some(notify))?;
+            Ok(Box::new(MascotApp::new(
+                cc,
+                config_path.clone(),
+                config,
+                image,
+                control_rx,
+                saved_window_position,
+            )))
+        }),
+    )
+    .map_err(|error| anyhow!(error.to_string()))?;
+    Ok(())
+}
+
+struct MascotApp {
+    config_path: PathBuf,
+    runtime_state_path: PathBuf,
+    config_modified_at: Option<SystemTime>,
+    runtime_state_modified_at: Option<SystemTime>,
+    config: MascotConfig,
+    core: Core,
+    open_skin: CachedSkin,
+    closed_skin: Option<CachedSkin>,
+    base_size: Vec2,
+    skin_cache: MascotSkinCache<CachedSkin>,
+    motion: MotionState,
+    eye_blink: EyeBlinkLoop,
+    control_rx: Receiver<MascotControlCommand>,
+    transparent_hit_test: TransparentHitTestWindow,
+    window_layout: MascotWindowLayout,
+    window_history: WindowHistoryTracker,
+}
+
+impl MascotApp {
+    fn new(
+        cc: &CreationContext<'_>,
+        config_path: PathBuf,
+        config: MascotConfig,
+        image: MascotImageData,
+        control_rx: Receiver<MascotControlCommand>,
+        saved_window_position: Option<Pos2>,
+    ) -> Self {
+        let base_size = size_vec(image.width, image.height, config.scale);
+        let runtime_state_path = mascot_runtime_state_path(&config_path);
+        let config_modified_at = path_modified_at(&config_path);
+        let runtime_state_modified_at = path_modified_at(&runtime_state_path);
+        let open_skin = cached_skin_from_image(&cc.egui_ctx, &image);
+        let initial_window_layout = MascotWindowLayout::new(
+            base_size,
+            open_skin.image_size,
+            open_skin.content_bounds,
+            config.bounce,
+            config.squash_bounce,
+        );
+        let mut skin_cache = MascotSkinCache::new(SKIN_CACHE_CAPACITY);
+        skin_cache.insert(image.path.clone(), open_skin.clone());
+        let transparent_hit_test =
+            TransparentHitTestWindow::try_install(cc).unwrap_or_else(|error| {
+                eprintln!("transparent background click-through is disabled: {error:#}");
+                TransparentHitTestWindow::disabled()
+            });
+
+        let mut app = Self {
+            config_path,
+            runtime_state_path,
+            config_modified_at,
+            runtime_state_modified_at,
+            config,
+            core: Core::new(CoreConfig::default()),
+            open_skin,
+            closed_skin: None,
+            base_size,
+            skin_cache,
+            motion: MotionState::new(),
+            eye_blink: EyeBlinkLoop::new(Instant::now()),
+            control_rx,
+            transparent_hit_test,
+            window_layout: initial_window_layout,
+            window_history: WindowHistoryTracker::new(window_history_path(), saved_window_position),
+        };
+        if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
+            eprintln!("{error:#}");
+        }
+        app.refresh_window_layout(&cc.egui_ctx, app.window_layout, app.base_size);
+        app.transparent_hit_test.update(
+            Instant::now(),
+            app.config.transparent_background_click_through,
+            app.config.flash_blue_background_on_transparent_input,
+            Arc::clone(&app.open_skin.alpha_mask),
+            app.open_skin.image_size,
+            app.window_layout
+                .image_rect(app.base_size, MotionTransform::identity()),
+            cc.egui_ctx.pixels_per_point(),
+        );
+        app
+    }
+
+    fn apply_control_commands(&mut self, ctx: &egui::Context) -> Result<()> {
+        while let Ok(command) = self.control_rx.try_recv() {
+            match command {
+                MascotControlCommand::Show => {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                }
+                MascotControlCommand::Hide => {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                }
+                MascotControlCommand::ChangeSkin(png_path) => {
+                    self.change_skin(ctx, &png_path)?;
+                }
+                MascotControlCommand::PlayTimeline(request) => {
+                    apply_motion_timeline_request(
+                        &mut self.motion,
+                        self.window_layout,
+                        Instant::now(),
+                        request,
+                    )?;
+                }
+            }
+            ctx.request_repaint();
+        }
+
+        Ok(())
+    }
+
+    fn change_skin(&mut self, ctx: &egui::Context, png_path: &Path) -> Result<()> {
+        if self.config.png_path == png_path {
+            return Ok(());
+        }
+
+        let previous_layout = self.window_layout;
+        let previous_base_size = self.base_size;
+        self.open_skin = self.load_skin(ctx, png_path)?;
+        self.base_size = size_vec(
+            self.open_skin.image_size[0],
+            self.open_skin.image_size[1],
+            self.config.scale,
+        );
+        self.config.png_path = png_path.to_path_buf();
+        self.closed_skin = None;
+        self.eye_blink.reset(Instant::now());
+        self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        Ok(())
+    }
+
+    fn reload_config_if_needed(&mut self, ctx: &egui::Context) -> Result<()> {
+        let next_config_modified_at = path_modified_at(&self.config_path);
+        let next_runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
+        if self.config_modified_at == next_config_modified_at
+            && self.runtime_state_modified_at == next_runtime_state_modified_at
+        {
+            return Ok(());
+        }
+
+        let previous_layout = self.window_layout;
+        let previous_base_size = self.base_size;
+        let next_config = load_mascot_config(&self.config_path)
+            .with_context(|| format!("failed to hot-reload {}", self.config_path.display()))?;
+        self.config_modified_at = next_config_modified_at;
+        self.runtime_state_modified_at = next_runtime_state_modified_at;
+
+        let png_changed = self.config.png_path != next_config.png_path;
+        let scale_changed = self.config.scale != next_config.scale;
+        let blink_source_changed = self.config.zip_path != next_config.zip_path
+            || self.config.psd_path_in_zip != next_config.psd_path_in_zip
+            || self.config.display_diff_path != next_config.display_diff_path;
+
+        self.config = next_config;
+
+        if png_changed {
+            let next_png_path = self.config.png_path.clone();
+            self.open_skin = self.load_skin(ctx, &next_png_path)?;
+            self.base_size = size_vec(
+                self.open_skin.image_size[0],
+                self.open_skin.image_size[1],
+                self.config.scale,
+            );
+        } else if scale_changed {
+            self.base_size = size_vec(
+                self.open_skin.image_size[0],
+                self.open_skin.image_size[1],
+                self.config.scale,
+            );
+        }
+
+        if png_changed || blink_source_changed {
+            self.refresh_closed_eye_skin(ctx)?;
+        }
+        self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(window_title(
+            &self.config,
+            &self.config_path,
+        )));
+        Ok(())
+    }
+
+    fn load_skin(&mut self, ctx: &egui::Context, png_path: &Path) -> Result<CachedSkin> {
+        if let Some(cached_skin) = self.skin_cache.get(png_path) {
+            return Ok(cached_skin.clone());
+        }
+
+        let image = load_mascot_image(png_path)
+            .with_context(|| format!("failed to load mascot skin {}", png_path.display()))?;
+        let skin = cached_skin_from_image(ctx, &image);
+        self.skin_cache.insert(png_path.to_path_buf(), skin.clone());
+        Ok(skin)
+    }
+
+    fn refresh_closed_eye_skin(&mut self, ctx: &egui::Context) -> Result<()> {
+        self.eye_blink.reset(Instant::now());
+        let Some(closed_png_path) = render_closed_eye_png(&self.core, &self.config)? else {
+            self.closed_skin = None;
+            return Ok(());
+        };
+        if closed_png_path == self.config.png_path {
+            self.closed_skin = None;
+            return Ok(());
+        }
+
+        self.closed_skin = Some(self.load_skin(ctx, &closed_png_path)?);
+        Ok(())
+    }
+
+    fn sync_window_history(&mut self, ctx: &egui::Context, now: Instant) -> Result<()> {
+        if let Some(viewport_info) = current_viewport_info(ctx) {
+            self.window_history
+                .observe(viewport_info.outer_origin, now)?;
+        }
+        Ok(())
+    }
+
+    fn refresh_window_layout(
+        &mut self,
+        ctx: &egui::Context,
+        previous_layout: MascotWindowLayout,
+        previous_base_size: Vec2,
+    ) {
+        let viewport_info = current_viewport_info(ctx);
+        let content_bounds = self.window_content_bounds();
+        self.window_layout = MascotWindowLayout::new(
+            self.base_size,
+            self.open_skin.image_size,
+            content_bounds,
+            self.config.bounce,
+            self.config.squash_bounce,
+        );
+        if let Some(viewport_info) = viewport_info {
+            let inner_origin = anchored_inner_origin(
+                viewport_info.inner_origin,
+                previous_layout,
+                previous_base_size,
+                self.window_layout,
+                self.base_size,
+            );
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(
+                inner_origin - viewport_info.inner_to_outer_offset,
+            ));
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
+            self.window_layout.window_size(),
+        ));
+    }
+
+    fn window_content_bounds(&self) -> AlphaBounds {
+        let mut bounds = self.open_skin.content_bounds;
+        if let Some(closed_skin) = &self.closed_skin {
+            if closed_skin.image_size == self.open_skin.image_size {
+                bounds = bounds.union(closed_skin.content_bounds);
+            } else {
+                eprintln!(
+                    "closed-eye skin size {:?} does not match open skin size {:?}; using open skin bounds for the window layout",
+                    closed_skin.image_size,
+                    self.open_skin.image_size
+                );
+            }
+        }
+        bounds
+    }
+}
+
+impl App for MascotApp {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        [0.0, 0.0, 0.0, 0.0]
+    }
+
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Err(error) = self.apply_control_commands(ctx) {
+            eprintln!("{error:#}");
+        }
+
+        if let Err(error) = self.reload_config_if_needed(ctx) {
+            eprintln!("{error:#}");
+        }
+
+        let now = Instant::now();
+        if let Err(error) = self.sync_window_history(ctx, now) {
+            eprintln!("{error:#}");
+        }
+        if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+        let blink_closed = self.closed_skin.is_some() && self.eye_blink.is_closed(now);
+        let transform = self
+            .motion
+            .sample(now, self.config.bounce, self.config.squash_bounce);
+        let image_rect = self.window_layout.image_rect(self.base_size, transform);
+        let active_skin = if blink_closed {
+            self.closed_skin.as_ref().unwrap_or(&self.open_skin)
+        } else {
+            &self.open_skin
+        };
+        let texture_id = active_skin.texture.id();
+        self.transparent_hit_test.update(
+            now,
+            self.config.transparent_background_click_through,
+            self.config.flash_blue_background_on_transparent_input,
+            Arc::clone(&active_skin.alpha_mask),
+            active_skin.image_size,
+            image_rect,
+            ctx.pixels_per_point(),
+        );
+        let transparent_input_visual_remaining = self
+            .transparent_hit_test
+            .transparent_input_visual_remaining(now)
+            .filter(|_| self.config.flash_blue_background_on_transparent_input);
+
+        egui::Area::new("mascot-image".into())
+            .fixed_pos(Pos2::ZERO)
+            .show(ctx, |ui| {
+                ui.set_min_size(self.window_layout.window_size());
+                let (response, painter) = ui.allocate_painter(
+                    self.window_layout.window_size(),
+                    egui::Sense::click_and_drag(),
+                );
+
+                if transparent_input_visual_remaining.is_some() {
+                    painter.rect_filled(response.rect, 0.0, Color32::from_rgb(0, 120, 255));
+                }
+
+                painter.image(
+                    texture_id,
+                    image_rect,
+                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+
+                if response.clicked()
+                    && response
+                        .interact_pointer_pos()
+                        .is_some_and(|pos| self.config.head_hitbox.contains(image_rect, pos))
+                {
+                    self.motion.trigger(now);
+                }
+
+                if self.config.flash_blue_background_on_transparent_input
+                    && !self.config.transparent_background_click_through
+                    && response.is_pointer_button_down_on()
+                    && response.interact_pointer_pos().is_some_and(|pos| {
+                        !captures_logical_point(
+                            active_skin.image_size,
+                            image_rect,
+                            active_skin.alpha_mask.as_ref(),
+                            pos,
+                            8,
+                        )
+                    })
+                {
+                    self.transparent_hit_test.flash_transparent_input_visual();
+                }
+
+                if response.drag_started() || response.dragged() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                }
+
+                if response.secondary_clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            });
+
+        let repaint_after = self
+            .motion
+            .repaint_after(now, self.config.bounce, self.config.squash_bounce)
+            .unwrap_or_else(|| {
+                self.eye_blink
+                    .repaint_after(now, Duration::from_millis(250))
+            });
+        ctx.request_repaint_after(
+            transparent_input_visual_remaining
+                .map(|remaining| repaint_after.min(remaining))
+                .unwrap_or(repaint_after),
+        );
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if let Err(error) = self.window_history.flush() {
+            eprintln!("{error:#}");
+        }
+    }
+}
+

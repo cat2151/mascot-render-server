@@ -1,0 +1,486 @@
+use std::ffi::OsString;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use anyhow::{anyhow, bail, Context, Result};
+use image::ImageReader;
+use serde::{Deserialize, Serialize};
+
+pub use crate::mascot_paths::{mascot_config_path, mascot_runtime_state_path};
+use crate::mascot_motion::{BounceAnimationConfig, HeadHitbox, SquashBounceAnimationConfig};
+use crate::mascot_paths::unix_timestamp;
+
+const DEFAULT_MAX_EDGE: f32 = 480.0;
+const DEFAULT_SCREEN_HEIGHT_RATIO: f32 = 0.33;
+const MASCOT_CONFIG_VERSION: u32 = 4;
+const MASCOT_RUNTIME_STATE_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MascotImageData {
+    pub path: PathBuf,
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MascotConfig {
+    pub png_path: PathBuf,
+    pub scale: Option<f32>,
+    pub zip_path: PathBuf,
+    pub psd_path_in_zip: PathBuf,
+    pub display_diff_path: Option<PathBuf>,
+    pub transparent_background_click_through: bool,
+    pub flash_blue_background_on_transparent_input: bool,
+    pub head_hitbox: HeadHitbox,
+    pub bounce: BounceAnimationConfig,
+    pub squash_bounce: SquashBounceAnimationConfig,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MascotTarget {
+    pub png_path: PathBuf,
+    pub scale: Option<f32>,
+    pub zip_path: PathBuf,
+    pub psd_path_in_zip: PathBuf,
+    pub display_diff_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+struct MascotStaticConfigFile {
+    version: u32,
+    transparent_background_click_through: bool,
+    #[serde(alias = "debug_flash_blue_background_on_transparent_input")]
+    flash_blue_background_on_transparent_input: bool,
+    head_hitbox: HeadHitbox,
+    bounce: BounceAnimationConfig,
+    squash_bounce: SquashBounceAnimationConfig,
+    updated_at: u64,
+}
+
+impl Default for MascotStaticConfigFile {
+    fn default() -> Self {
+        Self {
+            version: MASCOT_CONFIG_VERSION,
+            transparent_background_click_through: false,
+            flash_blue_background_on_transparent_input: false,
+            head_hitbox: HeadHitbox::default(),
+            bounce: BounceAnimationConfig::default(),
+            squash_bounce: SquashBounceAnimationConfig::default(),
+            updated_at: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+struct MascotRuntimeStateFile {
+    version: u32,
+    png_path: PathBuf,
+    scale: Option<f32>,
+    zip_path: PathBuf,
+    psd_path_in_zip: PathBuf,
+    display_diff_path: Option<PathBuf>,
+    updated_at: u64,
+}
+
+impl Default for MascotRuntimeStateFile {
+    fn default() -> Self {
+        Self {
+            version: MASCOT_RUNTIME_STATE_VERSION,
+            png_path: PathBuf::new(),
+            scale: None,
+            zip_path: PathBuf::new(),
+            psd_path_in_zip: PathBuf::new(),
+            display_diff_path: None,
+            updated_at: 0,
+        }
+    }
+}
+
+impl From<&MascotTarget> for MascotRuntimeStateFile {
+    fn from(target: &MascotTarget) -> Self {
+        Self {
+            version: MASCOT_RUNTIME_STATE_VERSION,
+            png_path: target.png_path.clone(),
+            scale: target.scale,
+            zip_path: target.zip_path.clone(),
+            psd_path_in_zip: target.psd_path_in_zip.clone(),
+            display_diff_path: target.display_diff_path.clone(),
+            updated_at: unix_timestamp(),
+        }
+    }
+}
+
+impl MascotRuntimeStateFile {
+    fn into_target(self) -> MascotTarget {
+        MascotTarget {
+            png_path: self.png_path,
+            scale: self.scale,
+            zip_path: self.zip_path,
+            psd_path_in_zip: self.psd_path_in_zip,
+            display_diff_path: self.display_diff_path,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+struct LegacyMascotConfigFile {
+    version: u32,
+    png_path: PathBuf,
+    scale: Option<f32>,
+    zip_path: PathBuf,
+    psd_path_in_zip: PathBuf,
+    display_diff_path: Option<PathBuf>,
+    transparent_background_click_through: bool,
+    #[serde(alias = "debug_flash_blue_background_on_transparent_input")]
+    flash_blue_background_on_transparent_input: bool,
+    head_hitbox: HeadHitbox,
+    bounce: BounceAnimationConfig,
+    squash_bounce: SquashBounceAnimationConfig,
+    updated_at: u64,
+}
+
+impl Default for LegacyMascotConfigFile {
+    fn default() -> Self {
+        Self {
+            version: MASCOT_CONFIG_VERSION,
+            png_path: PathBuf::new(),
+            scale: None,
+            zip_path: PathBuf::new(),
+            psd_path_in_zip: PathBuf::new(),
+            display_diff_path: None,
+            transparent_background_click_through: false,
+            flash_blue_background_on_transparent_input: false,
+            head_hitbox: HeadHitbox::default(),
+            bounce: BounceAnimationConfig::default(),
+            squash_bounce: SquashBounceAnimationConfig::default(),
+            updated_at: 0,
+        }
+    }
+}
+
+pub fn parse_mascot_config_path(args: impl IntoIterator<Item = OsString>) -> Result<PathBuf> {
+    let mut args = args.into_iter();
+    let _program = args.next();
+    let mut config_path = None;
+
+    while let Some(arg) = args.next() {
+        if arg == "--config" {
+            let Some(value) = args.next() else {
+                bail!("--config requires a file path");
+            };
+            config_path = Some(PathBuf::from(value));
+            continue;
+        }
+
+        if arg.to_string_lossy().starts_with('-') {
+            bail!("unsupported argument '{}'", arg.to_string_lossy());
+        }
+
+        bail!(
+            "unsupported positional argument '{}'; use --config <path> or mascot-render-server.toml",
+            arg.to_string_lossy()
+        );
+    }
+
+    Ok(config_path.unwrap_or_else(mascot_config_path))
+}
+
+pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
+    let static_config = load_mascot_static_config_file(config_path)?;
+    let runtime_state_path = mascot_runtime_state_path(config_path);
+    let runtime_target = load_mascot_runtime_target(config_path)?;
+    validate_mascot_target(&runtime_target, &runtime_state_path)?;
+
+    Ok(MascotConfig {
+        png_path: runtime_target.png_path,
+        scale: runtime_target.scale,
+        zip_path: runtime_target.zip_path,
+        psd_path_in_zip: runtime_target.psd_path_in_zip,
+        display_diff_path: runtime_target.display_diff_path,
+        transparent_background_click_through: static_config.transparent_background_click_through,
+        flash_blue_background_on_transparent_input: static_config
+            .flash_blue_background_on_transparent_input,
+        head_hitbox: static_config.head_hitbox,
+        bounce: static_config.bounce,
+        squash_bounce: static_config.squash_bounce,
+    })
+}
+
+pub fn write_mascot_config(config_path: &Path, target: &MascotTarget) -> Result<()> {
+    normalize_mascot_static_config(config_path)?;
+
+    let state_path = mascot_runtime_state_path(config_path);
+    validate_mascot_target(target, &state_path)?;
+    if let Some(parent) = state_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+
+    let json = serde_json::to_string_pretty(&MascotRuntimeStateFile::from(target))
+        .context("failed to serialize mascot runtime state")?;
+    fs::write(&state_path, json)
+        .with_context(|| format!("failed to write {}", state_path.display()))?;
+    Ok(())
+}
+
+fn load_mascot_static_config_file(config_path: &Path) -> Result<MascotStaticConfigFile> {
+    if !config_path.exists() {
+        return Ok(MascotStaticConfigFile::default());
+    }
+
+    let bytes = fs::read_to_string(config_path)
+        .with_context(|| format!("failed to read {}", config_path.display()))?;
+    let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
+        .with_context(|| format!("failed to parse {}", config_path.display()))?;
+    validate_version(
+        config.version,
+        1..=MASCOT_CONFIG_VERSION,
+        config_path,
+        "mascot config",
+    )?;
+    Ok(config)
+}
+
+fn load_mascot_runtime_target(config_path: &Path) -> Result<MascotTarget> {
+    let state_path = mascot_runtime_state_path(config_path);
+    if state_path.exists() {
+        return load_mascot_runtime_state_file(&state_path)
+            .map(MascotRuntimeStateFile::into_target);
+    }
+
+    if config_path.exists() {
+        let legacy = load_legacy_mascot_config_file(config_path)?;
+        if legacy_has_runtime_state(&legacy) {
+            return Ok(MascotTarget {
+                png_path: legacy.png_path,
+                scale: legacy.scale,
+                zip_path: legacy.zip_path,
+                psd_path_in_zip: legacy.psd_path_in_zip,
+                display_diff_path: legacy.display_diff_path,
+            });
+        }
+    }
+
+    bail!(
+        "mascot runtime state '{}' is missing; select a PSD in psd-viewer-tui first",
+        state_path.display()
+    );
+}
+
+fn load_mascot_runtime_state_file(state_path: &Path) -> Result<MascotRuntimeStateFile> {
+    let bytes =
+        fs::read(state_path).with_context(|| format!("failed to read {}", state_path.display()))?;
+    let state = serde_json::from_slice::<MascotRuntimeStateFile>(&bytes)
+        .with_context(|| format!("failed to parse {}", state_path.display()))?;
+    validate_version(
+        state.version,
+        MASCOT_RUNTIME_STATE_VERSION..=MASCOT_RUNTIME_STATE_VERSION,
+        state_path,
+        "mascot runtime state",
+    )?;
+    Ok(state)
+}
+
+fn load_legacy_mascot_config_file(config_path: &Path) -> Result<LegacyMascotConfigFile> {
+    let bytes = fs::read_to_string(config_path)
+        .with_context(|| format!("failed to read {}", config_path.display()))?;
+    let config = toml::from_str::<LegacyMascotConfigFile>(&bytes)
+        .with_context(|| format!("failed to parse {}", config_path.display()))?;
+    validate_version(
+        config.version,
+        1..=MASCOT_CONFIG_VERSION,
+        config_path,
+        "legacy mascot config",
+    )?;
+    Ok(config)
+}
+
+fn validate_version(
+    version: u32,
+    supported: std::ops::RangeInclusive<u32>,
+    path: &Path,
+    label: &str,
+) -> Result<()> {
+    if !supported.contains(&version) {
+        bail!(
+            "unsupported {label} version {} in '{}'",
+            version,
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+fn normalize_mascot_static_config(config_path: &Path) -> Result<()> {
+    if !config_path.exists() {
+        return write_mascot_static_config_file(config_path, &MascotStaticConfigFile::default());
+    }
+
+    let bytes = fs::read_to_string(config_path)
+        .with_context(|| format!("failed to read {}", config_path.display()))?;
+    let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
+        .with_context(|| format!("failed to parse {}", config_path.display()))?;
+    validate_version(
+        config.version,
+        1..=MASCOT_CONFIG_VERSION,
+        config_path,
+        "mascot config",
+    )?;
+
+    if mascot_static_config_needs_normalization(&bytes) {
+        write_mascot_static_config_file(config_path, &config)?;
+    }
+    Ok(())
+}
+
+fn mascot_static_config_needs_normalization(contents: &str) -> bool {
+    const RUNTIME_KEYS: [&str; 5] = [
+        "png_path",
+        "scale",
+        "zip_path",
+        "psd_path_in_zip",
+        "display_diff_path",
+    ];
+    const LEGACY_STATIC_KEYS: [&str; 1] = ["debug_flash_blue_background_on_transparent_input"];
+
+    contents.lines().any(|line| {
+        let trimmed = line.trim_start();
+        RUNTIME_KEYS
+            .iter()
+            .any(|key| trimmed.starts_with(&format!("{key} ")))
+            || RUNTIME_KEYS
+                .iter()
+                .any(|key| trimmed.starts_with(&format!("{key}=")))
+            || LEGACY_STATIC_KEYS
+                .iter()
+                .any(|key| trimmed.starts_with(&format!("{key} ")))
+            || LEGACY_STATIC_KEYS
+                .iter()
+                .any(|key| trimmed.starts_with(&format!("{key}=")))
+    })
+}
+
+fn write_mascot_static_config_file(
+    config_path: &Path,
+    config: &MascotStaticConfigFile,
+) -> Result<()> {
+    if let Some(parent) = config_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+
+    let mut persisted = config.clone();
+    persisted.version = MASCOT_CONFIG_VERSION;
+    persisted.updated_at = unix_timestamp();
+    let toml =
+        toml::to_string_pretty(&persisted).context("failed to serialize mascot static config")?;
+    fs::write(config_path, toml)
+        .with_context(|| format!("failed to write {}", config_path.display()))?;
+    Ok(())
+}
+
+fn legacy_has_runtime_state(config: &LegacyMascotConfigFile) -> bool {
+    !config.png_path.as_os_str().is_empty()
+}
+
+fn validate_mascot_target(target: &MascotTarget, state_path: &Path) -> Result<()> {
+    if target.png_path.as_os_str().is_empty() {
+        bail!(
+            "mascot runtime state '{}' must point to a .png file, got an empty path",
+            state_path.display()
+        );
+    }
+    if target.png_path.extension().and_then(|value| value.to_str()) != Some("png") {
+        bail!(
+            "mascot runtime state '{}' must point to a .png file, got '{}'",
+            state_path.display(),
+            target.png_path.display()
+        );
+    }
+    validate_scale(target.scale, state_path)?;
+
+    if target.zip_path.as_os_str().is_empty() {
+        bail!(
+            "mascot runtime state '{}' must include zip_path; select a PSD in psd-viewer-tui first",
+            state_path.display()
+        );
+    }
+    if target.psd_path_in_zip.as_os_str().is_empty() {
+        bail!(
+            "mascot runtime state '{}' must include psd_path_in_zip; select a PSD in psd-viewer-tui first",
+            state_path.display()
+        );
+    }
+    Ok(())
+}
+
+pub fn load_mascot_image(png_path: &Path) -> Result<MascotImageData> {
+    let image = ImageReader::open(png_path)
+        .with_context(|| format!("failed to open {}", png_path.display()))?
+        .decode()
+        .with_context(|| format!("failed to decode {}", png_path.display()))?
+        .into_rgba8();
+
+    let (width, height) = image.dimensions();
+    if width == 0 || height == 0 {
+        return Err(anyhow!("image '{}' has zero size", png_path.display()));
+    }
+
+    Ok(MascotImageData {
+        path: png_path.to_path_buf(),
+        width,
+        height,
+        rgba: image.into_raw(),
+    })
+}
+
+pub fn mascot_window_size(width: u32, height: u32, scale: Option<f32>) -> [f32; 2] {
+    let scale = mascot_scale(width, height, scale);
+    [width as f32 * scale, height as f32 * scale]
+}
+
+pub fn default_mascot_scale_for_screen_height(image_height: u32, screen_height_px: u16) -> f32 {
+    if image_height == 0 || screen_height_px == 0 {
+        return 1.0;
+    }
+
+    (screen_height_px as f32 * DEFAULT_SCREEN_HEIGHT_RATIO) / image_height as f32
+}
+
+fn mascot_scale(width: u32, height: u32, configured_scale: Option<f32>) -> f32 {
+    configured_scale
+        .filter(|scale| scale.is_finite() && *scale > 0.0)
+        .unwrap_or_else(|| legacy_fit_scale(width, height, DEFAULT_MAX_EDGE))
+}
+
+fn legacy_fit_scale(width: u32, height: u32, max_edge: f32) -> f32 {
+    let width = width as f32;
+    let height = height as f32;
+    let largest_edge = width.max(height);
+    if largest_edge <= max_edge {
+        return 1.0;
+    }
+
+    max_edge / largest_edge
+}
+
+fn validate_scale(scale: Option<f32>, config_path: &Path) -> Result<()> {
+    if scale.is_some_and(|value| !value.is_finite() || value <= 0.0) {
+        bail!(
+            "mascot config '{}' must have a positive finite scale, got {:?}",
+            config_path.display(),
+            scale
+        );
+    }
+    Ok(())
+}

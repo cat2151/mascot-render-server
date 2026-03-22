@@ -19,3 +19,25 @@ target
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+
+
+# Build outputs
+/target/
+
+# Runtime caches and persisted state
+/cache/
+/crates/*/cache/
+/log/
+/crates/*/log/
+
+# Source assets supplied outside this repository
+*.psd
+*.zip
+
+# OS and editor metadata
+Thumbs.db
+Desktop.ini
+.DS_Store
+/.idea/
+/.vscode/

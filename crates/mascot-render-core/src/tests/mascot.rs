@@ -1,0 +1,237 @@
+use std::ffi::OsString;
+use std::fs;
+use std::path::PathBuf;
+
+use crate::{
+    default_mascot_scale_for_screen_height, load_mascot_config, mascot_config_path,
+    mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path, write_mascot_config,
+    workspace_cache_root, workspace_path, BounceAlgorithm, HeadHitbox, MascotTarget,
+    SquashAlgorithm,
+};
+
+#[test]
+fn mascot_cli_defaults_to_root_config_path() {
+    let path = parse_mascot_config_path([OsString::from("mascot-render-server")])
+        .expect("should use default mascot-render-server.toml path");
+
+    assert_eq!(path, mascot_config_path());
+}
+
+#[test]
+fn mascot_cli_accepts_config_flag() {
+    let path = parse_mascot_config_path([
+        OsString::from("mascot-render-server"),
+        OsString::from("--config"),
+        OsString::from("demo-mascot-render-server.toml"),
+    ])
+    .expect("should parse --config path");
+
+    assert_eq!(path, PathBuf::from("demo-mascot-render-server.toml"));
+}
+
+#[test]
+fn mascot_runtime_state_path_is_derived_from_config_path() {
+    let default_state = mascot_runtime_state_path(&PathBuf::from("mascot-render-server.toml"));
+    let custom_state = mascot_runtime_state_path(&PathBuf::from("configs/demo.toml"));
+
+    assert!(default_state.starts_with(workspace_cache_root()));
+    assert!(custom_state.starts_with(workspace_cache_root()));
+    assert_ne!(default_state, custom_state);
+    assert!(custom_state
+        .file_name()
+        .and_then(|value| value.to_str())
+        .is_some_and(|value| value.starts_with("demo-") && value.ends_with(".state.json")));
+}
+
+#[test]
+fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
+    let config_path = workspace_cache_root().join("test-mascot/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    let target = MascotTarget {
+        png_path: workspace_cache_root().join("demo/render.png"),
+        scale: Some(0.35),
+        zip_path: workspace_path("assets/zip/demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo/basic.psd"),
+        display_diff_path: Some(workspace_cache_root().join("demo/display-diffs/basic.json")),
+    };
+
+    write_mascot_config(&config_path, &target).expect("should write mascot runtime state");
+    let loaded = load_mascot_config(&config_path).expect("should read mascot config");
+
+    assert_eq!(loaded.png_path, target.png_path);
+    assert_eq!(loaded.scale, target.scale);
+    assert_eq!(loaded.zip_path, target.zip_path);
+    assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
+    assert_eq!(loaded.display_diff_path, target.display_diff_path);
+    assert!(!loaded.transparent_background_click_through);
+    assert!(!loaded.flash_blue_background_on_transparent_input);
+    assert_eq!(loaded.head_hitbox, HeadHitbox::default());
+    assert_eq!(loaded.bounce.algorithm, BounceAlgorithm::DampedSine);
+    assert_eq!(
+        loaded.squash_bounce.algorithm,
+        SquashAlgorithm::SquashStretch
+    );
+
+    let static_toml =
+        fs::read_to_string(&config_path).expect("should write mascot static config TOML");
+    assert!(!static_toml.contains("png_path ="));
+    assert!(!static_toml.contains("zip_path ="));
+    assert!(
+        runtime_state_path.exists(),
+        "runtime state should be written"
+    );
+}
+
+#[test]
+fn load_mascot_config_supports_legacy_combined_toml_without_runtime_json() {
+    let config_path = workspace_cache_root().join("test-mascot-legacy/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-legacy"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-legacy"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+version = 4
+png_path = "cache/legacy/render.png"
+scale = 0.42
+zip_path = "assets/zip/legacy.zip"
+psd_path_in_zip = "legacy/basic.psd"
+display_diff_path = "cache/legacy/basic.json"
+transparent_background_click_through = true
+debug_flash_blue_background_on_transparent_input = true
+
+[head_hitbox]
+x = 0.3
+y = 0.1
+width = 0.2
+height = 0.2
+
+[bounce]
+algorithm = "damped_sine"
+duration_ms = 1200
+amplitude_px = 22.0
+cycles = 1.2
+damping = 1.8
+
+[squash_bounce]
+algorithm = "squash_stretch"
+duration_ms = 640
+amplitude_px = 16.0
+cycles = 1.1
+damping = 1.5
+squash_amount = 0.22
+stretch_amount = 0.08
+"#,
+    )
+    .expect("should seed legacy mascot config");
+
+    let loaded = load_mascot_config(&config_path).expect("legacy combined config should load");
+
+    assert_eq!(loaded.png_path, PathBuf::from("cache/legacy/render.png"));
+    assert_eq!(loaded.scale, Some(0.42));
+    assert_eq!(loaded.zip_path, PathBuf::from("assets/zip/legacy.zip"));
+    assert_eq!(loaded.psd_path_in_zip, PathBuf::from("legacy/basic.psd"));
+    assert_eq!(
+        loaded.display_diff_path,
+        Some(PathBuf::from("cache/legacy/basic.json"))
+    );
+    assert!(loaded.transparent_background_click_through);
+    assert!(loaded.flash_blue_background_on_transparent_input);
+    assert_eq!(loaded.head_hitbox.x, 0.3);
+    assert_eq!(loaded.bounce.duration_ms, 1200);
+    assert_eq!(loaded.squash_bounce.squash_amount, 0.22);
+    assert!(!runtime_state_path.exists());
+}
+
+#[test]
+fn writing_mascot_config_preserves_custom_static_sections_and_normalizes_legacy_file() {
+    let config_path = workspace_cache_root().join("test-mascot-preserve/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-preserve"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-preserve"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+version = 2
+png_path = "cache/old/render.png"
+zip_path = "assets/zip/old.zip"
+psd_path_in_zip = "old/basic.psd"
+transparent_background_click_through = true
+flash_blue_background_on_transparent_input = true
+updated_at = 1
+
+[head_hitbox]
+x = 0.3
+y = 0.1
+width = 0.2
+height = 0.2
+
+[bounce]
+algorithm = "damped_sine"
+duration_ms = 1200
+amplitude_px = 22.0
+cycles = 1.2
+damping = 1.8
+
+[squash_bounce]
+algorithm = "squash_stretch"
+duration_ms = 640
+amplitude_px = 16.0
+cycles = 1.1
+damping = 1.5
+squash_amount = 0.22
+stretch_amount = 0.08
+"#,
+    )
+    .expect("should seed legacy mascot config");
+
+    let target = MascotTarget {
+        png_path: workspace_cache_root().join("demo/render.png"),
+        scale: Some(0.45),
+        zip_path: workspace_path("assets/zip/demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo/basic.psd"),
+        display_diff_path: None,
+    };
+    write_mascot_config(&config_path, &target).expect("should update mascot runtime state");
+
+    let loaded =
+        load_mascot_config(&config_path).expect("should read split mascot config/state files");
+    assert_eq!(loaded.png_path, target.png_path);
+    assert_eq!(loaded.scale, target.scale);
+    assert!(loaded.transparent_background_click_through);
+    assert!(loaded.flash_blue_background_on_transparent_input);
+    assert_eq!(loaded.head_hitbox.x, 0.3);
+    assert_eq!(loaded.bounce.duration_ms, 1200);
+    assert_eq!(loaded.squash_bounce.squash_amount, 0.22);
+
+    let static_toml =
+        fs::read_to_string(&config_path).expect("should rewrite mascot static config TOML");
+    assert!(!static_toml.contains("png_path ="));
+    assert!(!static_toml.contains("psd_path_in_zip ="));
+    let runtime_json =
+        fs::read_to_string(&runtime_state_path).expect("should write mascot runtime JSON");
+    assert!(runtime_json.contains("\"png_path\""));
+    assert!(runtime_json.contains("\"demo/basic.psd\""));
+}
+
+#[test]
+fn mascot_window_size_uses_scale_or_legacy_fallback() {
+    assert_eq!(mascot_window_size(1200, 600, None), [480.0, 240.0]);
+    assert_eq!(mascot_window_size(400, 200, Some(0.5)), [200.0, 100.0]);
+}
+
+#[test]
+fn default_mascot_scale_targets_thirty_three_percent_of_screen_height() {
+    let scale = default_mascot_scale_for_screen_height(1650, 1440);
+
+    assert!((scale - 0.288).abs() < 0.001, "unexpected scale: {scale}");
+}
