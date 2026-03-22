@@ -45,6 +45,7 @@ use anyhow::Result;
 use cli::{parse_cli, CliAction};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use mascot_render_client::hide_mascot_render_server;
+use mascot_render_core::run_workspace_update;
 use ratatui::Terminal;
 use tui_sixel_preview::{build_picker, PreviewState};
 
@@ -54,9 +55,16 @@ use server_preview_sync::ServerPreviewSync;
 use terminal::{Backend, TerminalGuard};
 
 fn main() -> Result<()> {
-    if let CliAction::PrintHelp(help) = parse_cli(std::env::args_os())? {
-        println!("{help}");
-        return Ok(());
+    match parse_cli(std::env::args_os())? {
+        CliAction::Run => {}
+        CliAction::Update => {
+            run_workspace_update()?;
+            return Ok(());
+        }
+        CliAction::PrintHelp(help) => {
+            println!("{help}");
+            return Ok(());
+        }
     }
 
     let screen_height_px = detect_screen_height_px();

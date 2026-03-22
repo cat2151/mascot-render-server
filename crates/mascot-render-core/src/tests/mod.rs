@@ -9,3 +9,4 @@ mod psd;
 mod render;
 mod variation;
 mod workspace_paths;
+mod workspace_update;

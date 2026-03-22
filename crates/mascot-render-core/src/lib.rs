@@ -13,6 +13,7 @@ mod psd;
 mod render;
 mod variation;
 mod workspace_paths;
+mod workspace_update;
 
 #[cfg(test)]
 mod tests;
@@ -52,3 +53,4 @@ pub use workspace_paths::{
     local_data_root, workspace_cache_root, workspace_log_root, workspace_path,
     workspace_relative_display_path, workspace_root,
 };
+pub use workspace_update::{run_workspace_update, workspace_install_command};

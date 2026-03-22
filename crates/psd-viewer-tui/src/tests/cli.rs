@@ -9,6 +9,8 @@ use crate::tui_config::tui_config_path;
 fn help_text_lists_local_data_defaults() {
     let help = help_text();
 
+    assert!(help.contains("Commands:\n  update"));
+    assert!(help.contains("Options:\n  -h, --help"));
     assert!(help.contains(&local_data_root().display().to_string()));
     assert!(help.contains(&workspace_cache_root().display().to_string()));
     assert!(help.contains(&tui_config_path().display().to_string()));
@@ -32,4 +34,24 @@ fn unsupported_flag_returns_error() {
     .expect_err("unknown flag should fail");
 
     assert!(error.to_string().contains("--unknown"));
+}
+
+#[test]
+fn update_subcommand_returns_update_action() {
+    let action =
+        parse_cli([OsString::from("psd-viewer-tui"), OsString::from("update")]).expect("update");
+
+    assert!(matches!(action, CliAction::Update));
+}
+
+#[test]
+fn update_subcommand_help_returns_help_text() {
+    let action = parse_cli([
+        OsString::from("psd-viewer-tui"),
+        OsString::from("update"),
+        OsString::from("--help"),
+    ])
+    .expect("update help");
+
+    assert!(matches!(action, CliAction::PrintHelp(_)));
 }
