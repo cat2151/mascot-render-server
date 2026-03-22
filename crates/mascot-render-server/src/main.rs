@@ -298,12 +298,16 @@ impl MascotApp {
         }
         if history_path_changed {
             let history_path = window_history_path(&self.config);
-            let saved_window_position = load_window_position(&history_path).with_context(|| {
-                format!(
-                    "failed to load mascot window history {}",
-                    history_path.display()
-                )
-            })?;
+            let saved_window_position = match load_window_position(&history_path) {
+                Ok(saved_window_position) => saved_window_position,
+                Err(error) => {
+                    eprintln!(
+                        "warning: failed to load mascot window history {}: {error:#}",
+                        history_path.display()
+                    );
+                    None
+                }
+            };
             self.window_history = WindowHistoryTracker::new(history_path, saved_window_position);
             restored_window_position = saved_window_position;
         }

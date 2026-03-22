@@ -101,7 +101,7 @@ impl Default for TuiConfigFile {
 #[serde(default)]
 struct TuiRuntimeStateFile {
     version: u32,
-    #[serde(default, alias = "mascot_scale")]
+    #[serde(default, rename = "mascot_scale", alias = "legacy_mascot_scale")]
     legacy_mascot_scale: Option<f32>,
     #[serde(default)]
     psd_states: Vec<PsdRuntimeState>,

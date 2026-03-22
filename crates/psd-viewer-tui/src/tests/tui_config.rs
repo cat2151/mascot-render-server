@@ -96,6 +96,16 @@ fn tui_runtime_state_round_trips_mascot_scale_per_psd() {
             ],
         }
     );
+
+    let raw = fs::read_to_string(runtime_state_path).expect("should read written runtime state");
+    assert!(
+        raw.contains("\"mascot_scale\""),
+        "runtime state should keep the mascot_scale key for compatibility"
+    );
+    assert!(
+        !raw.contains("\"legacy_mascot_scale\""),
+        "runtime state should not write a compatibility-only field name"
+    );
 }
 
 #[test]

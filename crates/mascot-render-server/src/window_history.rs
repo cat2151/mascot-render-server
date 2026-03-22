@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 const WINDOW_HISTORY_VERSION: u32 = 1;
 pub(crate) const WINDOW_HISTORY_SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
+const WINDOW_HISTORY_NAME_STEM_LIMIT: usize = 64;
 
 #[derive(Clone, Copy)]
 pub(crate) struct ViewportInfo {
@@ -176,10 +177,14 @@ fn sanitize_window_history_name(zip_path: &Path, psd_path_in_zip: &Path) -> Stri
         .collect::<String>()
         .trim_matches('_')
         .to_string();
+    let capped = sanitized
+        .chars()
+        .take(WINDOW_HISTORY_NAME_STEM_LIMIT)
+        .collect::<String>();
 
-    if sanitized.is_empty() {
+    if capped.is_empty() {
         format!("psd_{:016x}", hasher.finish())
     } else {
-        format!("{sanitized}_{:016x}", hasher.finish())
+        format!("{capped}_{:016x}", hasher.finish())
     }
 }

@@ -73,6 +73,21 @@ fn window_history_path_is_scoped_per_psd() {
     assert_ne!(left, different_psd);
 }
 
+#[test]
+fn window_history_path_caps_long_psd_names() {
+    let long_name = format!("{}.psd", "a".repeat(300));
+    let path = window_history_path(&mascot_config("/workspace/a.zip", &long_name));
+    let file_name = path
+        .file_name()
+        .expect("history path should have a file name");
+    let file_name = file_name.to_string_lossy();
+
+    assert!(
+        file_name.len() < 255,
+        "history file name should stay within typical filesystem limits: {file_name}"
+    );
+}
+
 fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
     MascotConfig {
         png_path: PathBuf::from("/workspace/render.png"),
