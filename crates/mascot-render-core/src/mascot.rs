@@ -64,7 +64,7 @@ impl Default for MascotStaticConfigFile {
         Self {
             version: MASCOT_CONFIG_VERSION,
             transparent_background_click_through: false,
-            flash_blue_background_on_transparent_input: false,
+            flash_blue_background_on_transparent_input: true,
             head_hitbox: HeadHitbox::default(),
             bounce: BounceAnimationConfig::default(),
             squash_bounce: SquashBounceAnimationConfig::default(),
@@ -153,7 +153,7 @@ impl Default for LegacyMascotConfigFile {
             psd_path_in_zip: PathBuf::new(),
             display_diff_path: None,
             transparent_background_click_through: false,
-            flash_blue_background_on_transparent_input: false,
+            flash_blue_background_on_transparent_input: true,
             head_hitbox: HeadHitbox::default(),
             bounce: BounceAnimationConfig::default(),
             squash_bounce: SquashBounceAnimationConfig::default(),

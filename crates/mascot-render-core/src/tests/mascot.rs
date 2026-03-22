@@ -4,8 +4,8 @@ use std::path::PathBuf;
 
 use crate::{
     default_mascot_scale_for_screen_height, load_mascot_config, mascot_config_path,
-    mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path, write_mascot_config,
-    workspace_cache_root, workspace_path, BounceAlgorithm, HeadHitbox, MascotTarget,
+    mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path, workspace_cache_root,
+    workspace_path, write_mascot_config, BounceAlgorithm, HeadHitbox, MascotTarget,
     SquashAlgorithm,
 };
 
@@ -67,7 +67,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, target.display_diff_path);
     assert!(!loaded.transparent_background_click_through);
-    assert!(!loaded.flash_blue_background_on_transparent_input);
+    assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.head_hitbox, HeadHitbox::default());
     assert_eq!(loaded.bounce.algorithm, BounceAlgorithm::DampedSine);
     assert_eq!(
@@ -79,10 +79,39 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
         fs::read_to_string(&config_path).expect("should write mascot static config TOML");
     assert!(!static_toml.contains("png_path ="));
     assert!(!static_toml.contains("zip_path ="));
+    assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
     assert!(
         runtime_state_path.exists(),
         "runtime state should be written"
     );
+}
+
+#[test]
+fn load_mascot_config_defaults_flash_blue_background_when_key_is_missing() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-default-flash/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-default-flash"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-default-flash"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+version = 4
+png_path = "cache/legacy/render.png"
+zip_path = "assets/zip/legacy.zip"
+psd_path_in_zip = "legacy/basic.psd"
+transparent_background_click_through = false
+"#,
+    )
+    .expect("should seed mascot config without flash setting");
+
+    let loaded = load_mascot_config(&config_path).expect("config should load");
+
+    assert!(loaded.flash_blue_background_on_transparent_input);
+    assert!(!runtime_state_path.exists());
 }
 
 #[test]
