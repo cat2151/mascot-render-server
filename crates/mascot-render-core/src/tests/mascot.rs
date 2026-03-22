@@ -66,6 +66,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert_eq!(loaded.zip_path, target.zip_path);
     assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, target.display_diff_path);
+    assert!(!loaded.always_bouncing);
     assert!(!loaded.transparent_background_click_through);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.head_hitbox, HeadHitbox::default());
@@ -103,6 +104,7 @@ version = 4
 png_path = "cache/legacy/render.png"
 zip_path = "assets/zip/legacy.zip"
 psd_path_in_zip = "legacy/basic.psd"
+always_bouncing = true
 transparent_background_click_through = false
 "#,
     )
@@ -110,6 +112,7 @@ transparent_background_click_through = false
 
     let loaded = load_mascot_config(&config_path).expect("config should load");
 
+    assert!(loaded.always_bouncing);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert!(!runtime_state_path.exists());
 }
@@ -132,6 +135,7 @@ scale = 0.42
 zip_path = "assets/zip/legacy.zip"
 psd_path_in_zip = "legacy/basic.psd"
 display_diff_path = "cache/legacy/basic.json"
+always_bouncing = true
 transparent_background_click_through = true
 debug_flash_blue_background_on_transparent_input = true
 
@@ -170,6 +174,7 @@ stretch_amount = 0.08
         loaded.display_diff_path,
         Some(PathBuf::from("cache/legacy/basic.json"))
     );
+    assert!(loaded.always_bouncing);
     assert!(loaded.transparent_background_click_through);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.head_hitbox.x, 0.3);
@@ -194,6 +199,7 @@ version = 2
 png_path = "cache/old/render.png"
 zip_path = "assets/zip/old.zip"
 psd_path_in_zip = "old/basic.psd"
+always_bouncing = true
 transparent_background_click_through = true
 flash_blue_background_on_transparent_input = true
 updated_at = 1
@@ -236,6 +242,7 @@ stretch_amount = 0.08
         load_mascot_config(&config_path).expect("should read split mascot config/state files");
     assert_eq!(loaded.png_path, target.png_path);
     assert_eq!(loaded.scale, target.scale);
+    assert!(loaded.always_bouncing);
     assert!(loaded.transparent_background_click_through);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.head_hitbox.x, 0.3);
@@ -246,6 +253,7 @@ stretch_amount = 0.08
         fs::read_to_string(&config_path).expect("should rewrite mascot static config TOML");
     assert!(!static_toml.contains("png_path ="));
     assert!(!static_toml.contains("psd_path_in_zip ="));
+    assert!(static_toml.contains("always_bouncing = true"));
     let runtime_json =
         fs::read_to_string(&runtime_state_path).expect("should write mascot runtime JSON");
     assert!(runtime_json.contains("\"png_path\""));

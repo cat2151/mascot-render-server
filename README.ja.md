@@ -44,6 +44,8 @@ psd-viewer-tui
 
 ## 設定
 - mascot-render-server.toml
+    - always_bouncing
+        - trueにすると、UX検証用に小さな squash/stretch の呼吸風モーションを常時再生します。
     - transparent_background_click_through
         - trueにすると、非常に重たくなるかわりに、「なにもない空間をドラッグして混乱」を減らせます。
     - flash_blue_background_on_transparent_input
