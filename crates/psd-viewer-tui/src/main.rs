@@ -23,6 +23,9 @@ mod eye_blink_tests;
 #[path = "tests/help_overlay.rs"]
 mod help_overlay_tests;
 #[cfg(test)]
+#[path = "tests/layer_toggle_keys.rs"]
+mod layer_toggle_keys_tests;
+#[cfg(test)]
 #[path = "tests/library.rs"]
 mod library_tests;
 #[cfg(test)]
@@ -81,6 +84,10 @@ fn main() -> Result<()> {
         startup_rx,
         &mut preview,
     )
+}
+
+fn is_layer_toggle_key(key: &crossterm::event::KeyEvent) -> bool {
+    key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Char(' ') | KeyCode::Enter)
 }
 
 fn run_app(
@@ -193,7 +200,7 @@ fn run_app(
                     KeyCode::Right | KeyCode::Char('l') if key.modifiers == KeyModifiers::NONE => {
                         app.move_focus_right();
                     }
-                    KeyCode::Char(' ') if key.modifiers == KeyModifiers::NONE => {
+                    _ if is_layer_toggle_key(&key) => {
                         let predicted_preview_path =
                             app.predicted_preview_png_path_for_selected_toggle();
                         if let Some(predicted_preview_path) = predicted_preview_path {

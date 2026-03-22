@@ -115,7 +115,7 @@ impl App {
             "help"
         };
         Line::from(format!(
-            "q: quit | ?: {help_action} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space: toggle | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
+            "q: quit | ?: {help_action} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
         ))
     }
 
@@ -127,7 +127,7 @@ impl App {
             Line::from("j/k or Up/Down: move selection"),
             Line::from("h/l or Left/Right: switch pane"),
             Line::from("PageUp/PageDown: page scroll"),
-            Line::from("Space: toggle selected layer"),
+            Line::from("Space/Enter: toggle selected layer"),
             Line::from("-/+: mascot scale"),
             Line::from("t: mouth flap preview"),
             Line::from("m: eye blink preview"),
