@@ -33,3 +33,11 @@ fn unsupported_flag_returns_error() {
 
     assert!(error.to_string().contains("--unknown"));
 }
+
+#[test]
+fn update_subcommand_returns_update_action() {
+    let action =
+        parse_cli([OsString::from("psd-viewer-tui"), OsString::from("update")]).expect("update");
+
+    assert!(matches!(action, CliAction::Update));
+}

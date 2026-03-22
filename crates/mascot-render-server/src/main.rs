@@ -35,8 +35,8 @@ use app_support::{
 };
 use eye_blink::{render_closed_eye_png, EyeBlinkLoop};
 use mascot_render_core::{
-    load_mascot_config, load_mascot_image, mascot_runtime_state_path, Core, CoreConfig,
-    MascotConfig, MascotImageData, MotionState, MotionTransform,
+    load_mascot_config, load_mascot_image, mascot_runtime_state_path, run_workspace_update, Core,
+    CoreConfig, MascotConfig, MascotImageData, MotionState, MotionTransform,
 };
 
 const SKIN_CACHE_CAPACITY: usize = 16;
@@ -44,6 +44,10 @@ const SKIN_CACHE_CAPACITY: usize = 16;
 fn main() -> Result<()> {
     let config_path = match parse_cli(std::env::args_os())? {
         CliAction::Run(config_path) => config_path,
+        CliAction::Update => {
+            run_workspace_update()?;
+            return Ok(());
+        }
         CliAction::PrintHelp(help) => {
             println!("{help}");
             return Ok(());

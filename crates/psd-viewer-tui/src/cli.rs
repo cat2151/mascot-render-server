@@ -8,6 +8,7 @@ use crate::tui_config::tui_config_path;
 #[derive(Debug)]
 pub(crate) enum CliAction {
     Run,
+    Update,
     PrintHelp(String),
 }
 
@@ -18,6 +19,16 @@ pub(crate) fn parse_cli(args: impl IntoIterator<Item = OsString>) -> Result<CliA
     if let Some(arg) = args.next() {
         if arg == "--help" || arg == "-h" {
             return Ok(CliAction::PrintHelp(help_text()));
+        }
+
+        if arg == "update" {
+            if let Some(next) = args.next() {
+                bail!(
+                    "unsupported argument '{}' after 'update'; run with --help for usage",
+                    next.to_string_lossy()
+                );
+            }
+            return Ok(CliAction::Update);
         }
 
         if arg.to_string_lossy().starts_with('-') {
@@ -47,8 +58,10 @@ pub(crate) fn help_text() -> String {
         "\
 Usage:
   psd-viewer-tui
+  psd-viewer-tui update
 
 Options:
+  update       Stop running binaries and reinstall both binaries.
   -h, --help  Show this help.
 
 Default local data directory:
