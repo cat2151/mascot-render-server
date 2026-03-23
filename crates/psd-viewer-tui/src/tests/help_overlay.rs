@@ -37,8 +37,18 @@ fn help_overlay_lines_include_close_hint_and_layer_toggle() {
 
     assert_eq!(lines[0], "Press ? to close help.");
     assert!(
-        lines.contains(&"Space: toggle selected layer".to_string()),
+        lines.contains(&"Space/Enter: toggle selected layer".to_string()),
         "help overlay should describe layer toggling"
+    );
+}
+
+#[test]
+fn footer_help_line_mentions_space_and_enter_for_toggle() {
+    let app = App::loading(None);
+
+    assert!(
+        line_text(app.help_line()).contains("Space/Enter: toggle"),
+        "footer should describe both Space and Enter as toggle keys"
     );
 }
 
