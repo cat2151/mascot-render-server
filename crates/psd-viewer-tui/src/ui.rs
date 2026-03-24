@@ -79,44 +79,75 @@ pub(crate) fn draw(
     };
     let library_area = main_content[0];
 
-    let library_rows = app.library_rows();
-    let library_items = if library_rows.is_empty() {
-        let message = app.startup_notice().unwrap_or("No PSD files found.");
-        vec![ListItem::new(message).style(comment_style(terminal_focused))]
+    let library_items = if app.favorites_visible() {
+        let favorite_rows = app.favorite_rows();
+        if favorite_rows.is_empty() {
+            vec![
+                ListItem::new("No favorites saved yet. Press f on the layer pane.")
+                    .style(comment_style(terminal_focused)),
+            ]
+        } else {
+            favorite_rows
+                .iter()
+                .map(|row| {
+                    let style = if row.available {
+                        base_style(terminal_focused)
+                    } else {
+                        comment_style(terminal_focused)
+                    };
+                    ListItem::new(row.label.clone()).style(style)
+                })
+                .collect()
+        }
     } else {
-        library_rows
-            .iter()
-            .map(|row| match row {
-                LibraryRow::ZipHeader { zip_index } => {
-                    let zip_entry = &app.zip_entries[*zip_index];
-                    let label = zip_entry
-                        .zip_path
-                        .file_name()
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| display_path(&zip_entry.zip_path));
-                    ListItem::new(format!("[ZIP] {label}")).style(accent_style(terminal_focused))
-                }
-                LibraryRow::PsdItem {
-                    zip_index,
-                    psd_index,
-                } => {
-                    let psd_entry = &app.zip_entries[*zip_index].psds[*psd_index];
-                    ListItem::new(format!("  {}", psd_entry.file_name))
-                        .style(base_style(terminal_focused))
-                }
-            })
-            .collect()
+        let library_rows = app.library_rows();
+        if library_rows.is_empty() {
+            let message = app.startup_notice().unwrap_or("No PSD files found.");
+            vec![ListItem::new(message).style(comment_style(terminal_focused))]
+        } else {
+            library_rows
+                .iter()
+                .map(|row| match row {
+                    LibraryRow::ZipHeader { zip_index } => {
+                        let zip_entry = &app.zip_entries[*zip_index];
+                        let label = zip_entry
+                            .zip_path
+                            .file_name()
+                            .map(|name| name.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| display_path(&zip_entry.zip_path));
+                        ListItem::new(format!("[ZIP] {label}"))
+                            .style(accent_style(terminal_focused))
+                    }
+                    LibraryRow::PsdItem {
+                        zip_index,
+                        psd_index,
+                    } => {
+                        let psd_entry = &app.zip_entries[*zip_index].psds[*psd_index];
+                        ListItem::new(format!("  {}", psd_entry.file_name))
+                            .style(base_style(terminal_focused))
+                    }
+                })
+                .collect()
+        }
     };
     let library_list = List::new(library_items)
         .block(pane_block(
-            "ZIP / PSD",
+            if app.favorites_visible() {
+                "Favorites"
+            } else {
+                "ZIP / PSD"
+            },
             terminal_focused,
             app.focus == FocusPane::Library,
         ))
         .highlight_style(selected_style(terminal_focused))
         .highlight_symbol("> ");
     let mut library_state = ListState::default();
-    library_state.select(app.selected_library_selection());
+    library_state.select(if app.favorites_visible() {
+        app.selected_favorite_selection()
+    } else {
+        app.selected_library_selection()
+    });
     frame.render_stateful_widget(library_list, library_area, &mut library_state);
 
     let preview_area = if use_server_preview {
