@@ -56,7 +56,8 @@ psd_file_name = "body.psd"
     )
     .expect("should seed invalid favorites cache");
 
-    let loaded = load_favorites(&path).expect("invalid favorites cache should be ignored");
+    let loaded =
+        load_favorites(&path).expect("should load favorites while ignoring invalid entries");
     assert!(loaded.is_empty());
 }
 

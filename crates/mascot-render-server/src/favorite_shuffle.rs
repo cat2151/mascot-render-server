@@ -323,10 +323,14 @@ pub(crate) fn build_playlist(
 fn sanitize_favorites(favorites: Vec<FavoriteEntryFile>) -> Vec<FavoriteEntry> {
     let mut seen = HashSet::new();
     let mut sanitized = Vec::new();
-    for favorite in favorites.into_iter().map(FavoriteEntry::from) {
+    for (index, favorite) in favorites.into_iter().map(FavoriteEntry::from).enumerate() {
         if favorite.zip_path.as_os_str().is_empty()
             || favorite.psd_path_in_zip.as_os_str().is_empty()
         {
+            eprintln!(
+                "favorite shuffle dropped empty-path favorite entry at index {}",
+                index
+            );
             continue;
         }
         if seen.insert(favorite.key()) {
