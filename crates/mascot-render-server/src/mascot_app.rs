@@ -306,9 +306,10 @@ impl MascotApp {
 
     fn pending_scale_persist_remaining(&self, now: Instant) -> Option<Duration> {
         match (self.pending_persisted_scale, self.last_scale_change_at) {
-            (Some(_), Some(changed_at)) => Some(
-                SCALE_PERSIST_DEBOUNCE.saturating_sub(now.saturating_duration_since(changed_at)),
-            ),
+            (Some(_), Some(changed_at)) => {
+                let elapsed = now.saturating_duration_since(changed_at);
+                Some(SCALE_PERSIST_DEBOUNCE.saturating_sub(elapsed))
+            }
             _ => None,
         }
     }
@@ -317,10 +318,8 @@ impl MascotApp {
         let Some(pending_scale) = self.pending_persisted_scale else {
             return Ok(());
         };
-        if self
-            .pending_scale_persist_remaining(now)
-            .is_some_and(|remaining| !remaining.is_zero())
-        {
+        let pending_remaining = self.pending_scale_persist_remaining(now);
+        if pending_remaining.is_some_and(|remaining| !remaining.is_zero()) {
             return Ok(());
         }
         self.persist_pending_scale(pending_scale)
