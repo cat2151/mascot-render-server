@@ -4,6 +4,8 @@ use mascot_render_core::display_path;
 use super::{App, FocusPane};
 use crate::favorites::{favorite_selection, favorites_path, save_favorites, FavoriteEntry};
 
+const NO_SELECTED_PSD_FAVORITE_STATUS: &str = "Favorite unavailable: no PSD is selected.";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FavoriteRow {
     pub(crate) label: String,
@@ -66,19 +68,26 @@ impl App {
     }
 
     pub(crate) fn add_current_favorite(&mut self) -> Result<bool> {
-        let Some((zip_path, psd_path_in_zip)) = self.current_runtime_state_paths() else {
-            self.status = "Favorite unavailable: no PSD is selected.".to_string();
-            return Ok(false);
-        };
-        let Some(psd_entry) = self.selected_psd_entry() else {
-            self.status = "Favorite unavailable: no PSD is selected.".to_string();
+        let Some((zip_path, psd_path_in_zip, psd_file_name)) = self
+            .current_runtime_state_paths()
+            .and_then(|(zip_path, psd_path_in_zip)| {
+                self.selected_psd_entry().map(|psd_entry| {
+                    (
+                        zip_path.to_path_buf(),
+                        psd_path_in_zip.to_path_buf(),
+                        psd_entry.file_name.clone(),
+                    )
+                })
+            })
+        else {
+            self.status = NO_SELECTED_PSD_FAVORITE_STATUS.to_string();
             return Ok(false);
         };
 
         let favorite = FavoriteEntry {
-            zip_path: zip_path.to_path_buf(),
-            psd_path_in_zip: psd_path_in_zip.to_path_buf(),
-            psd_file_name: psd_entry.file_name.clone(),
+            zip_path,
+            psd_path_in_zip,
+            psd_file_name,
         };
         if let Some(index) = self.favorites.iter().position(|entry| entry == &favorite) {
             self.selected_favorite_index = index;

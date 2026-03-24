@@ -27,7 +27,7 @@ fn question_mark_toggles_help_overlay_visibility() {
 }
 
 #[test]
-fn help_overlay_lines_include_favorites() {
+fn help_overlay_includes_all_shortcuts() {
     let app = App::loading(None);
     let lines = app
         .help_overlay_lines()

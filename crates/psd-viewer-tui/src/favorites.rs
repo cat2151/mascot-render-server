@@ -84,14 +84,16 @@ pub(crate) fn favorite_selection(
                     .find_map(|(psd_index, psd_entry)| {
                         let psd_path_in_zip =
                             if psd_entry.path.starts_with(&zip_entry.extracted_dir) {
-                                psd_entry
-                                    .path
-                                    .strip_prefix(&zip_entry.extracted_dir)
-                                    .map(Path::to_path_buf)
-                                    .expect("starts_with should guarantee strip_prefix succeeds")
-                            } else {
-                                psd_entry.path.clone()
-                            };
+                            psd_entry
+                                .path
+                                .strip_prefix(&zip_entry.extracted_dir)
+                                .map(Path::to_path_buf)
+                                .expect(
+                                    "path must be relative to extracted_dir when starts_with succeeds",
+                                )
+                        } else {
+                            psd_entry.path.clone()
+                        };
                         (psd_path_in_zip == favorite.psd_path_in_zip)
                             .then_some((zip_index, psd_index))
                     })
