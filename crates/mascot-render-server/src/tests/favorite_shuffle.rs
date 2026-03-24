@@ -37,6 +37,30 @@ psd_file_name = "body-renamed.psd"
 }
 
 #[test]
+fn favorite_shuffle_invalid_entry_is_rejected_during_parse() {
+    let root = workspace_cache_root().join("test-favorite-shuffle-invalid-entry");
+    let path = favorites_path_for(&root);
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
+        .expect("should create favorites directory");
+
+    fs::write(
+        &path,
+        r#"
+version = 1
+
+[[favorites]]
+psd_path_in_zip = "a/body.psd"
+psd_file_name = "body.psd"
+"#,
+    )
+    .expect("should seed invalid favorites cache");
+
+    let loaded = load_favorites(&path).expect("invalid favorites cache should be ignored");
+    assert!(loaded.is_empty());
+}
+
+#[test]
 fn favorite_shuffle_playlist_starts_with_a_different_favorite() {
     let favorites = vec![
         favorite("/workspace/a.zip", "a/body.psd", "body.psd"),

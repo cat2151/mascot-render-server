@@ -32,7 +32,7 @@ struct FavoriteShuffleState {
     shuffle_seed: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct FavoriteEntry {
     pub(crate) zip_path: PathBuf,
     pub(crate) psd_path_in_zip: PathBuf,
@@ -45,11 +45,11 @@ pub(crate) struct FavoriteKey {
     psd_path_in_zip: PathBuf,
 }
 
-#[derive(Debug, Deserialize, Default)]
-#[serde(default)]
+#[derive(Debug, Deserialize)]
 struct FavoriteEntryFile {
     zip_path: PathBuf,
     psd_path_in_zip: PathBuf,
+    #[serde(default)]
     psd_file_name: String,
 }
 
@@ -79,12 +79,21 @@ impl FavoriteEntry {
 
     fn label(&self) -> String {
         format!(
-            "{} :: {}",
+            "{} :: {} ({})",
             self.zip_path.display(),
-            self.psd_path_in_zip.display()
+            self.psd_path_in_zip.display(),
+            self.psd_file_name
         )
     }
 }
+
+impl PartialEq for FavoriteEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.zip_path == other.zip_path && self.psd_path_in_zip == other.psd_path_in_zip
+    }
+}
+
+impl Eq for FavoriteEntry {}
 
 impl Hash for FavoriteEntry {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -315,6 +324,11 @@ fn sanitize_favorites(favorites: Vec<FavoriteEntryFile>) -> Vec<FavoriteEntry> {
     let mut seen = HashSet::new();
     let mut sanitized = Vec::new();
     for favorite in favorites.into_iter().map(FavoriteEntry::from) {
+        if favorite.zip_path.as_os_str().is_empty()
+            || favorite.psd_path_in_zip.as_os_str().is_empty()
+        {
+            continue;
+        }
         if seen.insert(favorite.key()) {
             sanitized.push(favorite);
         }
