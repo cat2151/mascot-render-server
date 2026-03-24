@@ -283,7 +283,7 @@ impl MascotApp {
         Ok(())
     }
 
-    fn apply_scale_steps(&mut self, ctx: &egui::Context, steps: i32) -> Result<()> {
+    fn apply_scale_steps(&mut self, ctx: &egui::Context, now: Instant, steps: i32) -> Result<()> {
         let Some(next_scale) = adjust_scale(self.scale, steps) else {
             return Ok(());
         };
@@ -293,7 +293,7 @@ impl MascotApp {
         self.config.scale = Some(next_scale);
         self.scale = next_scale;
         self.pending_persisted_scale = Some(next_scale);
-        self.last_scale_change_at = Some(Instant::now());
+        self.last_scale_change_at = Some(now);
         self.base_size = size_vec(
             self.open_skin.image_size[0],
             self.open_skin.image_size[1],
@@ -305,11 +305,12 @@ impl MascotApp {
     }
 
     fn pending_scale_persist_remaining(&self, now: Instant) -> Option<Duration> {
-        let (Some(_), Some(changed_at)) = (self.pending_persisted_scale, self.last_scale_change_at)
-        else {
-            return None;
-        };
-        Some(SCALE_PERSIST_DEBOUNCE.saturating_sub(now.saturating_duration_since(changed_at)))
+        match (self.pending_persisted_scale, self.last_scale_change_at) {
+            (Some(_), Some(changed_at)) => Some(
+                SCALE_PERSIST_DEBOUNCE.saturating_sub(now.saturating_duration_since(changed_at)),
+            ),
+            _ => None,
+        }
     }
 
     fn persist_pending_scale_if_due(&mut self, now: Instant) -> Result<()> {
@@ -426,7 +427,7 @@ impl App for MascotApp {
                 input.key_pressed(egui::Key::Minus),
             )
         });
-        if let Err(error) = self.apply_scale_steps(ctx, keyboard_steps) {
+        if let Err(error) = self.apply_scale_steps(ctx, now, keyboard_steps) {
             eprintln!("{error:#}");
         }
         let blink_closed = self.closed_skin.is_some() && self.eye_blink.is_closed(now);
@@ -511,7 +512,7 @@ impl App for MascotApp {
                 if response.hovered() {
                     let scroll_steps =
                         ctx.input(|input| scroll_scale_steps(input.raw_scroll_delta.y));
-                    if let Err(error) = self.apply_scale_steps(ctx, scroll_steps) {
+                    if let Err(error) = self.apply_scale_steps(ctx, now, scroll_steps) {
                         eprintln!("{error:#}");
                     }
                 }
