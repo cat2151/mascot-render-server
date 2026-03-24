@@ -27,7 +27,7 @@ fn question_mark_toggles_help_overlay_visibility() {
 }
 
 #[test]
-fn help_overlay_lines_include_close_hint_and_layer_toggle() {
+fn help_overlay_lines_include_close_hint_layer_toggle_and_favorites() {
     let app = App::loading(None);
     let lines = app
         .help_overlay_lines()
@@ -40,6 +40,14 @@ fn help_overlay_lines_include_close_hint_and_layer_toggle() {
         lines.contains(&"Space/Enter: toggle selected layer".to_string()),
         "help overlay should describe layer toggling"
     );
+    assert!(
+        lines.contains(&"f: save current PSD to favorites (layer pane)".to_string()),
+        "help overlay should describe favorite saving"
+    );
+    assert!(
+        lines.contains(&"v: open/close favorites list".to_string()),
+        "help overlay should describe favorites list toggle"
+    );
 }
 
 #[test]
@@ -49,6 +57,10 @@ fn footer_help_line_mentions_space_and_enter_for_toggle() {
     assert!(
         line_text(app.help_line()).contains("Space/Enter: toggle"),
         "footer should describe both Space and Enter as toggle keys"
+    );
+    assert!(
+        line_text(app.help_line()).contains("f: favorite | v: favorites"),
+        "footer should describe favorites shortcuts"
     );
 }
 

@@ -4,6 +4,7 @@ use ratatui::text::{Line, Span};
 use mascot_render_core::{display_path, mascot_config_path, mascot_runtime_state_path};
 
 use crate::app::{App, PreviewBackend, MONOKAI_PINK, MONOKAI_YELLOW};
+use crate::favorites::favorites_path;
 use crate::tui_config::{tui_config_path, tui_runtime_state_path};
 
 impl App {
@@ -74,6 +75,10 @@ impl App {
             "TUI Runtime State: {}",
             display_path(&tui_runtime_state_path(&tui_config_path()))
         )));
+        lines.push(Line::from(format!(
+            "Favorites TOML: {}",
+            display_path(&favorites_path())
+        )));
 
         if let Some(variation_spec_path) = &self.current_variation_spec_path {
             lines.push(Line::from(format!(
@@ -115,7 +120,7 @@ impl App {
             "help"
         };
         Line::from(format!(
-            "q: quit | ?: {help_action} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
+            "q: quit | ?: {help_action} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | f: favorite | v: favorites | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
         ))
     }
 
@@ -128,6 +133,9 @@ impl App {
             Line::from("h/l or Left/Right: switch pane"),
             Line::from("PageUp/PageDown: page scroll"),
             Line::from("Space/Enter: toggle selected layer"),
+            Line::from("f: save current PSD to favorites (layer pane)"),
+            Line::from("v: open/close favorites list"),
+            Line::from("Enter on favorites list: select PSD"),
             Line::from("-/+: mascot scale"),
             Line::from("t: mouth flap preview"),
             Line::from("m: eye blink preview"),

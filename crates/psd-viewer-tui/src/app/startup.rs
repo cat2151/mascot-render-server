@@ -6,6 +6,7 @@ use anyhow::Result;
 use mascot_render_core::{display_path, existing_zip_sources, Core, CoreConfig};
 
 use super::{App, FocusPane, PreviewBackend};
+use crate::favorites::{favorites_path, load_favorites};
 use crate::tui_config::{
     ensure_tui_config_split, load_tui_config, load_tui_runtime_state, save_tui_config,
     tui_config_path, TuiRuntimeState,
@@ -146,6 +147,10 @@ impl App {
         self.help_overlay_visible = previous.help_overlay_visible;
         self.tui_runtime_state = previous.tui_runtime_state.clone();
         self.layer_scroll_offset = previous.layer_scroll_offset;
+        self.favorites = previous.favorites.clone();
+        self.favorites_visible = previous.favorites_visible;
+        self.favorites_return_focus = previous.favorites_return_focus;
+        self.selected_favorite_index = previous.selected_favorite_index;
         let previous_selection = previous.workspace_state_snapshot();
         if previous_selection.selected_psd_path.is_some()
             || previous_selection.selected_zip_hash.is_some()
@@ -180,6 +185,7 @@ impl App {
             status,
         } = context;
         let startup_loading = startup_notice.is_some();
+        let favorites = load_favorites(&favorites_path())?;
         let mut app = Self {
             status,
             core,
@@ -202,6 +208,10 @@ impl App {
             screen_height_px,
             variations: HashMap::new(),
             layer_rows: Vec::new(),
+            favorites,
+            favorites_visible: false,
+            favorites_return_focus: None,
+            selected_favorite_index: 0,
             should_quit: false,
             zip_entries,
             selected_zip_index: 0,
@@ -212,6 +222,7 @@ impl App {
 
         app.restore_selection(restored_state);
         app.refresh_selected_psd_state()?;
+        app.sync_favorite_selection_bounds();
         if !startup_loading {
             app.save_selection()?;
         }

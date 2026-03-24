@@ -10,6 +10,9 @@ use mascot_render_core::{PsdEntry, ZipEntry};
 
 impl App {
     pub(crate) fn move_focus_left(&mut self) {
+        if self.favorites_visible() {
+            return;
+        }
         self.focus = match self.focus {
             FocusPane::Library => FocusPane::Library,
             FocusPane::Layer => FocusPane::Library,
@@ -17,6 +20,9 @@ impl App {
     }
 
     pub(crate) fn move_focus_right(&mut self) {
+        if self.favorites_visible() {
+            return;
+        }
         self.focus = match self.focus {
             FocusPane::Library => FocusPane::Layer,
             FocusPane::Layer => FocusPane::Layer,
@@ -24,6 +30,11 @@ impl App {
     }
 
     pub(crate) fn select_previous(&mut self) -> Result<()> {
+        if self.favorites_visible() {
+            self.select_previous_favorite(1);
+            return Ok(());
+        }
+
         match self.focus {
             FocusPane::Library => {
                 if let Some(current) = self.selected_flat_psd_index() {
@@ -50,6 +61,11 @@ impl App {
     }
 
     pub(crate) fn select_next(&mut self) -> Result<()> {
+        if self.favorites_visible() {
+            self.select_next_favorite(1);
+            return Ok(());
+        }
+
         match self.focus {
             FocusPane::Library => {
                 if let Some(current) = self.selected_flat_psd_index() {
@@ -77,6 +93,11 @@ impl App {
 
     pub(crate) fn page_up(&mut self, page_step: usize) -> Result<()> {
         let page_step = page_step.max(1);
+        if self.favorites_visible() {
+            self.select_previous_favorite(page_step);
+            return Ok(());
+        }
+
         match self.focus {
             FocusPane::Library => {
                 if let Some(current) = self.selected_flat_psd_index() {
@@ -100,6 +121,11 @@ impl App {
 
     pub(crate) fn page_down(&mut self, page_step: usize) -> Result<()> {
         let page_step = page_step.max(1);
+        if self.favorites_visible() {
+            self.select_next_favorite(page_step);
+            return Ok(());
+        }
+
         match self.focus {
             FocusPane::Library => {
                 if let Some(current) = self.selected_flat_psd_index() {
@@ -205,6 +231,7 @@ impl App {
     }
 
     pub(super) fn sync_selection_bounds(&mut self) {
+        self.sync_favorite_selection_bounds();
         self.sync_psd_selection_bounds();
         self.sync_layer_selection_bounds();
     }

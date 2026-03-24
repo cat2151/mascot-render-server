@@ -2,6 +2,7 @@ mod activity_indicator;
 mod app;
 mod cli;
 mod display_diff_state;
+mod favorites;
 mod server_motion_sync;
 mod server_preview_sync;
 mod terminal;
@@ -19,6 +20,9 @@ mod display_diff_state_tests;
 #[cfg(test)]
 #[path = "tests/eye_blink.rs"]
 mod eye_blink_tests;
+#[cfg(test)]
+#[path = "tests/favorites.rs"]
+mod favorites_tests;
 #[cfg(test)]
 #[path = "tests/help_overlay.rs"]
 mod help_overlay_tests;
@@ -182,6 +186,14 @@ fn run_app(
                     KeyCode::Char('?') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                         app.toggle_help_overlay();
                     }
+                    KeyCode::Char('v') if key.modifiers == KeyModifiers::NONE => {
+                        app.toggle_favorites_view();
+                    }
+                    KeyCode::Char('f') if key.modifiers == KeyModifiers::NONE => {
+                        if app.focus == app::FocusPane::Layer && !app.favorites_visible() {
+                            app.add_current_favorite()?;
+                        }
+                    }
                     KeyCode::Up | KeyCode::Char('k') if key.modifiers == KeyModifiers::NONE => {
                         app.select_previous()?;
                     }
@@ -199,6 +211,11 @@ fn run_app(
                     }
                     KeyCode::Right | KeyCode::Char('l') if key.modifiers == KeyModifiers::NONE => {
                         app.move_focus_right();
+                    }
+                    KeyCode::Enter
+                        if key.modifiers == KeyModifiers::NONE && app.favorites_visible() =>
+                    {
+                        app.activate_selected_favorite()?;
                     }
                     _ if is_layer_toggle_key(&key) => {
                         let predicted_preview_path =
