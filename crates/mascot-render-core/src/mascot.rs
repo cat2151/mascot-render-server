@@ -4,11 +4,14 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
 use image::ImageReader;
-use serde::{Deserialize, Serialize};
 
 use crate::mascot_motion::{BounceAnimationConfig, HeadHitbox, SquashBounceAnimationConfig};
 use crate::mascot_paths::unix_timestamp;
 pub use crate::mascot_paths::{mascot_config_path, mascot_runtime_state_path};
+#[path = "mascot/config_files.rs"]
+mod config_files;
+
+use config_files::{LegacyMascotConfigFile, MascotRuntimeStateFile, MascotStaticConfigFile};
 
 const DEFAULT_MAX_EDGE: f32 = 480.0;
 const DEFAULT_SCREEN_HEIGHT_RATIO: f32 = 0.33;
@@ -45,126 +48,6 @@ pub struct MascotTarget {
     pub zip_path: PathBuf,
     pub psd_path_in_zip: PathBuf,
     pub display_diff_path: Option<PathBuf>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-struct MascotStaticConfigFile {
-    version: u32,
-    always_bouncing: bool,
-    transparent_background_click_through: bool,
-    #[serde(alias = "debug_flash_blue_background_on_transparent_input")]
-    flash_blue_background_on_transparent_input: bool,
-    head_hitbox: HeadHitbox,
-    bounce: BounceAnimationConfig,
-    squash_bounce: SquashBounceAnimationConfig,
-    updated_at: u64,
-}
-
-impl Default for MascotStaticConfigFile {
-    fn default() -> Self {
-        Self {
-            version: MASCOT_CONFIG_VERSION,
-            always_bouncing: false,
-            transparent_background_click_through: false,
-            flash_blue_background_on_transparent_input: true,
-            head_hitbox: HeadHitbox::default(),
-            bounce: BounceAnimationConfig::default(),
-            squash_bounce: SquashBounceAnimationConfig::default(),
-            updated_at: 0,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-struct MascotRuntimeStateFile {
-    version: u32,
-    png_path: PathBuf,
-    scale: Option<f32>,
-    zip_path: PathBuf,
-    psd_path_in_zip: PathBuf,
-    display_diff_path: Option<PathBuf>,
-    updated_at: u64,
-}
-
-impl Default for MascotRuntimeStateFile {
-    fn default() -> Self {
-        Self {
-            version: MASCOT_RUNTIME_STATE_VERSION,
-            png_path: PathBuf::new(),
-            scale: None,
-            zip_path: PathBuf::new(),
-            psd_path_in_zip: PathBuf::new(),
-            display_diff_path: None,
-            updated_at: 0,
-        }
-    }
-}
-
-impl From<&MascotTarget> for MascotRuntimeStateFile {
-    fn from(target: &MascotTarget) -> Self {
-        Self {
-            version: MASCOT_RUNTIME_STATE_VERSION,
-            png_path: target.png_path.clone(),
-            scale: target.scale,
-            zip_path: target.zip_path.clone(),
-            psd_path_in_zip: target.psd_path_in_zip.clone(),
-            display_diff_path: target.display_diff_path.clone(),
-            updated_at: unix_timestamp(),
-        }
-    }
-}
-
-impl MascotRuntimeStateFile {
-    fn into_target(self) -> MascotTarget {
-        MascotTarget {
-            png_path: self.png_path,
-            scale: self.scale,
-            zip_path: self.zip_path,
-            psd_path_in_zip: self.psd_path_in_zip,
-            display_diff_path: self.display_diff_path,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-struct LegacyMascotConfigFile {
-    version: u32,
-    png_path: PathBuf,
-    scale: Option<f32>,
-    zip_path: PathBuf,
-    psd_path_in_zip: PathBuf,
-    display_diff_path: Option<PathBuf>,
-    always_bouncing: bool,
-    transparent_background_click_through: bool,
-    #[serde(alias = "debug_flash_blue_background_on_transparent_input")]
-    flash_blue_background_on_transparent_input: bool,
-    head_hitbox: HeadHitbox,
-    bounce: BounceAnimationConfig,
-    squash_bounce: SquashBounceAnimationConfig,
-    updated_at: u64,
-}
-
-impl Default for LegacyMascotConfigFile {
-    fn default() -> Self {
-        Self {
-            version: MASCOT_CONFIG_VERSION,
-            png_path: PathBuf::new(),
-            scale: None,
-            zip_path: PathBuf::new(),
-            psd_path_in_zip: PathBuf::new(),
-            display_diff_path: None,
-            always_bouncing: false,
-            transparent_background_click_through: false,
-            flash_blue_background_on_transparent_input: true,
-            head_hitbox: HeadHitbox::default(),
-            bounce: BounceAnimationConfig::default(),
-            squash_bounce: SquashBounceAnimationConfig::default(),
-            updated_at: 0,
-        }
-    }
 }
 
 pub fn parse_mascot_config_path(args: impl IntoIterator<Item = OsString>) -> Result<PathBuf> {
