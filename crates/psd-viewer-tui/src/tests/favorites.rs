@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::favorites::{favorite_selection, load_favorites, save_favorites, FavoriteEntry};
+use crate::favorites::{favorite_selection_lookup, load_favorites, save_favorites, FavoriteEntry};
 use mascot_render_core::workspace_cache_root;
 use mascot_render_core::{PsdEntry, ZipEntry};
 
@@ -94,14 +94,16 @@ fn favorite_selection_matches_zip_path_and_psd_path_in_zip() {
         },
     ];
 
-    let selection = favorite_selection(
-        &zip_entries,
-        &FavoriteEntry {
-            zip_path: PathBuf::from("/workspace/b.zip"),
-            psd_path_in_zip: PathBuf::from("b/face.psd"),
-            psd_file_name: "face.psd".to_string(),
-        },
-    );
+    let selection = favorite_selection_lookup(&zip_entries)
+        .get(
+            &FavoriteEntry {
+                zip_path: PathBuf::from("/workspace/b.zip"),
+                psd_path_in_zip: PathBuf::from("b/face.psd"),
+                psd_file_name: "face.psd".to_string(),
+            }
+            .key(),
+        )
+        .copied();
 
     assert_eq!(selection, Some((1, 0)));
 }

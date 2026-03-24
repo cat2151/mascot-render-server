@@ -100,16 +100,6 @@ pub(crate) fn save_favorites(path: &Path, favorites: &[FavoriteEntry]) -> Result
     fs::write(path, toml).with_context(|| format!("failed to write favorites {}", path.display()))
 }
 
-#[cfg(test)]
-pub(crate) fn favorite_selection(
-    zip_entries: &[ZipEntry],
-    favorite: &FavoriteEntry,
-) -> Option<(usize, usize)> {
-    favorite_selection_lookup(zip_entries)
-        .get(&favorite.key())
-        .copied()
-}
-
 pub(crate) fn favorite_selection_lookup(
     zip_entries: &[ZipEntry],
 ) -> HashMap<FavoriteKey, (usize, usize)> {
