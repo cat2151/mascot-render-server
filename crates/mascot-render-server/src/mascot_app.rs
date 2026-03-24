@@ -313,7 +313,10 @@ impl MascotApp {
             (None, None) => None,
             _ => {
                 debug_assert!(
-                    false,
+                    matches!(
+                        (self.pending_persisted_scale, self.last_scale_change_at),
+                        (Some(_), Some(_)) | (None, None)
+                    ),
                     "pending scale debounce state should be set and cleared together"
                 );
                 None
