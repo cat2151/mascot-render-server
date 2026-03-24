@@ -22,6 +22,7 @@ use crate::app_support::{
 use crate::eye_blink::{render_closed_eye_png, EyeBlinkLoop};
 use crate::mascot_scale::{
     adjust_scale, effective_scale, keyboard_scale_steps, persist_scale, scroll_scale_steps,
+    SCALE_PERSIST_DEBOUNCE,
 };
 use crate::window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
@@ -38,6 +39,8 @@ pub(crate) struct MascotApp {
     open_skin: CachedSkin,
     closed_skin: Option<CachedSkin>,
     scale: f32,
+    pending_persisted_scale: Option<f32>,
+    last_scale_change_at: Option<Instant>,
     base_size: Vec2,
     skin_cache: MascotSkinCache<CachedSkin>,
     motion: MotionState,
@@ -90,6 +93,8 @@ impl MascotApp {
             open_skin,
             closed_skin: None,
             scale,
+            pending_persisted_scale: None,
+            last_scale_change_at: None,
             base_size,
             skin_cache,
             motion: MotionState::new(),
@@ -285,10 +290,10 @@ impl MascotApp {
 
         let previous_layout = self.window_layout;
         let previous_base_size = self.base_size;
-        persist_scale(&self.config_path, &self.config, next_scale)?;
         self.config.scale = Some(next_scale);
-        self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
         self.scale = next_scale;
+        self.pending_persisted_scale = Some(next_scale);
+        self.last_scale_change_at = Some(Instant::now());
         self.base_size = size_vec(
             self.open_skin.image_size[0],
             self.open_skin.image_size[1],
@@ -296,6 +301,33 @@ impl MascotApp {
         );
         self.refresh_window_layout(ctx, previous_layout, previous_base_size);
         ctx.request_repaint();
+        Ok(())
+    }
+
+    fn pending_scale_persist_remaining(&self, now: Instant) -> Option<Duration> {
+        let changed_at = self.last_scale_change_at?;
+        self.pending_persisted_scale?;
+        Some(SCALE_PERSIST_DEBOUNCE.saturating_sub(now.saturating_duration_since(changed_at)))
+    }
+
+    fn persist_pending_scale_if_due(&mut self, now: Instant) -> Result<()> {
+        let Some(pending_scale) = self.pending_persisted_scale else {
+            return Ok(());
+        };
+        if self
+            .pending_scale_persist_remaining(now)
+            .is_some_and(|remaining| !remaining.is_zero())
+        {
+            return Ok(());
+        }
+        self.persist_pending_scale(pending_scale)
+    }
+
+    fn persist_pending_scale(&mut self, scale: f32) -> Result<()> {
+        persist_scale(&self.config_path, &self.config, scale)?;
+        self.pending_persisted_scale = None;
+        self.last_scale_change_at = None;
+        self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
         Ok(())
     }
 
@@ -373,6 +405,9 @@ impl App for MascotApp {
 
         let now = Instant::now();
         if let Err(error) = self.sync_window_history(ctx, now) {
+            eprintln!("{error:#}");
+        }
+        if let Err(error) = self.persist_pending_scale_if_due(now) {
             eprintln!("{error:#}");
         }
         if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
@@ -490,11 +525,20 @@ impl App for MascotApp {
         ctx.request_repaint_after(
             transparent_input_visual_remaining
                 .map(|remaining| repaint_after.min(remaining))
-                .unwrap_or(repaint_after),
+                .unwrap_or(repaint_after)
+                .min(
+                    self.pending_scale_persist_remaining(now)
+                        .unwrap_or(Duration::MAX),
+                ),
         );
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if let Some(scale) = self.pending_persisted_scale {
+            if let Err(error) = self.persist_pending_scale(scale) {
+                eprintln!("{error:#}");
+            }
+        }
         if let Err(error) = self.window_history.flush() {
             eprintln!("{error:#}");
         }

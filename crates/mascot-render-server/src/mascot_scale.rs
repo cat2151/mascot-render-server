@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::Duration;
 
 use anyhow::Result;
 use eframe::egui::Modifiers;
@@ -6,6 +7,7 @@ use mascot_render_core::{mascot_window_size, write_mascot_config, MascotConfig, 
 
 pub(crate) const MASCOT_SCALE_STEP: f32 = 0.10;
 pub(crate) const MIN_MASCOT_SCALE: f32 = 0.01;
+pub(crate) const SCALE_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
 
 pub(crate) fn effective_scale(width: u32, height: u32, configured_scale: Option<f32>) -> f32 {
     let [scaled_width, scaled_height] = mascot_window_size(width, height, configured_scale);

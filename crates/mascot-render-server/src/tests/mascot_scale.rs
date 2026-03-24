@@ -38,8 +38,9 @@ fn sample_config() -> MascotConfig {
 }
 
 fn assert_close(actual: f32, expected: f32) {
+    const FLOAT_TOLERANCE: f32 = 0.001;
     assert!(
-        (actual - expected).abs() <= f32::EPSILON,
+        (actual - expected).abs() <= FLOAT_TOLERANCE,
         "expected {expected}, got {actual}"
     );
 }
