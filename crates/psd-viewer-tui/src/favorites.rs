@@ -82,8 +82,8 @@ pub(crate) fn favorite_selection(
                     .iter()
                     .enumerate()
                     .find_map(|(psd_index, psd_entry)| {
-                        let psd_path_in_zip =
-                            if psd_entry.path.starts_with(&zip_entry.extracted_dir) {
+                        let psd_path_in_zip = if psd_entry.path.starts_with(&zip_entry.extracted_dir)
+                        {
                             psd_entry
                                 .path
                                 .strip_prefix(&zip_entry.extracted_dir)

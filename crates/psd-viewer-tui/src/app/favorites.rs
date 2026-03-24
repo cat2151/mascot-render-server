@@ -151,7 +151,9 @@ impl App {
             return;
         }
 
-        self.selected_favorite_index = self.selected_favorite_index.min(self.favorites.len() - 1);
+        self.selected_favorite_index = self
+            .selected_favorite_index
+            .min(self.favorites.len().saturating_sub(1));
     }
 
     fn current_favorite_index(&self) -> Option<usize> {
