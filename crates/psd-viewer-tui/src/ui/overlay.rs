@@ -4,7 +4,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
 use crate::activity_indicator::draw_activity_indicator;
 
-use super::{
+use super::style::{
     activity_indicator_style, base_style, comment_style, compact_overlay_style,
     overlay_border_style, processing_overlay_style,
 };
