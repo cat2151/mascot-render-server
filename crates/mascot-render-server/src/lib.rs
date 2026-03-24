@@ -1,3 +1,4 @@
+mod favorite_shuffle;
 mod mascot_control;
 mod mascot_skin_cache;
 mod motion_timeline;
@@ -13,6 +14,7 @@ mod eye_blink_timing;
 #[cfg(test)]
 mod tests;
 
+pub use favorite_shuffle::{FavoriteShufflePlaylist, FAVORITE_SHUFFLE_INTERVAL};
 pub use mascot_control::{
     ensure_mascot_render_server_visible, play_mascot_render_server_timeline,
     start_mascot_control_server, start_mascot_control_server_with_notify,

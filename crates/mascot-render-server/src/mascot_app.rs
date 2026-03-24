@@ -12,8 +12,8 @@ use mascot_render_core::{
 };
 use mascot_render_server::{
     anchored_inner_origin, apply_motion_timeline_request, captures_logical_point, AlphaBounds,
-    MascotControlCommand, MascotSkinCache, MascotWindowLayout, TransparentHitTestUpdate,
-    TransparentHitTestWindow,
+    FavoriteShufflePlaylist, MascotControlCommand, MascotSkinCache, MascotWindowLayout,
+    TransparentHitTestUpdate, TransparentHitTestWindow,
 };
 
 use crate::app_support::{
@@ -38,6 +38,7 @@ pub(crate) struct MascotApp {
     skin_cache: MascotSkinCache<CachedSkin>,
     motion: MotionState,
     eye_blink: EyeBlinkLoop,
+    favorite_shuffle: FavoriteShufflePlaylist,
     control_rx: Receiver<MascotControlCommand>,
     transparent_hit_test: TransparentHitTestWindow,
     window_layout: MascotWindowLayout,
@@ -87,6 +88,7 @@ impl MascotApp {
             skin_cache,
             motion: MotionState::new(),
             eye_blink: EyeBlinkLoop::new(Instant::now()),
+            favorite_shuffle: FavoriteShufflePlaylist::new(Instant::now()),
             control_rx,
             transparent_hit_test,
             window_layout: initial_window_layout,
@@ -325,6 +327,15 @@ impl App for MascotApp {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Err(error) = self.apply_control_commands(ctx) {
+            eprintln!("{error:#}");
+        }
+
+        if let Err(error) = self.favorite_shuffle.update(
+            &self.core,
+            &self.config_path,
+            &self.config,
+            Instant::now(),
+        ) {
             eprintln!("{error:#}");
         }
 
