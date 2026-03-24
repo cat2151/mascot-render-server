@@ -263,7 +263,21 @@ pub(crate) fn load_favorites(path: &Path) -> Result<Vec<FavoriteEntry>> {
         Ok(file) if file.version == FAVORITES_FILE_VERSION => {
             Ok(sanitize_favorites(file.favorites))
         }
-        Ok(_) | Err(_) => Ok(Vec::new()),
+        Ok(file) => {
+            eprintln!(
+                "favorite shuffle ignored unsupported favorites cache version {} at {}",
+                file.version,
+                path.display()
+            );
+            Ok(Vec::new())
+        }
+        Err(error) => {
+            eprintln!(
+                "favorite shuffle ignored invalid favorites cache {}: {error:#}",
+                path.display()
+            );
+            Ok(Vec::new())
+        }
     }
 }
 
@@ -308,8 +322,9 @@ fn sanitize_favorites(favorites: Vec<FavoriteEntryFile>) -> Vec<FavoriteEntry> {
     sanitized
 }
 
-fn seed_from_system_time(now: SystemTime) -> u64 {
-    now.duration_since(UNIX_EPOCH)
+fn seed_from_system_time(system_time: SystemTime) -> u64 {
+    system_time
+        .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos() as u64
 }
