@@ -31,7 +31,23 @@ fn favorites_round_trip_as_toml() {
 }
 
 #[test]
-fn favorites_deduplicate_duplicate_entries_on_load() {
+fn favorite_entry_equality_ignores_display_name() {
+    let left = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+    };
+    let right = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body-renamed.psd".to_string(),
+    };
+
+    assert_eq!(left, right);
+}
+
+#[test]
+fn favorites_deduplicate_entries_by_zip_and_psd_path() {
     let root = workspace_cache_root().join("test-favorites-deduplicate");
     let path = root.join("favorites/psd-viewer-tui.toml");
     let _ = fs::remove_dir_all(&root);
@@ -51,7 +67,7 @@ psd_file_name = "body.psd"
 [[favorites]]
 zip_path = "/workspace/a.zip"
 psd_path_in_zip = "a/body.psd"
-psd_file_name = "body.psd"
+psd_file_name = "body-renamed.psd"
 "#,
     )
     .expect("should seed duplicate favorites");

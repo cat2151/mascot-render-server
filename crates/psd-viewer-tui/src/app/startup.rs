@@ -148,6 +148,7 @@ impl App {
         self.tui_runtime_state = previous.tui_runtime_state.clone();
         self.layer_scroll_offset = previous.layer_scroll_offset;
         self.favorites = previous.favorites.clone();
+        self.rebuild_favorite_selection_lookup();
         self.favorites_visible = previous.favorites_visible;
         self.favorites_return_focus = previous.favorites_return_focus;
         self.selected_favorite_index = previous.selected_favorite_index;
@@ -209,6 +210,7 @@ impl App {
             variations: HashMap::new(),
             layer_rows: Vec::new(),
             favorites,
+            favorite_selection_lookup: HashMap::new(),
             favorites_visible: false,
             favorites_return_focus: None,
             selected_favorite_index: 0,
@@ -220,6 +222,7 @@ impl App {
             focus: FocusPane::Library,
         };
 
+        app.rebuild_favorite_selection_lookup();
         app.restore_selection(restored_state);
         app.refresh_selected_psd_state()?;
         app.sync_favorite_selection_bounds();

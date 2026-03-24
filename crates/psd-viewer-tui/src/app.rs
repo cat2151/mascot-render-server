@@ -21,7 +21,7 @@ use mascot_render_core::{
 };
 
 use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override, LayerRow};
-use crate::favorites::FavoriteEntry;
+use crate::favorites::{FavoriteEntry, FavoriteKey};
 use crate::tui_config::{TuiRuntimeState, DEFAULT_LAYER_SCROLL_MARGIN_RATIO};
 use crate::tui_history::{save_tui_history, TuiHistory};
 use crate::workspace_state::save_workspace_state;
@@ -69,6 +69,7 @@ pub(crate) struct App {
     variations: HashMap<PathBuf, DisplayDiff>,
     layer_rows: Vec<LayerRow>,
     favorites: Vec<FavoriteEntry>,
+    favorite_selection_lookup: HashMap<FavoriteKey, (usize, usize)>,
     favorites_visible: bool,
     favorites_return_focus: Option<FocusPane>,
     selected_favorite_index: usize,
@@ -111,6 +112,7 @@ impl App {
             variations: HashMap::new(),
             layer_rows: Vec::new(),
             favorites: Vec::new(),
+            favorite_selection_lookup: HashMap::new(),
             favorites_visible: false,
             favorites_return_focus: None,
             selected_favorite_index: 0,

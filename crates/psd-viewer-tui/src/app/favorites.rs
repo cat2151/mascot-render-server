@@ -2,7 +2,7 @@ use anyhow::Result;
 use mascot_render_core::display_path;
 
 use super::{App, FocusPane};
-use crate::favorites::{favorite_selection, favorites_path, save_favorites, FavoriteEntry};
+use crate::favorites::{favorite_selection_lookup, favorites_path, save_favorites, FavoriteEntry};
 
 const NO_SELECTED_PSD_FAVORITE_STATUS: &str = "Favorite unavailable: no PSD is selected.";
 
@@ -31,7 +31,7 @@ impl App {
                         "{zip_label} :: {}",
                         favorite.psd_path_in_zip.to_string_lossy()
                     ),
-                    available: favorite_selection(&self.zip_entries, favorite).is_some(),
+                    available: self.favorite_selection_lookup.contains_key(&favorite.key()),
                 }
             })
             .collect()
@@ -89,9 +89,20 @@ impl App {
             psd_path_in_zip,
             psd_file_name,
         };
-        if let Some(index) = self.favorites.iter().position(|entry| entry == &favorite) {
+        if let Some(index) = self
+            .favorites
+            .iter()
+            .position(|entry| entry.key() == favorite.key())
+        {
+            if self.favorites[index].psd_file_name != favorite.psd_file_name {
+                self.favorites[index].psd_file_name = favorite.psd_file_name.clone();
+                save_favorites(&favorites_path(), &self.favorites)?;
+            }
             self.selected_favorite_index = index;
-            self.status = format!("Favorite already saved: {}", favorite.psd_file_name);
+            self.status = format!(
+                "Favorite already saved: {}",
+                self.favorites[index].psd_file_name
+            );
             return Ok(false);
         }
 
@@ -108,7 +119,9 @@ impl App {
             return Ok(false);
         };
         let favorite = self.favorites[index].clone();
-        let Some((zip_index, psd_index)) = favorite_selection(&self.zip_entries, &favorite) else {
+        let Some((zip_index, psd_index)) =
+            self.favorite_selection_lookup.get(&favorite.key()).copied()
+        else {
             self.status = format!(
                 "Favorite target is unavailable: {}",
                 favorite.psd_path_in_zip.display()
@@ -161,6 +174,10 @@ impl App {
         self.favorites.iter().position(|favorite| {
             favorite.zip_path == zip_path && favorite.psd_path_in_zip == psd_path_in_zip
         })
+    }
+
+    pub(super) fn rebuild_favorite_selection_lookup(&mut self) {
+        self.favorite_selection_lookup = favorite_selection_lookup(&self.zip_entries);
     }
 
     fn hide_favorites_view(&mut self) {
