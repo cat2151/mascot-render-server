@@ -305,8 +305,10 @@ impl MascotApp {
     }
 
     fn pending_scale_persist_remaining(&self, now: Instant) -> Option<Duration> {
-        let changed_at = self.last_scale_change_at?;
-        self.pending_persisted_scale?;
+        let (Some(_), Some(changed_at)) = (self.pending_persisted_scale, self.last_scale_change_at)
+        else {
+            return None;
+        };
         Some(SCALE_PERSIST_DEBOUNCE.saturating_sub(now.saturating_duration_since(changed_at)))
     }
 
@@ -522,15 +524,14 @@ impl App for MascotApp {
                 self.eye_blink
                     .repaint_after(now, Duration::from_millis(250))
             });
-        ctx.request_repaint_after(
-            transparent_input_visual_remaining
-                .map(|remaining| repaint_after.min(remaining))
-                .unwrap_or(repaint_after)
-                .min(
-                    self.pending_scale_persist_remaining(now)
-                        .unwrap_or(Duration::MAX),
-                ),
-        );
+        let repaint_after = transparent_input_visual_remaining
+            .map(|remaining| repaint_after.min(remaining))
+            .unwrap_or(repaint_after);
+        let repaint_after = self
+            .pending_scale_persist_remaining(now)
+            .map(|remaining| repaint_after.min(remaining))
+            .unwrap_or(repaint_after);
+        ctx.request_repaint_after(repaint_after);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
