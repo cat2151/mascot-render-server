@@ -305,6 +305,11 @@ impl MascotApp {
     }
 
     fn pending_scale_persist_remaining(&self, now: Instant) -> Option<Duration> {
+        debug_assert_eq!(
+            self.pending_persisted_scale.is_some(),
+            self.last_scale_change_at.is_some(),
+            "pending scale debounce state should be set and cleared together"
+        );
         match (self.pending_persisted_scale, self.last_scale_change_at) {
             (Some(_), Some(changed_at)) => {
                 let elapsed = now.saturating_duration_since(changed_at);
@@ -319,8 +324,10 @@ impl MascotApp {
             return Ok(());
         };
         let pending_remaining = self.pending_scale_persist_remaining(now);
-        if pending_remaining.is_some_and(|remaining| !remaining.is_zero()) {
-            return Ok(());
+        if let Some(remaining) = pending_remaining {
+            if !remaining.is_zero() {
+                return Ok(());
+            }
         }
         self.persist_pending_scale(pending_scale)
     }
