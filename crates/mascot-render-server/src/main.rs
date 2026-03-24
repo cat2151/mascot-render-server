@@ -3,11 +3,15 @@ mod cli;
 mod eye_blink;
 mod eye_blink_timing;
 mod mascot_app;
+mod mascot_scale;
 mod window_history;
 
 #[cfg(test)]
 #[path = "tests/cli.rs"]
 mod cli_tests;
+#[cfg(test)]
+#[path = "tests/mascot_scale.rs"]
+mod mascot_scale_tests;
 #[cfg(test)]
 #[path = "tests/window_history.rs"]
 mod window_history_tests;

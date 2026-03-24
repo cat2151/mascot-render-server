@@ -20,6 +20,10 @@ use crate::app_support::{
     cached_skin_from_image, path_modified_at, size_vec, window_title, CachedSkin,
 };
 use crate::eye_blink::{render_closed_eye_png, EyeBlinkLoop};
+use crate::mascot_scale::{
+    adjust_scale, effective_scale, keyboard_scale_steps, persist_scale, scroll_scale_steps,
+    SCALE_PERSIST_DEBOUNCE,
+};
 use crate::window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
 };
@@ -34,6 +38,9 @@ pub(crate) struct MascotApp {
     core: Core,
     open_skin: CachedSkin,
     closed_skin: Option<CachedSkin>,
+    scale: f32,
+    pending_persisted_scale: Option<f32>,
+    last_scale_change_at: Option<Instant>,
     base_size: Vec2,
     skin_cache: MascotSkinCache<CachedSkin>,
     motion: MotionState,
@@ -54,7 +61,8 @@ impl MascotApp {
         control_rx: Receiver<MascotControlCommand>,
         saved_window_position: Option<Pos2>,
     ) -> Self {
-        let base_size = size_vec(image.width, image.height, config.scale);
+        let scale = effective_scale(image.width, image.height, config.scale);
+        let base_size = size_vec(image.width, image.height, Some(scale));
         let runtime_state_path = mascot_runtime_state_path(&config_path);
         let config_modified_at = path_modified_at(&config_path);
         let runtime_state_modified_at = path_modified_at(&runtime_state_path);
@@ -84,6 +92,9 @@ impl MascotApp {
             core: Core::new(CoreConfig::default()),
             open_skin,
             closed_skin: None,
+            scale,
+            pending_persisted_scale: None,
+            last_scale_change_at: None,
             base_size,
             skin_cache,
             motion: MotionState::new(),
@@ -153,7 +164,7 @@ impl MascotApp {
         self.base_size = size_vec(
             self.open_skin.image_size[0],
             self.open_skin.image_size[1],
-            self.config.scale,
+            Some(self.scale),
         );
         self.config.png_path = png_path.to_path_buf();
         self.closed_skin = None;
@@ -193,16 +204,17 @@ impl MascotApp {
         if png_changed {
             let next_png_path = self.config.png_path.clone();
             self.open_skin = self.load_skin(ctx, &next_png_path)?;
-            self.base_size = size_vec(
+        }
+        if png_changed || scale_changed {
+            self.scale = effective_scale(
                 self.open_skin.image_size[0],
                 self.open_skin.image_size[1],
                 self.config.scale,
             );
-        } else if scale_changed {
             self.base_size = size_vec(
                 self.open_skin.image_size[0],
                 self.open_skin.image_size[1],
-                self.config.scale,
+                Some(self.scale),
             );
         }
 
@@ -268,6 +280,68 @@ impl MascotApp {
             self.window_history
                 .observe(viewport_info.outer_origin, now)?;
         }
+        Ok(())
+    }
+
+    fn apply_scale_steps(&mut self, ctx: &egui::Context, now: Instant, steps: i32) -> Result<()> {
+        let Some(next_scale) = adjust_scale(self.scale, steps) else {
+            return Ok(());
+        };
+
+        let previous_layout = self.window_layout;
+        let previous_base_size = self.base_size;
+        self.config.scale = Some(next_scale);
+        self.scale = next_scale;
+        self.pending_persisted_scale = Some(next_scale);
+        self.last_scale_change_at = Some(now);
+        self.base_size = size_vec(
+            self.open_skin.image_size[0],
+            self.open_skin.image_size[1],
+            Some(self.scale),
+        );
+        self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        ctx.request_repaint();
+        Ok(())
+    }
+
+    fn pending_scale_persist_remaining(&self, now: Instant) -> Option<Duration> {
+        match (self.pending_persisted_scale, self.last_scale_change_at) {
+            (Some(_), Some(changed_at)) => {
+                let elapsed = now.saturating_duration_since(changed_at);
+                Some(SCALE_PERSIST_DEBOUNCE.saturating_sub(elapsed))
+            }
+            (None, None) => None,
+            _ => {
+                debug_assert!(
+                    matches!(
+                        (self.pending_persisted_scale, self.last_scale_change_at),
+                        (Some(_), Some(_)) | (None, None)
+                    ),
+                    "pending scale debounce state should be set and cleared together"
+                );
+                None
+            }
+        }
+    }
+
+    fn persist_pending_scale_if_due(&mut self, now: Instant) -> Result<()> {
+        let Some(pending_scale) = self.pending_persisted_scale else {
+            return Ok(());
+        };
+        let pending_remaining = self.pending_scale_persist_remaining(now);
+        if let Some(remaining) = pending_remaining {
+            if !remaining.is_zero() {
+                return Ok(());
+            }
+        }
+        self.persist_pending_scale(pending_scale)
+    }
+
+    fn persist_pending_scale(&mut self, scale: f32) -> Result<()> {
+        persist_scale(&self.config_path, &self.config, scale)?;
+        self.pending_persisted_scale = None;
+        self.last_scale_change_at = None;
+        self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
         Ok(())
     }
 
@@ -347,9 +421,25 @@ impl App for MascotApp {
         if let Err(error) = self.sync_window_history(ctx, now) {
             eprintln!("{error:#}");
         }
+        if let Err(error) = self.persist_pending_scale_if_due(now) {
+            eprintln!("{error:#}");
+        }
         if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
+        }
+        let keyboard_steps = ctx.input(|input| {
+            if !input.focused {
+                return 0;
+            }
+            keyboard_scale_steps(
+                input.modifiers,
+                input.key_pressed(egui::Key::Plus) || input.key_pressed(egui::Key::Equals),
+                input.key_pressed(egui::Key::Minus),
+            )
+        });
+        if let Err(error) = self.apply_scale_steps(ctx, now, keyboard_steps) {
+            eprintln!("{error:#}");
         }
         let blink_closed = self.closed_skin.is_some() && self.eye_blink.is_closed(now);
         let transform = self
@@ -362,12 +452,14 @@ impl App for MascotApp {
             &self.open_skin
         };
         let texture_id = active_skin.texture.id();
+        let active_image_size = active_skin.image_size;
+        let active_alpha_mask = Arc::clone(&active_skin.alpha_mask);
         self.transparent_hit_test.update(TransparentHitTestUpdate {
             now,
             enabled: self.config.transparent_background_click_through,
             debug_flash_enabled: self.config.flash_blue_background_on_transparent_input,
-            alpha_mask: Arc::clone(&active_skin.alpha_mask),
-            image_size: active_skin.image_size,
+            alpha_mask: Arc::clone(&active_alpha_mask),
+            image_size: active_image_size,
             image_rect,
             pixels_per_point: ctx.pixels_per_point(),
         });
@@ -409,9 +501,9 @@ impl App for MascotApp {
                     && response.is_pointer_button_down_on()
                     && response.interact_pointer_pos().is_some_and(|pos| {
                         !captures_logical_point(
-                            active_skin.image_size,
+                            active_image_size,
                             image_rect,
-                            active_skin.alpha_mask.as_ref(),
+                            active_alpha_mask.as_ref(),
                             pos,
                             8,
                         )
@@ -427,6 +519,14 @@ impl App for MascotApp {
                 if response.secondary_clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
+
+                if response.hovered() {
+                    let scroll_steps =
+                        ctx.input(|input| scroll_scale_steps(input.raw_scroll_delta.y));
+                    if let Err(error) = self.apply_scale_steps(ctx, now, scroll_steps) {
+                        eprintln!("{error:#}");
+                    }
+                }
             });
 
         let repaint_after = self
@@ -436,14 +536,22 @@ impl App for MascotApp {
                 self.eye_blink
                     .repaint_after(now, Duration::from_millis(250))
             });
-        ctx.request_repaint_after(
-            transparent_input_visual_remaining
-                .map(|remaining| repaint_after.min(remaining))
-                .unwrap_or(repaint_after),
-        );
+        let repaint_after = transparent_input_visual_remaining
+            .map(|remaining| repaint_after.min(remaining))
+            .unwrap_or(repaint_after);
+        let repaint_after = self
+            .pending_scale_persist_remaining(now)
+            .map(|remaining| repaint_after.min(remaining))
+            .unwrap_or(repaint_after);
+        ctx.request_repaint_after(repaint_after);
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if let Some(scale) = self.pending_persisted_scale {
+            if let Err(error) = self.persist_pending_scale(scale) {
+                eprintln!("{error:#}");
+            }
+        }
         if let Err(error) = self.window_history.flush() {
             eprintln!("{error:#}");
         }
