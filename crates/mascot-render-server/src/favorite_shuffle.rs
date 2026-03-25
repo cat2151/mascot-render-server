@@ -144,6 +144,20 @@ impl FavoriteShufflePlaylist {
             return Ok(false);
         }
 
+        if suppress_rotation_for_active_edit(current_config) {
+            self.state
+                .finish_rotation(now, current_config_key(current_config));
+            eprintln!(
+                "favorite shuffle paused while psd-viewer-tui preview is showing an edited variation: {}",
+                current_config
+                    .display_diff_path
+                    .as_deref()
+                    .map(Path::display)
+                    .expect("active edit suppression requires a display diff path")
+            );
+            return Ok(false);
+        }
+
         let favorites = load_favorites(&self.favorites_path)?;
         let current_key = current_config_key(current_config);
         self.state.prepare_rotation(favorites, current_key.as_ref());
@@ -164,6 +178,10 @@ impl FavoriteShufflePlaylist {
         self.state.finish_rotation(now, current_key);
         Ok(false)
     }
+}
+
+pub(crate) fn suppress_rotation_for_active_edit(current_config: &MascotConfig) -> bool {
+    current_config.display_diff_path.is_some()
 }
 
 impl FavoriteShuffleState {
