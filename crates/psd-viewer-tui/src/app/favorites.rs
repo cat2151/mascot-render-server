@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+use std::path::Path;
+
 use anyhow::Result;
-use mascot_render_core::display_path;
+use mascot_render_core::{display_path, DisplayDiff};
 
 use super::{App, FocusPane};
 use crate::favorites::{favorite_selection_lookup, favorites_path, save_favorites, FavoriteEntry};
@@ -68,14 +71,21 @@ impl App {
     }
 
     pub(crate) fn add_current_favorite(&mut self) -> Result<bool> {
-        let Some((zip_path, psd_path_in_zip, psd_file_name)) = self
+        let Some((zip_path, psd_path_in_zip, psd_file_name, visibility_overrides)) = self
             .current_runtime_state_paths()
             .and_then(|(zip_path, psd_path_in_zip)| {
                 self.selected_psd_entry().map(|psd_entry| {
+                    let visibility_overrides = self
+                        .variations
+                        .get(&psd_entry.path)
+                        .cloned()
+                        .unwrap_or_default()
+                        .visibility_overrides;
                     (
                         zip_path.to_path_buf(),
                         psd_path_in_zip.to_path_buf(),
                         psd_entry.file_name.clone(),
+                        visibility_overrides,
                     )
                 })
             })
@@ -88,15 +98,22 @@ impl App {
             zip_path,
             psd_path_in_zip,
             psd_file_name,
+            visibility_overrides,
         };
         if let Some(index) = self
             .favorites
             .iter()
             .position(|entry| entry.key() == favorite.key())
         {
-            if self.favorites[index].psd_file_name != favorite.psd_file_name {
+            if self.favorites[index].psd_file_name != favorite.psd_file_name
+                || self.favorites[index].visibility_overrides != favorite.visibility_overrides
+            {
                 self.favorites[index].psd_file_name = favorite.psd_file_name.clone();
+                self.favorites[index].visibility_overrides = favorite.visibility_overrides.clone();
                 save_favorites(&favorites_path(), &self.favorites)?;
+                self.status = format!("Favorite updated: {}", self.favorites[index].psd_file_name);
+                self.selected_favorite_index = index;
+                return Ok(true);
             }
             self.selected_favorite_index = index;
             self.status = format!(
@@ -131,6 +148,9 @@ impl App {
 
         self.selected_zip_index = zip_index;
         self.selected_psd_index = psd_index;
+        if let Some(psd_path) = self.selected_psd_entry().map(|entry| entry.path.clone()) {
+            apply_favorite_variation(&mut self.variations, &psd_path, &favorite);
+        }
         self.selected_layer_index = 0;
         self.refresh_selected_psd_state()?;
         self.hide_favorites_view();
@@ -185,5 +205,19 @@ impl App {
         if let Some(previous_focus) = self.favorites_return_focus.take() {
             self.focus = previous_focus;
         }
+    }
+}
+
+pub(crate) fn apply_favorite_variation(
+    variations: &mut HashMap<std::path::PathBuf, DisplayDiff>,
+    psd_path: &Path,
+    favorite: &FavoriteEntry,
+) {
+    let mut variation = DisplayDiff::new();
+    variation.visibility_overrides = favorite.visibility_overrides.clone();
+    if variation.is_default() {
+        variations.remove(psd_path);
+    } else {
+        variations.insert(psd_path.to_path_buf(), variation);
     }
 }

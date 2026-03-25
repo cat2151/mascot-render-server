@@ -9,6 +9,8 @@ mod selection;
 mod startup;
 mod support;
 
+pub(crate) use favorites::apply_favorite_variation;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 

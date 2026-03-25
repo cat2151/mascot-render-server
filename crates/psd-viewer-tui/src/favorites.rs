@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use mascot_render_core::{local_data_root, ZipEntry};
+use mascot_render_core::{local_data_root, LayerVisibilityOverride, ZipEntry};
 use serde::{Deserialize, Serialize};
 
 const FAVORITES_DIR: &str = "favorites";
@@ -16,6 +16,8 @@ pub(crate) struct FavoriteEntry {
     pub(crate) zip_path: PathBuf,
     pub(crate) psd_path_in_zip: PathBuf,
     pub(crate) psd_file_name: String,
+    #[serde(default)]
+    pub(crate) visibility_overrides: Vec<LayerVisibilityOverride>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
