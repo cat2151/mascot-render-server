@@ -6,7 +6,7 @@ use crate::app::{apply_favorite_variation, apply_favorite_window_position};
 use crate::favorites::{favorite_selection_lookup, load_favorites, save_favorites, FavoriteEntry};
 use mascot_render_core::workspace_cache_root;
 use mascot_render_core::{DisplayDiff, LayerVisibilityOverride, PsdEntry, ZipEntry};
-use mascot_render_server::load_saved_window_position_for_paths;
+use mascot_render_server::{load_saved_window_position_for_paths, window_history_path_for_paths};
 
 #[test]
 fn favorites_round_trip_as_toml() {
@@ -46,7 +46,7 @@ fn favorites_round_trip_as_toml() {
 }
 
 #[test]
-fn favorite_entry_equality_ignores_display_name() {
+fn favorite_entry_equality_depends_only_on_zip_and_psd_path() {
     let left = FavoriteEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
         psd_path_in_zip: PathBuf::from("a/body.psd"),
@@ -238,13 +238,15 @@ fn apply_favorite_variation_clears_previous_override_when_favorite_is_default() 
 #[test]
 fn apply_favorite_window_position_persists_saved_coordinates() {
     let favorite = FavoriteEntry {
-        zip_path: PathBuf::from("/workspace/a.zip"),
-        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        zip_path: PathBuf::from("/workspace/test-favorite-window-position-a.zip"),
+        psd_path_in_zip: PathBuf::from("nested/body-a.psd"),
         psd_file_name: "body.psd".to_string(),
         visibility_overrides: Vec::new(),
         mascot_scale: Some(0.8),
         window_position: Some([222.0, 111.0]),
     };
+    let history_path = window_history_path_for_paths(&favorite.zip_path, &favorite.psd_path_in_zip);
+    remove_file_if_exists(&history_path);
 
     apply_favorite_window_position(&favorite).expect("should save favorite window position");
 
@@ -255,13 +257,14 @@ fn apply_favorite_window_position_persists_saved_coordinates() {
         loaded.map(|position| [position.x, position.y]),
         favorite.window_position
     );
+    remove_file_if_exists(&history_path);
 }
 
 #[test]
 fn apply_favorite_window_position_ignores_missing_coordinates() {
     let favorite = FavoriteEntry {
-        zip_path: PathBuf::from("/workspace/a.zip"),
-        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        zip_path: PathBuf::from("/workspace/test-favorite-window-position-b.zip"),
+        psd_path_in_zip: PathBuf::from("nested/body-b.psd"),
         psd_file_name: "body.psd".to_string(),
         visibility_overrides: Vec::new(),
         mascot_scale: Some(0.8),
@@ -276,5 +279,11 @@ fn sample_psd(path: &str, file_name: &str) -> PsdEntry {
         path: PathBuf::from(path),
         file_name: file_name.to_string(),
         ..PsdEntry::default()
+    }
+}
+
+fn remove_file_if_exists(path: &std::path::Path) {
+    if path.exists() {
+        fs::remove_file(path).expect("test cleanup should remove window history file");
     }
 }
