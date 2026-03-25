@@ -2,8 +2,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
 use crate::app::{apply_favorite_variation, apply_favorite_window_position};
 use crate::favorites::{favorite_selection_lookup, load_favorites, save_favorites, FavoriteEntry};
+use crate::is_favorites_toggle_key;
 use mascot_render_core::workspace_cache_root;
 use mascot_render_core::{DisplayDiff, LayerVisibilityOverride, PsdEntry, ZipEntry};
 use mascot_render_server::{load_saved_window_position_for_paths, window_history_path_for_paths};
@@ -179,6 +182,19 @@ fn favorite_selection_matches_zip_path_and_psd_path_in_zip() {
         .copied();
 
     assert_eq!(selection, Some((1, 0)));
+}
+
+#[test]
+fn favorites_toggle_accepts_v_always_and_esc_only_when_visible() {
+    let plain_v = KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE);
+    let plain_esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    let ctrl_v = KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL);
+
+    assert!(is_favorites_toggle_key(&plain_v, false));
+    assert!(is_favorites_toggle_key(&plain_v, true));
+    assert!(!is_favorites_toggle_key(&plain_esc, false));
+    assert!(is_favorites_toggle_key(&plain_esc, true));
+    assert!(!is_favorites_toggle_key(&ctrl_v, true));
 }
 
 #[test]
