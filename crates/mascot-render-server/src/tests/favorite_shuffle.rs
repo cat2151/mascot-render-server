@@ -101,7 +101,7 @@ fn favorite_shuffle_skips_loading_favorites_while_previewing_an_edited_variation
     let favorites_path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&favorites_path)
-        .expect("should create a directory where a file is expected");
+        .expect("should create directory to simulate invalid favorites file");
 
     let now = Instant::now();
     let mut playlist = FavoriteShufflePlaylist::new_with_path(favorites_path, now);
@@ -126,7 +126,7 @@ fn favorite_shuffle_still_reads_favorites_without_an_active_edit() {
     let favorites_path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&favorites_path)
-        .expect("should create a directory where a file is expected");
+        .expect("should create directory to simulate invalid favorites file");
 
     let now = Instant::now();
     let mut playlist = FavoriteShufflePlaylist::new_with_path(favorites_path, now);

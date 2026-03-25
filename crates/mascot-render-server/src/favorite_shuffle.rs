@@ -145,15 +145,12 @@ impl FavoriteShufflePlaylist {
         }
 
         if suppress_rotation_for_active_edit(current_config) {
+            let display_diff_path = current_config.display_diff_path.as_deref().unwrap();
             self.state
                 .finish_rotation(now, current_config_key(current_config));
             eprintln!(
                 "favorite shuffle paused while psd-viewer-tui preview is showing an edited variation: {}",
-                current_config
-                    .display_diff_path
-                    .as_deref()
-                    .map(Path::display)
-                    .expect("active edit suppression requires a display diff path")
+                display_diff_path.display()
             );
             return Ok(false);
         }
