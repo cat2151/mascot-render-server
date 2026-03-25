@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::favorite_shuffle::{
-    build_playlist, favorites_path_for, load_favorites, suppress_rotation_for_active_edit,
+    build_playlist, favorites_path_for, load_favorites, suppress_rotation_for_active_display_diff,
     FavoriteEntry, FavoriteShufflePlaylist, FAVORITE_SHUFFLE_INTERVAL,
 };
 use mascot_render_core::{
@@ -92,7 +92,7 @@ fn favorite_shuffle_is_suppressed_while_previewing_an_edited_variation() {
     let mut config = mascot_config("/workspace/a.zip", "a/body.psd");
     config.display_diff_path = Some(PathBuf::from("/workspace/edited-variation.json"));
 
-    assert!(suppress_rotation_for_active_edit(&config));
+    assert!(suppress_rotation_for_active_display_diff(&config));
 }
 
 #[test]
@@ -100,8 +100,7 @@ fn favorite_shuffle_skips_loading_favorites_while_previewing_an_edited_variation
     let root = workspace_cache_root().join("test-favorite-shuffle-active-edit");
     let favorites_path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
-    fs::create_dir_all(&favorites_path)
-        .expect("should create directory to simulate invalid favorites file");
+    create_invalid_favorites_path(&favorites_path);
 
     let now = Instant::now();
     let mut playlist = FavoriteShufflePlaylist::new_with_path(favorites_path, now);
@@ -125,8 +124,7 @@ fn favorite_shuffle_still_reads_favorites_without_an_active_edit() {
     let root = workspace_cache_root().join("test-favorite-shuffle-normal-read");
     let favorites_path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
-    fs::create_dir_all(&favorites_path)
-        .expect("should create directory to simulate invalid favorites file");
+    create_invalid_favorites_path(&favorites_path);
 
     let now = Instant::now();
     let mut playlist = FavoriteShufflePlaylist::new_with_path(favorites_path, now);
@@ -169,4 +167,14 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
     }
+}
+
+fn create_invalid_favorites_path(favorites_path: &std::path::Path) {
+    let favorites_dir = favorites_path
+        .parent()
+        .expect("favorites path should have a parent directory");
+    fs::create_dir_all(favorites_dir).expect("should create favorites directory");
+    fs::create_dir(favorites_path).expect(
+        "should create directory at favorites file path to simulate invalid favorites file",
+    );
 }

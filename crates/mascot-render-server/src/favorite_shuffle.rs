@@ -144,12 +144,12 @@ impl FavoriteShufflePlaylist {
             return Ok(false);
         }
 
-        if suppress_rotation_for_active_edit(current_config) {
+        if suppress_rotation_for_active_display_diff(current_config) {
             let display_diff_path = current_config.display_diff_path.as_deref().unwrap();
             self.state
                 .finish_rotation(now, current_config_key(current_config));
             eprintln!(
-                "favorite shuffle paused while psd-viewer-tui preview is showing an edited variation: {}",
+                "favorite shuffle paused while psd-viewer-tui preview is showing a non-default variation (active display diff): {}",
                 display_diff_path.display()
             );
             return Ok(false);
@@ -177,7 +177,7 @@ impl FavoriteShufflePlaylist {
     }
 }
 
-pub(crate) fn suppress_rotation_for_active_edit(current_config: &MascotConfig) -> bool {
+pub(crate) fn suppress_rotation_for_active_display_diff(current_config: &MascotConfig) -> bool {
     current_config.display_diff_path.is_some()
 }
 
