@@ -20,6 +20,7 @@ pub(crate) struct ViewportInfo {
     pub(crate) outer_origin: Pos2,
 }
 
+/// Serializable window coordinates used when favorites capture and restore mascot position.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SavedWindowPosition {
     pub x: f32,
@@ -91,12 +92,17 @@ impl WindowHistoryTracker {
         self.pending_changed_at = None;
         Ok(())
     }
+
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
 }
 
 pub(crate) fn window_history_path(config: &MascotConfig) -> PathBuf {
     window_history_path_for_paths(&config.zip_path, &config.psd_path_in_zip)
 }
 
+/// Builds the persisted window-history path for the given ZIP/PSD pair.
 pub fn window_history_path_for_paths(zip_path: &Path, psd_path_in_zip: &Path) -> PathBuf {
     workspace_cache_root().join(format!(
         "history_server_{}.json",
@@ -120,20 +126,18 @@ pub(crate) fn load_window_position(path: &Path) -> Result<Option<Pos2>> {
     Ok(Some(sanitize_position(file.outer_position)?))
 }
 
+/// Loads the saved mascot window position for the given ZIP/PSD pair.
+///
+/// Returns `Ok(None)` when no saved position exists yet.
 pub fn load_saved_window_position_for_paths(
     zip_path: &Path,
     psd_path_in_zip: &Path,
 ) -> Result<Option<SavedWindowPosition>> {
-    load_window_position(&window_history_path_for_paths(zip_path, psd_path_in_zip)).map(
-        |position| {
-            position.map(|position| SavedWindowPosition {
-                x: position.x,
-                y: position.y,
-            })
-        },
-    )
+    load_window_position(&window_history_path_for_paths(zip_path, psd_path_in_zip))
+        .map(|saved_position| saved_position.map(|pos| SavedWindowPosition { x: pos.x, y: pos.y }))
 }
 
+/// Persists the mascot window position for the given ZIP/PSD pair.
 pub fn save_window_position_for_paths(
     zip_path: &Path,
     psd_path_in_zip: &Path,

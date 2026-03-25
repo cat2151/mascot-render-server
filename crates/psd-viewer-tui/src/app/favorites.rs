@@ -179,7 +179,7 @@ impl App {
         }
         self.selected_layer_index = 0;
         self.refresh_selected_psd_state()?;
-        self.apply_favorite_mascot_scale(favorite.mascot_scale)?;
+        let _ = self.apply_favorite_mascot_scale(favorite.mascot_scale)?;
         apply_favorite_window_position(&favorite)?;
         self.hide_favorites_view();
         self.persist_workspace_state()?;
@@ -252,6 +252,7 @@ pub(crate) fn apply_favorite_variation(
     }
 }
 
+/// Persists the favorite's saved mascot window position and returns whether coordinates existed.
 pub(crate) fn apply_favorite_window_position(favorite: &FavoriteEntry) -> Result<bool> {
     let Some([x, y]) = favorite.window_position else {
         return Ok(false);

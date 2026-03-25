@@ -181,8 +181,8 @@ impl MascotApp {
     fn reload_config_if_needed(&mut self, ctx: &egui::Context) -> Result<()> {
         let next_config_modified_at = path_modified_at(&self.config_path);
         let next_runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
-        let history_path = window_history_path(&self.config);
-        let next_window_history_modified_at = path_modified_at(&history_path);
+        let current_history_path = window_history_path(&self.config);
+        let next_window_history_modified_at = path_modified_at(&current_history_path);
         if self.config_modified_at == next_config_modified_at
             && self.runtime_state_modified_at == next_runtime_state_modified_at
             && self.window_history_modified_at == next_window_history_modified_at
@@ -233,23 +233,24 @@ impl MascotApp {
         if history_path_changed
             || self.window_history_modified_at != next_window_history_modified_at
         {
-            let history_path = if history_path_changed {
+            let next_history_path = if history_path_changed {
                 window_history_path(&self.config)
             } else {
-                history_path
+                current_history_path
             };
-            let saved_window_position = match load_window_position(&history_path) {
+            let saved_window_position = match load_window_position(&next_history_path) {
                 Ok(saved_window_position) => saved_window_position,
                 Err(error) => {
                     eprintln!(
                         "warning: failed to load mascot window history {}: {error:#}",
-                        history_path.display()
+                        next_history_path.display()
                     );
                     None
                 }
             };
-            self.window_history = WindowHistoryTracker::new(history_path, saved_window_position);
-            self.window_history_modified_at = path_modified_at(&self.window_history_path());
+            self.window_history_modified_at = path_modified_at(&next_history_path);
+            self.window_history =
+                WindowHistoryTracker::new(next_history_path, saved_window_position);
             restored_window_position = saved_window_position;
         }
         self.refresh_window_layout(ctx, previous_layout, previous_base_size);
@@ -294,13 +295,9 @@ impl MascotApp {
         if let Some(viewport_info) = current_viewport_info(ctx) {
             self.window_history
                 .observe(viewport_info.outer_origin, now)?;
-            self.window_history_modified_at = path_modified_at(&self.window_history_path());
+            self.window_history_modified_at = path_modified_at(self.window_history.path());
         }
         Ok(())
-    }
-
-    fn window_history_path(&self) -> PathBuf {
-        window_history_path(&self.config)
     }
 
     fn apply_scale_steps(&mut self, ctx: &egui::Context, now: Instant, steps: i32) -> Result<()> {

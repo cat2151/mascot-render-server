@@ -120,6 +120,7 @@ impl App {
         Ok(())
     }
 
+    /// Restores mascot scale from a favorite and returns whether it changed the current scale.
     pub(super) fn apply_favorite_mascot_scale(
         &mut self,
         mascot_scale: Option<f32>,
