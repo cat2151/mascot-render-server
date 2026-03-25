@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::Result;
-use mascot_render_core::{display_path, DisplayDiff};
+use mascot_render_core::{display_path, DisplayDiff, DISPLAY_DIFF_VERSION};
 
 use super::{App, FocusPane};
 use crate::favorites::{favorite_selection_lookup, favorites_path, save_favorites, FavoriteEntry};
@@ -105,22 +105,25 @@ impl App {
             .iter()
             .position(|entry| entry.key() == favorite.key())
         {
+            let mut updated = false;
             if self.favorites[index].psd_file_name != favorite.psd_file_name
                 || self.favorites[index].visibility_overrides != favorite.visibility_overrides
             {
                 self.favorites[index].psd_file_name = favorite.psd_file_name.clone();
                 self.favorites[index].visibility_overrides = favorite.visibility_overrides.clone();
                 save_favorites(&favorites_path(), &self.favorites)?;
-                self.status = format!("Favorite updated: {}", self.favorites[index].psd_file_name);
-                self.selected_favorite_index = index;
-                return Ok(true);
+                updated = true;
             }
             self.selected_favorite_index = index;
-            self.status = format!(
-                "Favorite already saved: {}",
-                self.favorites[index].psd_file_name
-            );
-            return Ok(false);
+            self.status = if updated {
+                format!("Favorite updated: {}", self.favorites[index].psd_file_name)
+            } else {
+                format!(
+                    "Favorite already saved: {}",
+                    self.favorites[index].psd_file_name
+                )
+            };
+            return Ok(updated);
         }
 
         self.favorites.push(favorite.clone());
@@ -213,8 +216,10 @@ pub(crate) fn apply_favorite_variation(
     psd_path: &Path,
     favorite: &FavoriteEntry,
 ) {
-    let mut variation = DisplayDiff::new();
-    variation.visibility_overrides = favorite.visibility_overrides.clone();
+    let variation = DisplayDiff {
+        version: DISPLAY_DIFF_VERSION,
+        visibility_overrides: favorite.visibility_overrides.clone(),
+    };
     if variation.is_default() {
         variations.remove(psd_path);
     } else {
