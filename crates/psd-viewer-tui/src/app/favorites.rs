@@ -3,6 +3,9 @@ use std::path::Path;
 
 use anyhow::Result;
 use mascot_render_core::{display_path, DisplayDiff, DISPLAY_DIFF_VERSION};
+use mascot_render_server::{
+    load_saved_window_position_for_paths, save_window_position_for_paths, SavedWindowPosition,
+};
 
 use super::{App, FocusPane};
 use crate::favorites::{favorite_selection_lookup, favorites_path, save_favorites, FavoriteEntry};
@@ -71,7 +74,14 @@ impl App {
     }
 
     pub(crate) fn add_current_favorite(&mut self) -> Result<bool> {
-        let Some((zip_path, psd_path_in_zip, psd_file_name, visibility_overrides)) = self
+        let Some((
+            zip_path,
+            psd_path_in_zip,
+            psd_file_name,
+            visibility_overrides,
+            mascot_scale,
+            window_position,
+        )) = self
             .current_runtime_state_paths()
             .and_then(|(zip_path, psd_path_in_zip)| {
                 self.selected_psd_entry().map(|psd_entry| {
@@ -81,11 +91,18 @@ impl App {
                         .cloned()
                         .unwrap_or_default()
                         .visibility_overrides;
+                    let window_position =
+                        load_saved_window_position_for_paths(zip_path, psd_path_in_zip)
+                            .ok()
+                            .flatten()
+                            .map(|position| [position.x, position.y]);
                     (
                         zip_path.to_path_buf(),
                         psd_path_in_zip.to_path_buf(),
                         psd_entry.file_name.clone(),
                         visibility_overrides,
+                        self.mascot_scale,
+                        window_position,
                     )
                 })
             })
@@ -99,6 +116,8 @@ impl App {
             psd_path_in_zip,
             psd_file_name,
             visibility_overrides,
+            mascot_scale,
+            window_position,
         };
         if let Some(index) = self
             .favorites
@@ -108,9 +127,13 @@ impl App {
             let mut updated = false;
             if self.favorites[index].psd_file_name != favorite.psd_file_name
                 || self.favorites[index].visibility_overrides != favorite.visibility_overrides
+                || self.favorites[index].mascot_scale != favorite.mascot_scale
+                || self.favorites[index].window_position != favorite.window_position
             {
                 self.favorites[index].psd_file_name = favorite.psd_file_name.clone();
                 self.favorites[index].visibility_overrides = favorite.visibility_overrides.clone();
+                self.favorites[index].mascot_scale = favorite.mascot_scale;
+                self.favorites[index].window_position = favorite.window_position;
                 save_favorites(&favorites_path(), &self.favorites)?;
                 updated = true;
             }
@@ -156,6 +179,8 @@ impl App {
         }
         self.selected_layer_index = 0;
         self.refresh_selected_psd_state()?;
+        self.apply_favorite_mascot_scale(favorite.mascot_scale)?;
+        apply_favorite_window_position(&favorite)?;
         self.hide_favorites_view();
         self.persist_workspace_state()?;
         self.status = format!("Favorite selected: {}", favorite.psd_file_name);
@@ -225,4 +250,16 @@ pub(crate) fn apply_favorite_variation(
     } else {
         variations.insert(psd_path.to_path_buf(), variation);
     }
+}
+
+pub(crate) fn apply_favorite_window_position(favorite: &FavoriteEntry) -> Result<bool> {
+    let Some([x, y]) = favorite.window_position else {
+        return Ok(false);
+    };
+    save_window_position_for_paths(
+        &favorite.zip_path,
+        &favorite.psd_path_in_zip,
+        SavedWindowPosition { x, y },
+    )?;
+    Ok(true)
 }

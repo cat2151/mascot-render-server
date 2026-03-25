@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::app::apply_favorite_variation;
+use crate::app::{apply_favorite_variation, apply_favorite_window_position};
 use crate::favorites::{favorite_selection_lookup, load_favorites, save_favorites, FavoriteEntry};
 use mascot_render_core::workspace_cache_root;
 use mascot_render_core::{DisplayDiff, LayerVisibilityOverride, PsdEntry, ZipEntry};
+use mascot_render_server::load_saved_window_position_for_paths;
 
 #[test]
 fn favorites_round_trip_as_toml() {
@@ -22,6 +23,8 @@ fn favorites_round_trip_as_toml() {
                 layer_index: 7,
                 visible: false,
             }],
+            mascot_scale: Some(0.75),
+            window_position: Some([120.0, 48.0]),
         },
         FavoriteEntry {
             zip_path: PathBuf::from("/workspace/b.zip"),
@@ -31,6 +34,8 @@ fn favorites_round_trip_as_toml() {
                 layer_index: 3,
                 visible: true,
             }],
+            mascot_scale: Some(0.5),
+            window_position: Some([300.0, 90.0]),
         },
     ];
 
@@ -50,6 +55,8 @@ fn favorite_entry_equality_ignores_display_name() {
             layer_index: 0,
             visible: false,
         }],
+        mascot_scale: Some(0.8),
+        window_position: Some([10.0, 20.0]),
     };
     let right = FavoriteEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
@@ -59,6 +66,8 @@ fn favorite_entry_equality_ignores_display_name() {
             layer_index: 1,
             visible: true,
         }],
+        mascot_scale: Some(1.2),
+        window_position: Some([40.0, 50.0]),
     };
 
     assert_eq!(left, right);
@@ -82,12 +91,16 @@ zip_path = "/workspace/a.zip"
 psd_path_in_zip = "a/body.psd"
 psd_file_name = "body.psd"
 visibility_overrides = [{ layer_index = 3, visible = false }]
+mascot_scale = 0.75
+window_position = [120.0, 48.0]
 
 [[favorites]]
 zip_path = "/workspace/a.zip"
 psd_path_in_zip = "a/body.psd"
 psd_file_name = "body-renamed.psd"
 visibility_overrides = [{ layer_index = 4, visible = true }]
+mascot_scale = 0.5
+window_position = [300.0, 90.0]
 "#,
     )
     .expect("should seed duplicate favorites");
@@ -102,10 +115,12 @@ visibility_overrides = [{ layer_index = 4, visible = true }]
             visible: false,
         }]
     );
+    assert_eq!(loaded[0].mascot_scale, Some(0.75));
+    assert_eq!(loaded[0].window_position, Some([120.0, 48.0]));
 }
 
 #[test]
-fn favorites_without_visibility_overrides_still_load() {
+fn favorites_without_new_fields_still_load() {
     let root = workspace_cache_root().join("test-favorites-legacy-load");
     let path = root.join("favorites/psd-viewer-tui.toml");
     let _ = fs::remove_dir_all(&root);
@@ -128,6 +143,8 @@ psd_file_name = "body.psd"
     let loaded = load_favorites(&path).expect("should load legacy favorites");
     assert_eq!(loaded.len(), 1);
     assert!(loaded[0].visibility_overrides.is_empty());
+    assert_eq!(loaded[0].mascot_scale, None);
+    assert_eq!(loaded[0].window_position, None);
 }
 
 #[test]
@@ -154,6 +171,8 @@ fn favorite_selection_matches_zip_path_and_psd_path_in_zip() {
                 psd_path_in_zip: PathBuf::from("b/face.psd"),
                 psd_file_name: "face.psd".to_string(),
                 visibility_overrides: Vec::new(),
+                mascot_scale: None,
+                window_position: None,
             }
             .key(),
         )
@@ -174,6 +193,8 @@ fn apply_favorite_variation_restores_saved_visibility() {
             layer_index: 9,
             visible: false,
         }],
+        mascot_scale: Some(0.6),
+        window_position: Some([150.0, 75.0]),
     };
 
     apply_favorite_variation(&mut variations, &psd_path, &favorite);
@@ -205,11 +226,49 @@ fn apply_favorite_variation_clears_previous_override_when_favorite_is_default() 
         psd_path_in_zip: PathBuf::from("a/body.psd"),
         psd_file_name: "body.psd".to_string(),
         visibility_overrides: Vec::new(),
+        mascot_scale: None,
+        window_position: None,
     };
 
     apply_favorite_variation(&mut variations, &psd_path, &favorite);
 
     assert!(!variations.contains_key(&psd_path));
+}
+
+#[test]
+fn apply_favorite_window_position_persists_saved_coordinates() {
+    let favorite = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: Vec::new(),
+        mascot_scale: Some(0.8),
+        window_position: Some([222.0, 111.0]),
+    };
+
+    apply_favorite_window_position(&favorite).expect("should save favorite window position");
+
+    let loaded =
+        load_saved_window_position_for_paths(&favorite.zip_path, &favorite.psd_path_in_zip)
+            .expect("should load saved favorite window position");
+    assert_eq!(
+        loaded.map(|position| [position.x, position.y]),
+        favorite.window_position
+    );
+}
+
+#[test]
+fn apply_favorite_window_position_ignores_missing_coordinates() {
+    let favorite = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: Vec::new(),
+        mascot_scale: Some(0.8),
+        window_position: None,
+    };
+
+    assert!(!apply_favorite_window_position(&favorite).expect("should ignore missing coordinates"));
 }
 
 fn sample_psd(path: &str, file_name: &str) -> PsdEntry {

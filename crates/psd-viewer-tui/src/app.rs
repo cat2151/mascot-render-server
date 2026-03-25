@@ -9,7 +9,7 @@ mod selection;
 mod startup;
 mod support;
 
-pub(crate) use favorites::apply_favorite_variation;
+pub(crate) use favorites::{apply_favorite_variation, apply_favorite_window_position};
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

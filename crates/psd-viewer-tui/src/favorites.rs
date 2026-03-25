@@ -18,6 +18,10 @@ pub(crate) struct FavoriteEntry {
     pub(crate) psd_file_name: String,
     #[serde(default)]
     pub(crate) visibility_overrides: Vec<LayerVisibilityOverride>,
+    #[serde(default)]
+    pub(crate) mascot_scale: Option<f32>,
+    #[serde(default)]
+    pub(crate) window_position: Option<[f32; 2]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -140,9 +144,19 @@ fn sanitize_favorites(favorites: Vec<FavoriteEntry>) -> Vec<FavoriteEntry> {
                 .map(|name| name.to_string_lossy().into_owned())
                 .unwrap_or_else(|| favorite.psd_path_in_zip.display().to_string());
         }
+        favorite.mascot_scale = sanitize_mascot_scale(favorite.mascot_scale);
+        favorite.window_position = sanitize_window_position(favorite.window_position);
         if seen.insert(favorite.key()) {
             sanitized.push(favorite);
         }
     }
     sanitized
+}
+
+fn sanitize_mascot_scale(scale: Option<f32>) -> Option<f32> {
+    scale.filter(|value| value.is_finite() && *value > 0.0)
+}
+
+fn sanitize_window_position(position: Option<[f32; 2]>) -> Option<[f32; 2]> {
+    position.filter(|[x, y]| x.is_finite() && y.is_finite())
 }

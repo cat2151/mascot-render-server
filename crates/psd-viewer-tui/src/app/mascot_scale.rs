@@ -120,6 +120,22 @@ impl App {
         Ok(())
     }
 
+    pub(super) fn apply_favorite_mascot_scale(
+        &mut self,
+        mascot_scale: Option<f32>,
+    ) -> Result<bool> {
+        let Some(scale) = sanitize_scale(mascot_scale) else {
+            return Ok(false);
+        };
+        if self.mascot_scale == Some(scale) {
+            return Ok(false);
+        }
+
+        self.persist_mascot_scale(scale)?;
+        self.sync_current_mascot_config()?;
+        Ok(true)
+    }
+
     fn persist_mascot_scale(&mut self, scale: f32) -> Result<()> {
         self.mascot_scale = sanitize_scale(Some(scale));
         let Some((zip_path, psd_path_in_zip)) =

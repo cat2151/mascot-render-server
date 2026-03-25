@@ -20,6 +20,12 @@ pub(crate) struct ViewportInfo {
     pub(crate) outer_origin: Pos2,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SavedWindowPosition {
+    pub x: f32,
+    pub y: f32,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct WindowHistoryFile {
     version: u32,
@@ -88,9 +94,13 @@ impl WindowHistoryTracker {
 }
 
 pub(crate) fn window_history_path(config: &MascotConfig) -> PathBuf {
+    window_history_path_for_paths(&config.zip_path, &config.psd_path_in_zip)
+}
+
+pub fn window_history_path_for_paths(zip_path: &Path, psd_path_in_zip: &Path) -> PathBuf {
     workspace_cache_root().join(format!(
         "history_server_{}.json",
-        sanitize_window_history_name(&config.zip_path, &config.psd_path_in_zip)
+        sanitize_window_history_name(zip_path, psd_path_in_zip)
     ))
 }
 
@@ -108,6 +118,31 @@ pub(crate) fn load_window_position(path: &Path) -> Result<Option<Pos2>> {
     }
 
     Ok(Some(sanitize_position(file.outer_position)?))
+}
+
+pub fn load_saved_window_position_for_paths(
+    zip_path: &Path,
+    psd_path_in_zip: &Path,
+) -> Result<Option<SavedWindowPosition>> {
+    load_window_position(&window_history_path_for_paths(zip_path, psd_path_in_zip)).map(
+        |position| {
+            position.map(|position| SavedWindowPosition {
+                x: position.x,
+                y: position.y,
+            })
+        },
+    )
+}
+
+pub fn save_window_position_for_paths(
+    zip_path: &Path,
+    psd_path_in_zip: &Path,
+    position: SavedWindowPosition,
+) -> Result<()> {
+    save_window_position(
+        &window_history_path_for_paths(zip_path, psd_path_in_zip),
+        sanitize_saved_window_position(position)?,
+    )
 }
 
 pub(crate) fn current_viewport_info(ctx: &egui::Context) -> Option<ViewportInfo> {
@@ -147,6 +182,10 @@ fn sanitize_position([x, y]: [f32; 2]) -> Result<Pos2> {
         bail!("window history contains a non-finite position: [{x}, {y}]");
     }
     Ok(Pos2::new(x, y))
+}
+
+fn sanitize_saved_window_position(position: SavedWindowPosition) -> Result<Pos2> {
+    sanitize_position([position.x, position.y])
 }
 
 fn same_position(left: Pos2, right: Pos2) -> bool {
