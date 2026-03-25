@@ -45,7 +45,7 @@ fn help_overlay_includes_all_shortcuts() {
         "help overlay should describe favorite saving"
     );
     assert!(
-        lines.contains(&"v/Esc: close favorites list (v also opens it)".to_string()),
+        lines.contains(&"v: open/close favorites list, Esc: close favorites list".to_string()),
         "help overlay should describe favorites list toggle"
     );
 }
