@@ -1,10 +1,18 @@
-use anyhow::Result;
-use mascot_render_core::display_path;
+use std::collections::HashMap;
+use std::path::Path;
+
+use anyhow::{Context, Result};
+use mascot_render_core::{display_path, DisplayDiff, DISPLAY_DIFF_VERSION};
+use mascot_render_server::{
+    load_saved_window_position_for_paths, save_window_position_for_paths, SavedWindowPosition,
+};
 
 use super::{App, FocusPane};
 use crate::favorites::{favorite_selection_lookup, favorites_path, save_favorites, FavoriteEntry};
 
 const NO_SELECTED_PSD_FAVORITE_STATUS: &str = "Favorite unavailable: no PSD is selected.";
+/// Window positions are compared in outer-window pixels; sub-half-pixel deltas are treated as unchanged.
+const SAVED_WINDOW_POSITION_TOLERANCE: f32 = 0.5;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct FavoriteRow {
@@ -68,42 +76,75 @@ impl App {
     }
 
     pub(crate) fn add_current_favorite(&mut self) -> Result<bool> {
-        let Some((zip_path, psd_path_in_zip, psd_file_name)) = self
-            .current_runtime_state_paths()
-            .and_then(|(zip_path, psd_path_in_zip)| {
-                self.selected_psd_entry().map(|psd_entry| {
-                    (
-                        zip_path.to_path_buf(),
-                        psd_path_in_zip.to_path_buf(),
-                        psd_entry.file_name.clone(),
-                    )
-                })
-            })
-        else {
+        let Some((zip_path, psd_path_in_zip)) = self.current_runtime_state_paths() else {
             self.status = NO_SELECTED_PSD_FAVORITE_STATUS.to_string();
             return Ok(false);
         };
+        let Some(psd_entry) = self.selected_psd_entry() else {
+            self.status = NO_SELECTED_PSD_FAVORITE_STATUS.to_string();
+            return Ok(false);
+        };
+        let visibility_overrides = self
+            .variations
+            .get(&psd_entry.path)
+            .cloned()
+            .unwrap_or_default()
+            .visibility_overrides;
+        let zip_path = zip_path.to_path_buf();
+        let psd_path_in_zip = psd_path_in_zip.to_path_buf();
+        let window_position =
+            match load_saved_window_position_for_paths(&zip_path, &psd_path_in_zip) {
+                Ok(position) => position.map(|position| [position.x, position.y]),
+                Err(error) => {
+                    self.status = format!(
+                        "Failed to add favorite: could not read saved window position ({error})."
+                    );
+                    return Err(error).with_context(|| {
+                        format!(
+                            "failed to load saved window position when adding favorite {} :: {}",
+                            zip_path.display(),
+                            psd_path_in_zip.display()
+                        )
+                    });
+                }
+            };
 
         let favorite = FavoriteEntry {
             zip_path,
             psd_path_in_zip,
-            psd_file_name,
+            psd_file_name: psd_entry.file_name.clone(),
+            visibility_overrides,
+            mascot_scale: self.mascot_scale,
+            window_position,
         };
         if let Some(index) = self
             .favorites
             .iter()
             .position(|entry| entry.key() == favorite.key())
         {
-            if self.favorites[index].psd_file_name != favorite.psd_file_name {
+            let mut updated = false;
+            if self.favorites[index].psd_file_name != favorite.psd_file_name
+                || self.favorites[index].visibility_overrides != favorite.visibility_overrides
+                || self.favorites[index].mascot_scale != favorite.mascot_scale
+                || self.favorites[index].window_position != favorite.window_position
+            {
                 self.favorites[index].psd_file_name = favorite.psd_file_name.clone();
+                self.favorites[index].visibility_overrides = favorite.visibility_overrides.clone();
+                self.favorites[index].mascot_scale = favorite.mascot_scale;
+                self.favorites[index].window_position = favorite.window_position;
                 save_favorites(&favorites_path(), &self.favorites)?;
+                updated = true;
             }
             self.selected_favorite_index = index;
-            self.status = format!(
-                "Favorite already saved: {}",
-                self.favorites[index].psd_file_name
-            );
-            return Ok(false);
+            self.status = if updated {
+                format!("Favorite updated: {}", self.favorites[index].psd_file_name)
+            } else {
+                format!(
+                    "Favorite already saved: {}",
+                    self.favorites[index].psd_file_name
+                )
+            };
+            return Ok(updated);
         }
 
         self.favorites.push(favorite.clone());
@@ -131,8 +172,13 @@ impl App {
 
         self.selected_zip_index = zip_index;
         self.selected_psd_index = psd_index;
+        if let Some(psd_path) = self.selected_psd_entry().map(|entry| entry.path.clone()) {
+            apply_favorite_variation(&mut self.variations, &psd_path, &favorite);
+        }
         self.selected_layer_index = 0;
         self.refresh_selected_psd_state()?;
+        let _ = self.apply_favorite_mascot_scale(favorite.mascot_scale)?;
+        apply_favorite_window_position(&favorite)?;
         self.hide_favorites_view();
         self.persist_workspace_state()?;
         self.status = format!("Favorite selected: {}", favorite.psd_file_name);
@@ -185,5 +231,71 @@ impl App {
         if let Some(previous_focus) = self.favorites_return_focus.take() {
             self.focus = previous_focus;
         }
+    }
+}
+
+pub(crate) fn apply_favorite_variation(
+    variations: &mut HashMap<std::path::PathBuf, DisplayDiff>,
+    psd_path: &Path,
+    favorite: &FavoriteEntry,
+) {
+    let variation = DisplayDiff {
+        version: DISPLAY_DIFF_VERSION,
+        visibility_overrides: favorite.visibility_overrides.clone(),
+    };
+    if variation.is_default() {
+        variations.remove(psd_path);
+    } else {
+        variations.insert(psd_path.to_path_buf(), variation);
+    }
+}
+
+/// Persists the favorite's saved mascot window position and returns whether coordinates existed.
+pub(crate) fn apply_favorite_window_position(favorite: &FavoriteEntry) -> Result<bool> {
+    let Some([x, y]) = favorite.window_position else {
+        return Ok(false);
+    };
+
+    let next_position = SavedWindowPosition { x, y };
+    if let Some(saved_position) =
+        load_saved_window_position_for_paths(&favorite.zip_path, &favorite.psd_path_in_zip)?
+    {
+        if saved_window_positions_match(saved_position, next_position) {
+            return Ok(true);
+        }
+    }
+
+    save_window_position_for_paths(&favorite.zip_path, &favorite.psd_path_in_zip, next_position)?;
+    Ok(true)
+}
+
+/// Compares saved window positions with a small tolerance so favorites do not rewrite identical coordinates.
+fn saved_window_positions_match(left: SavedWindowPosition, right: SavedWindowPosition) -> bool {
+    (left.x - right.x).abs() < SAVED_WINDOW_POSITION_TOLERANCE
+        && (left.y - right.y).abs() < SAVED_WINDOW_POSITION_TOLERANCE
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{saved_window_positions_match, SavedWindowPosition};
+
+    #[test]
+    fn saved_window_positions_match_within_tolerance() {
+        assert!(saved_window_positions_match(
+            SavedWindowPosition { x: 10.0, y: 20.0 },
+            SavedWindowPosition { x: 10.4, y: 20.4 }
+        ));
+    }
+
+    #[test]
+    fn saved_window_positions_match_rejects_boundary_and_larger_deltas() {
+        assert!(!saved_window_positions_match(
+            SavedWindowPosition { x: 10.0, y: 20.0 },
+            SavedWindowPosition { x: 10.5, y: 20.0 }
+        ));
+        assert!(!saved_window_positions_match(
+            SavedWindowPosition { x: 10.0, y: 20.0 },
+            SavedWindowPosition { x: 10.0, y: 20.6 }
+        ));
     }
 }

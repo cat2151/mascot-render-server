@@ -9,7 +9,8 @@ use mascot_render_core::{
 };
 
 use crate::window_history::{
-    load_window_position, window_history_path, WindowHistoryTracker, WINDOW_HISTORY_SAVE_DEBOUNCE,
+    load_saved_window_position_for_paths, load_window_position, save_window_position_for_paths,
+    window_history_path, SavedWindowPosition, WindowHistoryTracker, WINDOW_HISTORY_SAVE_DEBOUNCE,
 };
 
 #[test]
@@ -86,6 +87,24 @@ fn window_history_path_caps_long_psd_names() {
         file_name.len() < 255,
         "history file name should stay within typical filesystem limits: {file_name}"
     );
+}
+
+#[test]
+fn public_helpers_round_trip_saved_window_position() {
+    let config = mascot_config("/workspace/a.zip", "body/front.psd");
+    let path = window_history_path(&config);
+    let _ = fs::remove_file(&path);
+
+    save_window_position_for_paths(
+        &config.zip_path,
+        &config.psd_path_in_zip,
+        SavedWindowPosition { x: 256.0, y: 144.0 },
+    )
+    .expect("should save window position via public helper");
+
+    let loaded = load_saved_window_position_for_paths(&config.zip_path, &config.psd_path_in_zip)
+        .expect("should load window position via public helper");
+    assert_eq!(loaded, Some(SavedWindowPosition { x: 256.0, y: 144.0 }));
 }
 
 fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
