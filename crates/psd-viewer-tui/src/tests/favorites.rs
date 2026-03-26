@@ -77,6 +77,34 @@ fn favorite_entry_equality_includes_saved_state() {
 }
 
 #[test]
+fn favorite_saved_state_treats_negative_zero_like_zero() {
+    let left = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: vec![LayerVisibilityOverride {
+            layer_index: 0,
+            visible: false,
+        }],
+        mascot_scale: Some(-0.0),
+        window_position: Some([-0.0, 20.0]),
+    };
+    let right = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: vec![LayerVisibilityOverride {
+            layer_index: 0,
+            visible: false,
+        }],
+        mascot_scale: Some(0.0),
+        window_position: Some([0.0, 20.0]),
+    };
+
+    assert!(left.same_saved_state_as(&right));
+}
+
+#[test]
 fn favorites_deduplicate_only_exact_same_saved_state() {
     let root = workspace_cache_root().join("test-favorites-deduplicate");
     let path = root.join("favorites/psd-viewer-tui.toml");

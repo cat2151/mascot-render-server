@@ -38,11 +38,7 @@ impl FavoriteEntry {
     }
 
     pub(crate) fn same_saved_state_as(&self, other: &Self) -> bool {
-        self.zip_path == other.zip_path
-            && self.psd_path_in_zip == other.psd_path_in_zip
-            && self.visibility_overrides == other.visibility_overrides
-            && self.mascot_scale == other.mascot_scale
-            && self.window_position == other.window_position
+        self.saved_state_key() == other.saved_state_key()
     }
 
     fn saved_state_key(&self) -> FavoriteSavedStateKey {
@@ -54,10 +50,10 @@ impl FavoriteEntry {
                 .iter()
                 .map(|layer| (layer.layer_index, layer.visible))
                 .collect(),
-            mascot_scale_bits: self.mascot_scale.map(f32::to_bits),
+            mascot_scale_bits: self.mascot_scale.map(normalized_f32_bits),
             window_position_bits: self
                 .window_position
-                .map(|[x, y]| [x.to_bits(), y.to_bits()]),
+                .map(|[x, y]| [normalized_f32_bits(x), normalized_f32_bits(y)]),
         }
     }
 }
@@ -176,4 +172,12 @@ fn sanitize_mascot_scale(scale: Option<f32>) -> Option<f32> {
 
 fn sanitize_window_position(position: Option<[f32; 2]>) -> Option<[f32; 2]> {
     position.filter(|[x, y]| x.is_finite() && y.is_finite())
+}
+
+fn normalized_f32_bits(value: f32) -> u32 {
+    if value == 0.0 {
+        0.0f32.to_bits()
+    } else {
+        value.to_bits()
+    }
 }

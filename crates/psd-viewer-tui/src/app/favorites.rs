@@ -87,6 +87,7 @@ impl App {
         };
         let zip_path = zip_path.to_path_buf();
         let psd_path_in_zip = psd_path_in_zip.to_path_buf();
+        let psd_file_name = psd_entry.file_name.clone();
         let visibility_overrides = self
             .variations
             .get(&psd_entry.path)
@@ -109,9 +110,13 @@ impl App {
                     });
                 }
             };
-        let Some(favorite) =
-            self.favorite_entry_from_current_state(visibility_overrides, window_position)
-        else {
+        let Some(favorite) = self.favorite_entry_from_current_state(
+            zip_path,
+            psd_path_in_zip,
+            psd_file_name,
+            visibility_overrides,
+            window_position,
+        ) else {
             self.status = NO_SELECTED_PSD_FAVORITE_STATUS.to_string();
             return Ok(false);
         };
@@ -197,6 +202,7 @@ impl App {
 
     fn current_favorite_index(&self) -> Option<usize> {
         let (zip_path, psd_path_in_zip) = self.current_runtime_state_paths()?;
+        let psd_file_name = self.selected_psd_entry()?.file_name.clone();
         let visibility_overrides = self
             .selected_psd_entry()
             .and_then(|psd_entry| self.variations.get(&psd_entry.path))
@@ -207,8 +213,13 @@ impl App {
             .ok()
             .flatten()
             .map(|position| [position.x, position.y]);
-        let favorite =
-            self.favorite_entry_from_current_state(visibility_overrides, window_position)?;
+        let favorite = self.favorite_entry_from_current_state(
+            zip_path.to_path_buf(),
+            psd_path_in_zip.to_path_buf(),
+            psd_file_name,
+            visibility_overrides,
+            window_position,
+        )?;
         self.find_matching_favorite_index(&favorite).or_else(|| {
             self.favorites.iter().position(|saved| {
                 saved.zip_path == favorite.zip_path
@@ -282,14 +293,16 @@ impl App {
 
     fn favorite_entry_from_current_state(
         &self,
+        zip_path: std::path::PathBuf,
+        psd_path_in_zip: std::path::PathBuf,
+        psd_file_name: String,
         visibility_overrides: Vec<mascot_render_core::LayerVisibilityOverride>,
         window_position: Option<[f32; 2]>,
     ) -> Option<FavoriteEntry> {
-        let (zip_path, psd_path_in_zip) = self.current_runtime_state_paths()?;
         Some(FavoriteEntry {
-            zip_path: zip_path.to_path_buf(),
-            psd_path_in_zip: psd_path_in_zip.to_path_buf(),
-            psd_file_name: self.selected_psd_entry()?.file_name.clone(),
+            zip_path,
+            psd_path_in_zip,
+            psd_file_name,
             visibility_overrides,
             mascot_scale: self.mascot_scale,
             window_position,
