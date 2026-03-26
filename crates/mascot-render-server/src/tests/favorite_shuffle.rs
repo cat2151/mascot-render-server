@@ -166,6 +166,7 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
         head_hitbox: HeadHitbox::default(),
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
+        always_squash_bounce: SquashBounceAnimationConfig::default_for_always_bouncing(),
     }
 }
 

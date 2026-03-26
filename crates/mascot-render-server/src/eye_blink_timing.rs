@@ -2,11 +2,15 @@
 
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use mascot_render_core::SquashBounceAnimationConfig;
+
 const DEFAULT_MEDIAN_MS: f64 = 3600.0;
 const DEFAULT_LOG_SIGMA: f64 = 0.42;
 const DEFAULT_MIN_MS: u64 = 1000;
 const DEFAULT_MAX_MS: u64 = 8000;
 const DEFAULT_DRIFT_RATIO_LIMIT: f64 = 0.20;
+const ALWAYS_BOUNCE_DURATION_SCALE_MIN: f64 = 1.0 - DEFAULT_DRIFT_RATIO_LIMIT;
+const ALWAYS_BOUNCE_DURATION_SCALE_MAX: f64 = 1.0 + DEFAULT_DRIFT_RATIO_LIMIT;
 const DRIFT_MIN_SECS: f64 = 5.0;
 const DRIFT_MAX_SECS: f64 = 8.0;
 
@@ -46,7 +50,7 @@ impl EyeBlinkIntervalGenerator {
     pub(crate) fn next_interval_ms(&mut self, now: Instant) -> u64 {
         self.advance_drift(now);
         let z = self.sample_standard_normal();
-        let median_ms = self.current_median_ms();
+        let median_ms = self.current_median_ms_value();
         let log_sigma = self.config.log_sigma.max(0.0);
         let interval_ms = (median_ms.ln() + z * log_sigma).exp();
         clamp_interval_ms(interval_ms, self.config.min_ms, self.config.max_ms)
@@ -67,7 +71,7 @@ impl EyeBlinkIntervalGenerator {
         self.drift_timescale_secs = self.sample_drift_timescale_secs();
     }
 
-    fn current_median_ms(&self) -> f64 {
+    fn current_median_ms_value(&self) -> f64 {
         self.config.median_ms * (1.0 + self.drift_ratio)
     }
 
@@ -116,12 +120,33 @@ impl EyeBlinkIntervalGenerator {
 
     #[cfg(test)]
     pub(crate) fn current_median_ms_for_test(&self) -> f64 {
-        self.current_median_ms()
+        self.current_median_ms_value()
+    }
+
+    pub(crate) fn current_median_ms(&self) -> f64 {
+        self.current_median_ms_value()
     }
 }
 
 fn clamp_interval_ms(interval_ms: f64, min_ms: u64, max_ms: u64) -> u64 {
     interval_ms.round().clamp(min_ms as f64, max_ms as f64) as u64
+}
+
+pub(crate) fn always_squash_bounce_for_blink_median(
+    config: SquashBounceAnimationConfig,
+    blink_median_ms: f64,
+) -> SquashBounceAnimationConfig {
+    // Keep the always_bouncing tempo aligned with the blink median drift range (±20%).
+    let duration_scale = (blink_median_ms / DEFAULT_MEDIAN_MS).clamp(
+        ALWAYS_BOUNCE_DURATION_SCALE_MIN,
+        ALWAYS_BOUNCE_DURATION_SCALE_MAX,
+    ) as f32;
+    SquashBounceAnimationConfig {
+        duration_ms: ((config.duration_ms as f32) * duration_scale)
+            .round()
+            .max(1.0) as u64,
+        ..config
+    }
 }
 
 fn seed_from_clock() -> u64 {

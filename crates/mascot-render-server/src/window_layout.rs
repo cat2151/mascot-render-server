@@ -120,6 +120,26 @@ impl MascotWindowLayout {
     }
 }
 
+/// Combines regular and always_bouncing squash/stretch settings so the window layout
+/// reserves enough room for either motion path.
+pub fn squash_bounce_bounds_config(
+    squash_bounce: SquashBounceAnimationConfig,
+    always_squash_bounce: SquashBounceAnimationConfig,
+) -> SquashBounceAnimationConfig {
+    SquashBounceAnimationConfig {
+        amplitude_px: squash_bounce
+            .amplitude_px
+            .max(always_squash_bounce.amplitude_px),
+        squash_amount: squash_bounce
+            .squash_amount
+            .max(always_squash_bounce.squash_amount),
+        stretch_amount: squash_bounce
+            .stretch_amount
+            .max(always_squash_bounce.stretch_amount),
+        ..squash_bounce
+    }
+}
+
 pub fn anchored_inner_origin(
     previous_inner_origin: Pos2,
     previous_layout: MascotWindowLayout,

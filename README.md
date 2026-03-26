@@ -47,6 +47,9 @@ psd-viewer-tui
 - `mascot-render-server.toml`
     - `always_bouncing`
         - If `true`, a small squash/stretch breathing-like motion will constantly play for UX verification.
+    - `always_squash_bounce`
+        - Dedicated squash/stretch settings for `always_bouncing`.
+        - By default, it is slower and smaller than the regular `squash_bounce`, and its tempo drifts with the eye-blink interval median.
     - `transparent_background_click_through`
         - If `true`, it reduces "confusion from dragging empty space," although it becomes very resource-intensive.
     - `flash_blue_background_on_transparent_input`

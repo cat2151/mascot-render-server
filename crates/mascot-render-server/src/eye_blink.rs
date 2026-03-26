@@ -53,6 +53,10 @@ impl EyeBlinkLoop {
             .min(fallback)
     }
 
+    pub(crate) fn current_median_ms(&self) -> f64 {
+        self.interval_generator.current_median_ms()
+    }
+
     fn advance(&mut self, now: Instant) {
         while now >= self.current_deadline() {
             self.phase = match self.phase {

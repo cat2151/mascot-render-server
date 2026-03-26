@@ -39,6 +39,7 @@ pub struct MascotConfig {
     pub head_hitbox: HeadHitbox,
     pub bounce: BounceAnimationConfig,
     pub squash_bounce: SquashBounceAnimationConfig,
+    pub always_squash_bounce: SquashBounceAnimationConfig,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -97,6 +98,7 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
         head_hitbox: static_config.head_hitbox,
         bounce: static_config.bounce,
         squash_bounce: static_config.squash_bounce,
+        always_squash_bounce: static_config.always_squash_bounce,
     })
 }
 

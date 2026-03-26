@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use eframe::egui::Modifiers;
 use mascot_render_core::{
     load_mascot_config, mascot_runtime_state_path, workspace_cache_root, MascotConfig,
+    SquashBounceAnimationConfig,
 };
 
 use crate::mascot_scale::{
@@ -34,6 +35,7 @@ fn sample_config() -> MascotConfig {
         head_hitbox: Default::default(),
         bounce: Default::default(),
         squash_bounce: Default::default(),
+        always_squash_bounce: SquashBounceAnimationConfig::default_for_always_bouncing(),
     }
 }
 
