@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 const LOCAL_DATA_ROOT_ENV: &str = "MASCOT_RENDER_SERVER_DATA_ROOT";
+#[cfg(target_os = "windows")]
 const LOCAL_DATA_DIR_NAME: &str = "mascot-render-server";
 const WORKSPACE_ROOT_ENV: &str = "ZUNDAMON_PSD_VIEWER_ROOT";
 
