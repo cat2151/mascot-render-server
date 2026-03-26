@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{apply_favorite_variation, apply_favorite_window_position};
+use crate::app::{apply_favorite_variation, apply_favorite_window_position, App};
 use crate::favorites::{favorite_selection_lookup, load_favorites, save_favorites, FavoriteEntry};
 use crate::is_favorites_toggle_key;
 use mascot_render_core::workspace_cache_root;
@@ -288,6 +288,84 @@ fn apply_favorite_window_position_ignores_missing_coordinates() {
     };
 
     assert!(!apply_favorite_window_position(&favorite).expect("should ignore missing coordinates"));
+}
+
+#[test]
+fn selected_preview_png_path_prefers_favorite_preview_while_favorites_are_visible() {
+    let mut app = App::loading(None);
+    let current_preview = PathBuf::from("/cache/current.png");
+    let favorite_preview = PathBuf::from("/cache/favorite.png");
+    let favorite = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: Vec::new(),
+        mascot_scale: None,
+        window_position: None,
+    };
+    app.zip_entries = vec![ZipEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psds: vec![PsdEntry {
+            path: PathBuf::from("/cache/a/body.psd"),
+            file_name: "body.psd".to_string(),
+            rendered_png_path: Some(favorite_preview.clone()),
+            ..PsdEntry::default()
+        }],
+        ..ZipEntry::default()
+    }];
+    app.set_current_preview_png_path_for_test(Some(current_preview.clone()));
+    app.set_favorites_for_test(
+        vec![favorite.clone()],
+        HashMap::from([(favorite.key(), (0, 0))]),
+    );
+
+    assert_eq!(
+        app.selected_preview_png_path(),
+        Some(current_preview.as_path())
+    );
+
+    app.toggle_favorites_view();
+
+    assert_eq!(
+        app.selected_preview_png_path(),
+        Some(favorite_preview.as_path())
+    );
+}
+
+#[test]
+fn sync_selected_favorite_preview_uses_default_png_for_visible_favorite() {
+    let preview_path = PathBuf::from("/cache/favorite.png");
+    let favorite = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: Vec::new(),
+        mascot_scale: None,
+        window_position: None,
+    };
+    let mut app = App::loading(None);
+    app.zip_entries = vec![ZipEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psds: vec![PsdEntry {
+            path: PathBuf::from("/cache/a/body.psd"),
+            file_name: "body.psd".to_string(),
+            rendered_png_path: Some(preview_path.clone()),
+            ..PsdEntry::default()
+        }],
+        ..ZipEntry::default()
+    }];
+    app.set_favorites_for_test(
+        vec![favorite.clone()],
+        HashMap::from([(favorite.key(), (0, 0))]),
+    );
+
+    app.sync_selected_favorite_preview_for_test()
+        .expect("should sync selected favorite preview");
+
+    assert_eq!(
+        app.favorites_preview_png_path_for_test(),
+        Some(preview_path.as_path())
+    );
 }
 
 fn sample_psd(path: &str, file_name: &str) -> PsdEntry {
