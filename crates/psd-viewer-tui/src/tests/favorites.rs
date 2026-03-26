@@ -77,7 +77,7 @@ fn favorite_entry_equality_includes_saved_state() {
 }
 
 #[test]
-fn favorite_saved_state_treats_negative_zero_like_zero() {
+fn favorite_identity_ignores_scale_and_window_position() {
     let left = FavoriteEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
         psd_path_in_zip: PathBuf::from("a/body.psd"),
@@ -86,8 +86,8 @@ fn favorite_saved_state_treats_negative_zero_like_zero() {
             layer_index: 0,
             visible: false,
         }],
-        mascot_scale: Some(-0.0),
-        window_position: Some([-0.0, 20.0]),
+        mascot_scale: Some(0.8),
+        window_position: Some([10.0, 20.0]),
     };
     let right = FavoriteEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
@@ -97,15 +97,15 @@ fn favorite_saved_state_treats_negative_zero_like_zero() {
             layer_index: 0,
             visible: false,
         }],
-        mascot_scale: Some(0.0),
-        window_position: Some([0.0, 20.0]),
+        mascot_scale: Some(1.2),
+        window_position: Some([40.0, 50.0]),
     };
 
-    assert!(left.same_saved_state_as(&right));
+    assert!(left.same_favorite_identity_as(&right));
 }
 
 #[test]
-fn favorites_deduplicate_only_exact_same_saved_state() {
+fn favorites_deduplicate_by_visibility_and_keep_latest_scale_and_position() {
     let root = workspace_cache_root().join("test-favorites-deduplicate");
     let path = root.join("favorites/psd-viewer-tui.toml");
     let _ = fs::remove_dir_all(&root);
@@ -130,15 +130,15 @@ zip_path = "/workspace/a.zip"
 psd_path_in_zip = "a/body.psd"
 psd_file_name = "body-copy.psd"
 visibility_overrides = [{ layer_index = 3, visible = false }]
-mascot_scale = 0.75
-window_position = [120.0, 48.0]
+mascot_scale = 1.25
+window_position = [300.0, 90.0]
 "#,
     )
     .expect("should seed duplicate favorites");
 
     let loaded = load_favorites(&path).expect("should load favorites");
     assert_eq!(loaded.len(), 1);
-    assert_eq!(loaded[0].psd_file_name, "body.psd");
+    assert_eq!(loaded[0].psd_file_name, "body-copy.psd");
     assert_eq!(
         loaded[0].visibility_overrides,
         vec![LayerVisibilityOverride {
@@ -146,8 +146,8 @@ window_position = [120.0, 48.0]
             visible: false,
         }]
     );
-    assert_eq!(loaded[0].mascot_scale, Some(0.75));
-    assert_eq!(loaded[0].window_position, Some([120.0, 48.0]));
+    assert_eq!(loaded[0].mascot_scale, Some(1.25));
+    assert_eq!(loaded[0].window_position, Some([300.0, 90.0]));
 }
 
 #[test]
@@ -486,6 +486,37 @@ fn favorites_view_prefers_exact_current_state_when_same_psd_has_multiple_entries
     app.toggle_favorites_view();
 
     assert_eq!(app.selected_favorite_selection(), Some(1));
+}
+
+#[test]
+fn upsert_favorite_updates_existing_entry_when_only_scale_and_position_change() {
+    let existing = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: vec![LayerVisibilityOverride {
+            layer_index: 4,
+            visible: true,
+        }],
+        mascot_scale: Some(0.75),
+        window_position: Some([120.0, 48.0]),
+    };
+    let updated = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: vec![LayerVisibilityOverride {
+            layer_index: 4,
+            visible: true,
+        }],
+        mascot_scale: Some(1.25),
+        window_position: Some([300.0, 90.0]),
+    };
+    let mut app = App::loading(None);
+    app.set_favorites_for_test(vec![existing], HashMap::new());
+
+    assert!(app.upsert_favorite_for_test(updated.clone()));
+    assert_eq!(app.favorite_entries_for_test(), &[updated]);
 }
 
 #[test]

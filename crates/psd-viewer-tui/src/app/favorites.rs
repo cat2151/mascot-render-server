@@ -20,6 +20,12 @@ pub(crate) struct FavoriteRow {
     pub(crate) available: bool,
 }
 
+enum FavoriteUpsertResult {
+    Added { index: usize },
+    Updated { index: usize },
+    Unchanged { index: usize },
+}
+
 impl App {
     pub(crate) fn favorites_visible(&self) -> bool {
         self.favorites_visible
@@ -121,20 +127,28 @@ impl App {
             return Ok(false);
         };
 
-        if let Some(index) = self.find_matching_favorite_index(&favorite) {
-            self.selected_favorite_index = index;
-            self.status = format!(
-                "Favorite already saved: {}",
-                self.favorites[index].psd_file_name
-            );
-            return Ok(false);
+        match self.upsert_favorite(favorite.clone()) {
+            FavoriteUpsertResult::Unchanged { index } => {
+                self.selected_favorite_index = index;
+                self.status = format!(
+                    "Favorite already saved: {}",
+                    self.favorites[index].psd_file_name
+                );
+                Ok(false)
+            }
+            FavoriteUpsertResult::Updated { index } => {
+                save_favorites(&favorites_path(), &self.favorites)?;
+                self.selected_favorite_index = index;
+                self.status = format!("Favorite updated: {}", favorite.psd_file_name);
+                Ok(true)
+            }
+            FavoriteUpsertResult::Added { index } => {
+                save_favorites(&favorites_path(), &self.favorites)?;
+                self.selected_favorite_index = index;
+                self.status = format!("Favorite saved: {}", favorite.psd_file_name);
+                Ok(true)
+            }
         }
-
-        self.favorites.push(favorite.clone());
-        save_favorites(&favorites_path(), &self.favorites)?;
-        self.selected_favorite_index = self.favorites.len().saturating_sub(1);
-        self.status = format!("Favorite saved: {}", favorite.psd_file_name);
-        Ok(true)
     }
 
     pub(crate) fn activate_selected_favorite(&mut self) -> Result<bool> {
@@ -288,7 +302,23 @@ impl App {
     fn find_matching_favorite_index(&self, favorite: &FavoriteEntry) -> Option<usize> {
         self.favorites
             .iter()
-            .position(|saved| saved.same_saved_state_as(favorite))
+            .position(|saved| saved.same_favorite_identity_as(favorite))
+    }
+
+    fn upsert_favorite(&mut self, favorite: FavoriteEntry) -> FavoriteUpsertResult {
+        if let Some(index) = self.find_matching_favorite_index(&favorite) {
+            if self.favorites[index] == favorite {
+                FavoriteUpsertResult::Unchanged { index }
+            } else {
+                self.favorites[index] = favorite;
+                FavoriteUpsertResult::Updated { index }
+            }
+        } else {
+            self.favorites.push(favorite);
+            FavoriteUpsertResult::Added {
+                index: self.favorites.len().saturating_sub(1),
+            }
+        }
     }
 
     fn favorite_entry_from_current_state(
@@ -383,6 +413,17 @@ impl App {
 
     pub(crate) fn refresh_selected_psd_state_for_test(&mut self) -> Result<()> {
         self.refresh_selected_psd_state()
+    }
+
+    pub(crate) fn favorite_entries_for_test(&self) -> &[FavoriteEntry] {
+        &self.favorites
+    }
+
+    pub(crate) fn upsert_favorite_for_test(&mut self, favorite: FavoriteEntry) -> bool {
+        matches!(
+            self.upsert_favorite(favorite),
+            FavoriteUpsertResult::Added { .. } | FavoriteUpsertResult::Updated { .. }
+        )
     }
 }
 

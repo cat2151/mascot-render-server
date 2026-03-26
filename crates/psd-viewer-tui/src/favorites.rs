@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -37,12 +37,12 @@ impl FavoriteEntry {
         }
     }
 
-    pub(crate) fn same_saved_state_as(&self, other: &Self) -> bool {
-        self.saved_state_key() == other.saved_state_key()
+    pub(crate) fn same_favorite_identity_as(&self, other: &Self) -> bool {
+        self.favorite_identity_key() == other.favorite_identity_key()
     }
 
-    fn saved_state_key(&self) -> FavoriteSavedStateKey {
-        FavoriteSavedStateKey {
+    fn favorite_identity_key(&self) -> FavoriteIdentityKey {
+        FavoriteIdentityKey {
             zip_path: self.zip_path.clone(),
             psd_path_in_zip: self.psd_path_in_zip.clone(),
             visibility_overrides: self
@@ -50,21 +50,15 @@ impl FavoriteEntry {
                 .iter()
                 .map(|layer| (layer.layer_index, layer.visible))
                 .collect(),
-            mascot_scale_bits: self.mascot_scale.map(normalized_f32_bits),
-            window_position_bits: self
-                .window_position
-                .map(|[x, y]| [normalized_f32_bits(x), normalized_f32_bits(y)]),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct FavoriteSavedStateKey {
+struct FavoriteIdentityKey {
     zip_path: PathBuf,
     psd_path_in_zip: PathBuf,
     visibility_overrides: Vec<(usize, bool)>,
-    mascot_scale_bits: Option<u32>,
-    window_position_bits: Option<[u32; 2]>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -147,7 +141,6 @@ pub(crate) fn favorite_selection_lookup(
 }
 
 fn sanitize_favorites(favorites: Vec<FavoriteEntry>) -> Vec<FavoriteEntry> {
-    let mut seen = HashSet::new();
     let mut sanitized = Vec::new();
     for mut favorite in favorites {
         if favorite.psd_file_name.is_empty() {
@@ -159,7 +152,13 @@ fn sanitize_favorites(favorites: Vec<FavoriteEntry>) -> Vec<FavoriteEntry> {
         }
         favorite.mascot_scale = sanitize_mascot_scale(favorite.mascot_scale);
         favorite.window_position = sanitize_window_position(favorite.window_position);
-        if seen.insert(favorite.saved_state_key()) {
+        let identity = favorite.favorite_identity_key();
+        if let Some(index) = sanitized
+            .iter()
+            .position(|saved: &FavoriteEntry| saved.favorite_identity_key() == identity)
+        {
+            sanitized[index] = favorite;
+        } else {
             sanitized.push(favorite);
         }
     }
@@ -172,12 +171,4 @@ fn sanitize_mascot_scale(scale: Option<f32>) -> Option<f32> {
 
 fn sanitize_window_position(position: Option<[f32; 2]>) -> Option<[f32; 2]> {
     position.filter(|[x, y]| x.is_finite() && y.is_finite())
-}
-
-fn normalized_f32_bits(value: f32) -> u32 {
-    if value == 0.0 {
-        0.0f32.to_bits()
-    } else {
-        value.to_bits()
-    }
 }
