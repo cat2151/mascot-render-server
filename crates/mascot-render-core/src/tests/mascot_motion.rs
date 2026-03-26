@@ -133,7 +133,7 @@ fn shake_motion_finishes_after_requested_duration() {
 }
 
 #[test]
-fn always_bouncing_uses_dedicated_squash_bounce_when_idle() {
+fn always_bouncing_idle_uses_always_squash_bounce_duration() {
     let mut motion = MotionState::new();
     let now = Instant::now();
     let bounce = BounceAnimationConfig::default();
@@ -174,7 +174,7 @@ fn always_bouncing_uses_dedicated_squash_bounce_when_idle() {
 }
 
 #[test]
-fn triggered_squash_bounce_keeps_using_regular_config() {
+fn always_bouncing_triggered_animation_ignores_always_squash_bounce() {
     let mut motion = MotionState::new();
     let now = Instant::now();
     let bounce = BounceAnimationConfig::default();

@@ -9,6 +9,8 @@ const DEFAULT_LOG_SIGMA: f64 = 0.42;
 const DEFAULT_MIN_MS: u64 = 1000;
 const DEFAULT_MAX_MS: u64 = 8000;
 const DEFAULT_DRIFT_RATIO_LIMIT: f64 = 0.20;
+const ALWAYS_BOUNCE_DURATION_SCALE_MIN: f64 = 0.8;
+const ALWAYS_BOUNCE_DURATION_SCALE_MAX: f64 = 1.2;
 const DRIFT_MIN_SECS: f64 = 5.0;
 const DRIFT_MAX_SECS: f64 = 8.0;
 
@@ -134,7 +136,11 @@ pub(crate) fn always_squash_bounce_for_blink_median(
     config: SquashBounceAnimationConfig,
     blink_median_ms: f64,
 ) -> SquashBounceAnimationConfig {
-    let duration_scale = (blink_median_ms / DEFAULT_MEDIAN_MS).clamp(0.8, 1.2) as f32;
+    // Keep the always_bouncing tempo aligned with the blink median drift range (±20%).
+    let duration_scale = (blink_median_ms / DEFAULT_MEDIAN_MS).clamp(
+        ALWAYS_BOUNCE_DURATION_SCALE_MIN,
+        ALWAYS_BOUNCE_DURATION_SCALE_MAX,
+    ) as f32;
     SquashBounceAnimationConfig {
         duration_ms: ((config.duration_ms as f32) * duration_scale)
             .round()
