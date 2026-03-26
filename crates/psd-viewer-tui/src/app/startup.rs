@@ -193,6 +193,7 @@ impl App {
             current_psd_document: None,
             current_preview_png_path: None,
             current_variation_spec_path: None,
+            favorites_preview_png_path: None,
             processing_layer_toggle: false,
             startup_loading,
             startup_notice,

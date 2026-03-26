@@ -54,6 +54,7 @@ pub(crate) struct App {
     current_psd_document: Option<PsdDocument>,
     current_preview_png_path: Option<PathBuf>,
     current_variation_spec_path: Option<PathBuf>,
+    favorites_preview_png_path: Option<PathBuf>,
     processing_layer_toggle: bool,
     startup_loading: bool,
     startup_notice: Option<String>,
@@ -97,6 +98,7 @@ impl App {
             current_psd_document: None,
             current_preview_png_path: None,
             current_variation_spec_path: None,
+            favorites_preview_png_path: None,
             processing_layer_toggle: false,
             startup_loading: true,
             startup_notice: Some("Loading ZIP/PSD cache index in background...".to_string()),
@@ -128,7 +130,13 @@ impl App {
     }
 
     pub(crate) fn selected_preview_png_path(&self) -> Option<&Path> {
-        self.current_preview_png_path.as_deref()
+        if self.favorites_visible {
+            self.favorites_preview_png_path
+                .as_deref()
+                .or(self.current_preview_png_path.as_deref())
+        } else {
+            self.current_preview_png_path.as_deref()
+        }
     }
 
     pub(crate) fn uses_server_preview(&self) -> bool {
@@ -333,6 +341,7 @@ impl App {
         self.current_psd_document = None;
         self.current_preview_png_path = None;
         self.current_variation_spec_path = None;
+        self.favorites_preview_png_path = None;
         self.clear_preview_animations();
         self.layer_rows.clear();
 
@@ -356,6 +365,9 @@ impl App {
         self.sync_preview_for_variation(&zip_path, &psd_path, &psd_path_in_zip, &psd_entry)?;
         self.sync_current_mascot_config()?;
         self.sync_selection_bounds();
+        if self.favorites_visible {
+            self.update_selected_favorite_preview();
+        }
         Ok(())
     }
 

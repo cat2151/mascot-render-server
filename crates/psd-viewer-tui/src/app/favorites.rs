@@ -73,6 +73,7 @@ impl App {
         } else {
             format!("Opened favorites list ({} items).", self.favorites.len())
         };
+        self.update_selected_favorite_preview();
     }
 
     pub(crate) fn add_current_favorite(&mut self) -> Result<bool> {
@@ -192,6 +193,7 @@ impl App {
         } else if !self.favorites.is_empty() {
             self.selected_favorite_index = 0;
         }
+        self.update_selected_favorite_preview();
     }
 
     pub(super) fn select_next_favorite(&mut self, step: usize) {
@@ -202,6 +204,7 @@ impl App {
         } else if !self.favorites.is_empty() {
             self.selected_favorite_index = 0;
         }
+        self.update_selected_favorite_preview();
     }
 
     pub(super) fn sync_favorite_selection_bounds(&mut self) {
@@ -228,9 +231,55 @@ impl App {
 
     fn hide_favorites_view(&mut self) {
         self.favorites_visible = false;
+        self.favorites_preview_png_path = None;
         if let Some(previous_focus) = self.favorites_return_focus.take() {
             self.focus = previous_focus;
         }
+    }
+
+    pub(super) fn update_selected_favorite_preview(&mut self) {
+        match self.selected_favorite_preview_png_path() {
+            Ok(preview_png_path) => {
+                self.favorites_preview_png_path = preview_png_path;
+            }
+            Err(error) => {
+                self.favorites_preview_png_path = None;
+                self.status = format!("Favorite preview unavailable: {error}");
+            }
+        }
+    }
+
+    fn selected_favorite_preview_png_path(&mut self) -> Result<Option<std::path::PathBuf>> {
+        let Some(index) = self.selected_favorite_selection() else {
+            return Ok(None);
+        };
+        let favorite = &self.favorites[index];
+        let Some((zip_index, psd_index)) =
+            self.favorite_selection_lookup.get(&favorite.key()).copied()
+        else {
+            return Ok(None);
+        };
+        let Some(psd_entry) = self
+            .zip_entries
+            .get(zip_index)
+            .and_then(|zip_entry| zip_entry.psds.get(psd_index))
+        else {
+            return Ok(None);
+        };
+
+        if favorite.visibility_overrides.is_empty() {
+            return Ok(psd_entry.rendered_png_path.clone());
+        }
+
+        let rendered = self.core.render_png(mascot_render_core::RenderRequest {
+            zip_path: favorite.zip_path.clone(),
+            psd_path_in_zip: favorite.psd_path_in_zip.clone(),
+            display_diff: DisplayDiff {
+                version: DISPLAY_DIFF_VERSION,
+                visibility_overrides: favorite.visibility_overrides.clone(),
+            },
+        })?;
+        Ok(Some(rendered.output_path))
     }
 }
 
@@ -273,6 +322,41 @@ pub(crate) fn apply_favorite_window_position(favorite: &FavoriteEntry) -> Result
 fn saved_window_positions_match(left: SavedWindowPosition, right: SavedWindowPosition) -> bool {
     (left.x - right.x).abs() < SAVED_WINDOW_POSITION_TOLERANCE
         && (left.y - right.y).abs() < SAVED_WINDOW_POSITION_TOLERANCE
+}
+
+#[cfg(test)]
+impl App {
+    pub(crate) fn set_current_preview_png_path_for_test(
+        &mut self,
+        path: Option<std::path::PathBuf>,
+    ) {
+        self.current_preview_png_path = path;
+    }
+
+    pub(crate) fn favorites_preview_png_path_for_test(&self) -> Option<&Path> {
+        self.favorites_preview_png_path.as_deref()
+    }
+
+    pub(crate) fn set_favorites_for_test(
+        &mut self,
+        favorites: Vec<FavoriteEntry>,
+        favorite_selection_lookup: HashMap<crate::favorites::FavoriteKey, (usize, usize)>,
+    ) {
+        self.favorites = favorites;
+        self.favorite_selection_lookup = favorite_selection_lookup;
+        self.sync_favorite_selection_bounds();
+    }
+
+    pub(crate) fn sync_selected_favorite_preview_for_test(&mut self) -> Result<()> {
+        self.selected_favorite_preview_png_path()
+            .map(|preview_png_path| {
+                self.favorites_preview_png_path = preview_png_path;
+            })
+    }
+
+    pub(crate) fn refresh_selected_psd_state_for_test(&mut self) -> Result<()> {
+        self.refresh_selected_psd_state()
+    }
 }
 
 #[cfg(test)]
