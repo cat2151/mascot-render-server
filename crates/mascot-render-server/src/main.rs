@@ -24,7 +24,9 @@ use cli::{parse_cli, CliAction};
 use eframe::egui;
 use eframe::NativeOptions;
 use mascot_app::MascotApp;
-use mascot_render_server::{start_mascot_control_server_with_notify, MascotWindowLayout};
+use mascot_render_server::{
+    squash_bounce_bounds_config, start_mascot_control_server_with_notify, MascotWindowLayout,
+};
 use window_history::{load_window_position, window_history_path};
 
 use app_support::{alpha_mask, content_bounds, size_vec, window_title};
@@ -55,7 +57,7 @@ fn main() -> Result<()> {
         [image.width, image.height],
         initial_content_bounds,
         config.bounce,
-        config.squash_bounce,
+        squash_bounce_bounds_config(config.squash_bounce, config.always_squash_bounce),
     )
     .window_size();
     let history_path = window_history_path(&config);

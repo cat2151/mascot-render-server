@@ -1,6 +1,8 @@
 use std::time::{Duration, Instant};
 
-use crate::eye_blink_timing::EyeBlinkIntervalGenerator;
+use mascot_render_core::SquashBounceAnimationConfig;
+
+use crate::eye_blink_timing::{always_squash_bounce_for_blink_median, EyeBlinkIntervalGenerator};
 
 #[test]
 fn eye_blink_interval_generator_clamps_to_requested_bounds() {
@@ -30,4 +32,19 @@ fn eye_blink_interval_generator_keeps_drifted_median_within_twenty_percent() {
             "median drift out of range: {median_ms}"
         );
     }
+}
+
+#[test]
+fn always_squash_bounce_duration_tracks_blink_median() {
+    let config = SquashBounceAnimationConfig {
+        duration_ms: 1000,
+        ..SquashBounceAnimationConfig::default_for_always_bouncing()
+    };
+
+    let slower = always_squash_bounce_for_blink_median(config, 4320.0);
+    let faster = always_squash_bounce_for_blink_median(config, 2880.0);
+
+    assert_eq!(slower.duration_ms, 1200);
+    assert_eq!(faster.duration_ms, 800);
+    assert_eq!(slower.amplitude_px, config.amplitude_px);
 }
