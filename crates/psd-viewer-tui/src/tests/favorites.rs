@@ -49,7 +49,7 @@ fn favorites_round_trip_as_toml() {
 }
 
 #[test]
-fn favorite_entry_equality_depends_only_on_zip_and_psd_path() {
+fn favorite_entry_equality_includes_saved_state() {
     let left = FavoriteEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
         psd_path_in_zip: PathBuf::from("a/body.psd"),
@@ -73,11 +73,11 @@ fn favorite_entry_equality_depends_only_on_zip_and_psd_path() {
         window_position: Some([40.0, 50.0]),
     };
 
-    assert_eq!(left, right);
+    assert_ne!(left, right);
 }
 
 #[test]
-fn favorites_deduplicate_entries_by_zip_and_psd_path() {
+fn favorites_deduplicate_only_exact_same_saved_state() {
     let root = workspace_cache_root().join("test-favorites-deduplicate");
     let path = root.join("favorites/psd-viewer-tui.toml");
     let _ = fs::remove_dir_all(&root);
@@ -100,10 +100,10 @@ window_position = [120.0, 48.0]
 [[favorites]]
 zip_path = "/workspace/a.zip"
 psd_path_in_zip = "a/body.psd"
-psd_file_name = "body-renamed.psd"
-visibility_overrides = [{ layer_index = 4, visible = true }]
-mascot_scale = 0.5
-window_position = [300.0, 90.0]
+psd_file_name = "body-copy.psd"
+visibility_overrides = [{ layer_index = 3, visible = false }]
+mascot_scale = 0.75
+window_position = [120.0, 48.0]
 "#,
     )
     .expect("should seed duplicate favorites");
@@ -120,6 +120,45 @@ window_position = [300.0, 90.0]
     );
     assert_eq!(loaded[0].mascot_scale, Some(0.75));
     assert_eq!(loaded[0].window_position, Some([120.0, 48.0]));
+}
+
+#[test]
+fn favorites_allow_default_and_custom_layer_states_for_same_psd() {
+    let root = workspace_cache_root().join("test-favorites-default-and-custom");
+    let path = root.join("favorites/psd-viewer-tui.toml");
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(path.parent().expect("favorites file should have a parent"))
+        .expect("should create temp directory");
+
+    fs::write(
+        &path,
+        r#"
+version = 1
+
+[[favorites]]
+zip_path = "/workspace/a.zip"
+psd_path_in_zip = "a/body.psd"
+psd_file_name = "body.psd"
+
+[[favorites]]
+zip_path = "/workspace/a.zip"
+psd_path_in_zip = "a/body.psd"
+psd_file_name = "body.psd"
+visibility_overrides = [{ layer_index = 4, visible = true }]
+"#,
+    )
+    .expect("should seed favorites with default and custom states");
+
+    let loaded = load_favorites(&path).expect("should load favorites");
+    assert_eq!(loaded.len(), 2);
+    assert!(loaded[0].visibility_overrides.is_empty());
+    assert_eq!(
+        loaded[1].visibility_overrides,
+        vec![LayerVisibilityOverride {
+            layer_index: 4,
+            visible: true,
+        }]
+    );
 }
 
 #[test]
@@ -366,6 +405,59 @@ fn sync_selected_favorite_preview_uses_default_png_for_visible_favorite() {
         app.favorites_preview_png_path_for_test(),
         Some(preview_path.as_path())
     );
+}
+
+#[test]
+fn favorites_view_prefers_exact_current_state_when_same_psd_has_multiple_entries() {
+    let custom_favorite = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: vec![LayerVisibilityOverride {
+            layer_index: 4,
+            visible: true,
+        }],
+        mascot_scale: None,
+        window_position: None,
+    };
+    let default_favorite = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: Vec::new(),
+        mascot_scale: None,
+        window_position: None,
+    };
+    let mut app = App::loading(None);
+    app.zip_entries = vec![ZipEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        extracted_dir: PathBuf::from("/cache/a"),
+        psds: vec![sample_psd("/cache/a/a/body.psd", "body.psd")],
+        ..ZipEntry::default()
+    }];
+    app.selected_zip_index = 0;
+    app.selected_psd_index = 0;
+    app.refresh_selected_psd_state_for_test()
+        .expect("should build current psd document");
+    app.set_favorites_for_test(
+        vec![custom_favorite, default_favorite],
+        HashMap::from([(
+            FavoriteEntry {
+                zip_path: PathBuf::from("/workspace/a.zip"),
+                psd_path_in_zip: PathBuf::from("a/body.psd"),
+                psd_file_name: "body.psd".to_string(),
+                visibility_overrides: Vec::new(),
+                mascot_scale: None,
+                window_position: None,
+            }
+            .key(),
+            (0, 0),
+        )]),
+    );
+
+    app.toggle_favorites_view();
+
+    assert_eq!(app.selected_favorite_selection(), Some(1));
 }
 
 #[test]

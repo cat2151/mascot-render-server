@@ -118,34 +118,13 @@ impl App {
             mascot_scale: self.mascot_scale,
             window_position,
         };
-        if let Some(index) = self
-            .favorites
-            .iter()
-            .position(|entry| entry.key() == favorite.key())
-        {
-            let mut updated = false;
-            if self.favorites[index].psd_file_name != favorite.psd_file_name
-                || self.favorites[index].visibility_overrides != favorite.visibility_overrides
-                || self.favorites[index].mascot_scale != favorite.mascot_scale
-                || self.favorites[index].window_position != favorite.window_position
-            {
-                self.favorites[index].psd_file_name = favorite.psd_file_name.clone();
-                self.favorites[index].visibility_overrides = favorite.visibility_overrides.clone();
-                self.favorites[index].mascot_scale = favorite.mascot_scale;
-                self.favorites[index].window_position = favorite.window_position;
-                save_favorites(&favorites_path(), &self.favorites)?;
-                updated = true;
-            }
+        if let Some(index) = self.find_matching_favorite_index(&favorite) {
             self.selected_favorite_index = index;
-            self.status = if updated {
-                format!("Favorite updated: {}", self.favorites[index].psd_file_name)
-            } else {
-                format!(
-                    "Favorite already saved: {}",
-                    self.favorites[index].psd_file_name
-                )
-            };
-            return Ok(updated);
+            self.status = format!(
+                "Favorite already saved: {}",
+                self.favorites[index].psd_file_name
+            );
+            return Ok(false);
         }
 
         self.favorites.push(favorite.clone());
@@ -220,8 +199,32 @@ impl App {
 
     fn current_favorite_index(&self) -> Option<usize> {
         let (zip_path, psd_path_in_zip) = self.current_runtime_state_paths()?;
-        self.favorites.iter().position(|favorite| {
-            favorite.zip_path == zip_path && favorite.psd_path_in_zip == psd_path_in_zip
+        let visibility_overrides = self
+            .selected_psd_entry()
+            .and_then(|psd_entry| self.variations.get(&psd_entry.path))
+            .cloned()
+            .unwrap_or_default()
+            .visibility_overrides;
+        let window_position = load_saved_window_position_for_paths(zip_path, psd_path_in_zip)
+            .ok()
+            .flatten()
+            .map(|position| [position.x, position.y]);
+        let favorite = FavoriteEntry {
+            zip_path: zip_path.to_path_buf(),
+            psd_path_in_zip: psd_path_in_zip.to_path_buf(),
+            psd_file_name: self
+                .selected_psd_entry()
+                .map(|psd_entry| psd_entry.file_name.clone())
+                .unwrap_or_default(),
+            visibility_overrides,
+            mascot_scale: self.mascot_scale,
+            window_position,
+        };
+        self.find_matching_favorite_index(&favorite).or_else(|| {
+            self.favorites.iter().position(|saved| {
+                saved.zip_path == favorite.zip_path
+                    && saved.psd_path_in_zip == favorite.psd_path_in_zip
+            })
         })
     }
 
@@ -280,6 +283,12 @@ impl App {
             },
         })?;
         Ok(Some(rendered.output_path))
+    }
+
+    fn find_matching_favorite_index(&self, favorite: &FavoriteEntry) -> Option<usize> {
+        self.favorites
+            .iter()
+            .position(|saved| saved.same_saved_state_as(favorite))
     }
 }
 
