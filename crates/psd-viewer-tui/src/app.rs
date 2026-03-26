@@ -365,6 +365,9 @@ impl App {
         self.sync_preview_for_variation(&zip_path, &psd_path, &psd_path_in_zip, &psd_entry)?;
         self.sync_current_mascot_config()?;
         self.sync_selection_bounds();
+        if self.favorites_visible {
+            self.update_selected_favorite_preview();
+        }
         Ok(())
     }
 

@@ -368,6 +368,52 @@ fn sync_selected_favorite_preview_uses_default_png_for_visible_favorite() {
     );
 }
 
+#[test]
+fn refresh_rebuilds_favorite_preview_when_visible() {
+    let root = workspace_cache_root().join("test-favorite-preview-refresh");
+    let preview_path = root.join("favorite-refresh.png");
+    let favorite = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: Vec::new(),
+        mascot_scale: None,
+        window_position: None,
+    };
+    let mut app = App::loading(None);
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).expect("should create temp preview directory");
+    write_test_png(&preview_path);
+    app.zip_entries = vec![ZipEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psds: vec![PsdEntry {
+            path: PathBuf::from("/cache/a/body.psd"),
+            file_name: "body.psd".to_string(),
+            rendered_png_path: Some(preview_path.clone()),
+            ..PsdEntry::default()
+        }],
+        ..ZipEntry::default()
+    }];
+    app.set_favorites_for_test(
+        vec![favorite.clone()],
+        HashMap::from([(favorite.key(), (0, 0))]),
+    );
+
+    app.toggle_favorites_view();
+    app.refresh_selected_psd_state_for_test()
+        .expect("refresh should rebuild favorites preview");
+
+    assert_eq!(
+        app.favorites_preview_png_path_for_test(),
+        Some(preview_path.as_path())
+    );
+    assert_eq!(
+        app.selected_preview_png_path(),
+        Some(preview_path.as_path())
+    );
+    let _ = fs::remove_dir_all(&root);
+}
+
 fn sample_psd(path: &str, file_name: &str) -> PsdEntry {
     PsdEntry {
         path: PathBuf::from(path),
@@ -380,4 +426,17 @@ fn remove_file_if_exists(path: &std::path::Path) {
     if path.exists() {
         fs::remove_file(path).expect("test cleanup should remove window history file");
     }
+}
+
+fn write_test_png(path: &std::path::Path) {
+    fs::write(
+        path,
+        [
+            137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1,
+            8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 255,
+            255, 255, 127, 0, 9, 251, 3, 253, 42, 134, 227, 138, 0, 0, 0, 0, 73, 69, 78, 68, 174,
+            66, 96, 130,
+        ],
+    )
+    .expect("should write test png");
 }

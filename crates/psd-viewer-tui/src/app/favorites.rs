@@ -237,7 +237,7 @@ impl App {
         }
     }
 
-    fn update_selected_favorite_preview(&mut self) {
+    pub(super) fn update_selected_favorite_preview(&mut self) {
         match self.selected_favorite_preview_png_path() {
             Ok(preview_png_path) => {
                 self.favorites_preview_png_path = preview_png_path;
@@ -245,7 +245,6 @@ impl App {
             Err(error) => {
                 self.favorites_preview_png_path = None;
                 self.status = format!("Favorite preview unavailable: {error}");
-                eprintln!("{error:#}");
             }
         }
     }
@@ -353,6 +352,10 @@ impl App {
             .map(|preview_png_path| {
                 self.favorites_preview_png_path = preview_png_path;
             })
+    }
+
+    pub(crate) fn refresh_selected_psd_state_for_test(&mut self) -> Result<()> {
+        self.refresh_selected_psd_state()
     }
 }
 
