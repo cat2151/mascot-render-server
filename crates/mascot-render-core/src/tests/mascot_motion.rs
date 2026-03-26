@@ -221,3 +221,29 @@ fn disabling_always_bouncing_stops_idle_animation() {
     assert_eq!(transform, MotionTransform::identity());
     assert!(!motion.is_active());
 }
+
+#[test]
+fn disabling_always_bouncing_keeps_triggered_squash_bounce_running() {
+    let mut motion = MotionState::new();
+    let now = Instant::now();
+    let bounce = BounceAnimationConfig::default();
+    let squash_bounce = SquashBounceAnimationConfig {
+        duration_ms: 100,
+        ..SquashBounceAnimationConfig::default()
+    };
+
+    motion.set_always_bouncing(true, now);
+    motion.trigger(now + Duration::from_millis(1));
+    motion.trigger(now + Duration::from_millis(2));
+    motion.set_always_bouncing(false, now + Duration::from_millis(10));
+
+    let transform = motion.sample(
+        now + Duration::from_millis(20),
+        bounce,
+        squash_bounce,
+        SquashBounceAnimationConfig::default_for_always_bouncing(),
+    );
+
+    assert!(transform.scale_x > 1.0);
+    assert!(motion.is_active());
+}

@@ -202,7 +202,7 @@ impl MotionState {
     pub fn set_always_bouncing(&mut self, enabled: bool, now: Instant) {
         let was_idle_animation = self
             .active
-            .is_some_and(|active| self.idle_kind == Some(active.kind));
+            .is_some_and(|active| active.idle && self.idle_kind == Some(active.kind));
         self.idle_kind = enabled.then_some(AnimationKind::SquashBounce);
         if enabled {
             if self.active.is_none() {
