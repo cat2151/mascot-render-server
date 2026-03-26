@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -44,6 +44,31 @@ impl FavoriteEntry {
             && self.mascot_scale == other.mascot_scale
             && self.window_position == other.window_position
     }
+
+    fn saved_state_key(&self) -> FavoriteSavedStateKey {
+        FavoriteSavedStateKey {
+            zip_path: self.zip_path.clone(),
+            psd_path_in_zip: self.psd_path_in_zip.clone(),
+            visibility_overrides: self
+                .visibility_overrides
+                .iter()
+                .map(|layer| (layer.layer_index, layer.visible))
+                .collect(),
+            mascot_scale_bits: self.mascot_scale.map(f32::to_bits),
+            window_position_bits: self
+                .window_position
+                .map(|[x, y]| [x.to_bits(), y.to_bits()]),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct FavoriteSavedStateKey {
+    zip_path: PathBuf,
+    psd_path_in_zip: PathBuf,
+    visibility_overrides: Vec<(usize, bool)>,
+    mascot_scale_bits: Option<u32>,
+    window_position_bits: Option<[u32; 2]>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -126,6 +151,7 @@ pub(crate) fn favorite_selection_lookup(
 }
 
 fn sanitize_favorites(favorites: Vec<FavoriteEntry>) -> Vec<FavoriteEntry> {
+    let mut seen = HashSet::new();
     let mut sanitized = Vec::new();
     for mut favorite in favorites {
         if favorite.psd_file_name.is_empty() {
@@ -137,13 +163,9 @@ fn sanitize_favorites(favorites: Vec<FavoriteEntry>) -> Vec<FavoriteEntry> {
         }
         favorite.mascot_scale = sanitize_mascot_scale(favorite.mascot_scale);
         favorite.window_position = sanitize_window_position(favorite.window_position);
-        if sanitized
-            .iter()
-            .any(|existing: &FavoriteEntry| existing.same_saved_state_as(&favorite))
-        {
-            continue;
+        if seen.insert(favorite.saved_state_key()) {
+            sanitized.push(favorite);
         }
-        sanitized.push(favorite);
     }
     sanitized
 }
