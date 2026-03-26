@@ -237,16 +237,16 @@ impl App {
         }
     }
 
-    fn sync_selected_favorite_preview(&mut self) -> Result<()> {
-        self.favorites_preview_png_path = self.selected_favorite_preview_png_path()?;
-        Ok(())
-    }
-
     fn update_selected_favorite_preview(&mut self) {
-        if let Err(error) = self.sync_selected_favorite_preview() {
-            self.favorites_preview_png_path = None;
-            self.status = format!("Favorite preview unavailable: {error}");
-            eprintln!("{error:#}");
+        match self.selected_favorite_preview_png_path() {
+            Ok(preview_png_path) => {
+                self.favorites_preview_png_path = preview_png_path;
+            }
+            Err(error) => {
+                self.favorites_preview_png_path = None;
+                self.status = format!("Favorite preview unavailable: {error}");
+                eprintln!("{error:#}");
+            }
         }
     }
 
@@ -254,7 +254,7 @@ impl App {
         let Some(index) = self.selected_favorite_selection() else {
             return Ok(None);
         };
-        let favorite = self.favorites[index].clone();
+        let favorite = &self.favorites[index];
         let Some((zip_index, psd_index)) =
             self.favorite_selection_lookup.get(&favorite.key()).copied()
         else {
@@ -273,11 +273,11 @@ impl App {
         }
 
         let rendered = self.core.render_png(mascot_render_core::RenderRequest {
-            zip_path: favorite.zip_path,
-            psd_path_in_zip: favorite.psd_path_in_zip,
+            zip_path: favorite.zip_path.clone(),
+            psd_path_in_zip: favorite.psd_path_in_zip.clone(),
             display_diff: DisplayDiff {
                 version: DISPLAY_DIFF_VERSION,
-                visibility_overrides: favorite.visibility_overrides,
+                visibility_overrides: favorite.visibility_overrides.clone(),
             },
         })?;
         Ok(Some(rendered.output_path))
@@ -349,7 +349,10 @@ impl App {
     }
 
     pub(crate) fn sync_selected_favorite_preview_for_test(&mut self) -> Result<()> {
-        self.sync_selected_favorite_preview()
+        self.selected_favorite_preview_png_path()
+            .map(|preview_png_path| {
+                self.favorites_preview_png_path = preview_png_path;
+            })
     }
 }
 
