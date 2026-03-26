@@ -20,6 +20,12 @@ pub(crate) struct FavoriteRow {
     pub(crate) available: bool,
 }
 
+enum FavoriteUpsertResult {
+    Added { index: usize },
+    Updated { index: usize },
+    Unchanged { index: usize },
+}
+
 impl App {
     pub(crate) fn favorites_visible(&self) -> bool {
         self.favorites_visible
@@ -77,22 +83,23 @@ impl App {
     }
 
     pub(crate) fn add_current_favorite(&mut self) -> Result<bool> {
-        let Some((zip_path, psd_path_in_zip)) = self.current_runtime_state_paths() else {
-            self.status = NO_SELECTED_PSD_FAVORITE_STATUS.to_string();
-            return Ok(false);
-        };
         let Some(psd_entry) = self.selected_psd_entry() else {
             self.status = NO_SELECTED_PSD_FAVORITE_STATUS.to_string();
             return Ok(false);
         };
+        let Some((zip_path, psd_path_in_zip)) = self.current_runtime_state_paths() else {
+            self.status = NO_SELECTED_PSD_FAVORITE_STATUS.to_string();
+            return Ok(false);
+        };
+        let zip_path = zip_path.to_path_buf();
+        let psd_path_in_zip = psd_path_in_zip.to_path_buf();
+        let psd_file_name = psd_entry.file_name.clone();
         let visibility_overrides = self
             .variations
             .get(&psd_entry.path)
             .cloned()
             .unwrap_or_default()
             .visibility_overrides;
-        let zip_path = zip_path.to_path_buf();
-        let psd_path_in_zip = psd_path_in_zip.to_path_buf();
         let window_position =
             match load_saved_window_position_for_paths(&zip_path, &psd_path_in_zip) {
                 Ok(position) => position.map(|position| [position.x, position.y]),
@@ -109,50 +116,39 @@ impl App {
                     });
                 }
             };
-
-        let favorite = FavoriteEntry {
+        let Some(favorite) = self.favorite_entry_from_current_state(
             zip_path,
             psd_path_in_zip,
-            psd_file_name: psd_entry.file_name.clone(),
+            psd_file_name,
             visibility_overrides,
-            mascot_scale: self.mascot_scale,
             window_position,
+        ) else {
+            self.status = NO_SELECTED_PSD_FAVORITE_STATUS.to_string();
+            return Ok(false);
         };
-        if let Some(index) = self
-            .favorites
-            .iter()
-            .position(|entry| entry.key() == favorite.key())
-        {
-            let mut updated = false;
-            if self.favorites[index].psd_file_name != favorite.psd_file_name
-                || self.favorites[index].visibility_overrides != favorite.visibility_overrides
-                || self.favorites[index].mascot_scale != favorite.mascot_scale
-                || self.favorites[index].window_position != favorite.window_position
-            {
-                self.favorites[index].psd_file_name = favorite.psd_file_name.clone();
-                self.favorites[index].visibility_overrides = favorite.visibility_overrides.clone();
-                self.favorites[index].mascot_scale = favorite.mascot_scale;
-                self.favorites[index].window_position = favorite.window_position;
-                save_favorites(&favorites_path(), &self.favorites)?;
-                updated = true;
-            }
-            self.selected_favorite_index = index;
-            self.status = if updated {
-                format!("Favorite updated: {}", self.favorites[index].psd_file_name)
-            } else {
-                format!(
+
+        match self.upsert_favorite(favorite.clone()) {
+            FavoriteUpsertResult::Unchanged { index } => {
+                self.selected_favorite_index = index;
+                self.status = format!(
                     "Favorite already saved: {}",
                     self.favorites[index].psd_file_name
-                )
-            };
-            return Ok(updated);
+                );
+                Ok(false)
+            }
+            FavoriteUpsertResult::Updated { index } => {
+                save_favorites(&favorites_path(), &self.favorites)?;
+                self.selected_favorite_index = index;
+                self.status = format!("Favorite updated: {}", favorite.psd_file_name);
+                Ok(true)
+            }
+            FavoriteUpsertResult::Added { index } => {
+                save_favorites(&favorites_path(), &self.favorites)?;
+                self.selected_favorite_index = index;
+                self.status = format!("Favorite saved: {}", favorite.psd_file_name);
+                Ok(true)
+            }
         }
-
-        self.favorites.push(favorite.clone());
-        save_favorites(&favorites_path(), &self.favorites)?;
-        self.selected_favorite_index = self.favorites.len().saturating_sub(1);
-        self.status = format!("Favorite saved: {}", favorite.psd_file_name);
-        Ok(true)
     }
 
     pub(crate) fn activate_selected_favorite(&mut self) -> Result<bool> {
@@ -220,8 +216,29 @@ impl App {
 
     fn current_favorite_index(&self) -> Option<usize> {
         let (zip_path, psd_path_in_zip) = self.current_runtime_state_paths()?;
-        self.favorites.iter().position(|favorite| {
-            favorite.zip_path == zip_path && favorite.psd_path_in_zip == psd_path_in_zip
+        let psd_file_name = self.selected_psd_entry()?.file_name.clone();
+        let visibility_overrides = self
+            .selected_psd_entry()
+            .and_then(|psd_entry| self.variations.get(&psd_entry.path))
+            .cloned()
+            .unwrap_or_default()
+            .visibility_overrides;
+        let window_position = load_saved_window_position_for_paths(zip_path, psd_path_in_zip)
+            .ok()
+            .flatten()
+            .map(|position| [position.x, position.y]);
+        let favorite = self.favorite_entry_from_current_state(
+            zip_path.to_path_buf(),
+            psd_path_in_zip.to_path_buf(),
+            psd_file_name,
+            visibility_overrides,
+            window_position,
+        )?;
+        self.find_matching_favorite_index(&favorite).or_else(|| {
+            self.favorites.iter().position(|saved| {
+                saved.zip_path == favorite.zip_path
+                    && saved.psd_path_in_zip == favorite.psd_path_in_zip
+            })
         })
     }
 
@@ -280,6 +297,46 @@ impl App {
             },
         })?;
         Ok(Some(rendered.output_path))
+    }
+
+    fn find_matching_favorite_index(&self, favorite: &FavoriteEntry) -> Option<usize> {
+        self.favorites
+            .iter()
+            .position(|saved| saved.same_favorite_identity_as(favorite))
+    }
+
+    fn upsert_favorite(&mut self, favorite: FavoriteEntry) -> FavoriteUpsertResult {
+        if let Some(index) = self.find_matching_favorite_index(&favorite) {
+            if self.favorites[index] == favorite {
+                FavoriteUpsertResult::Unchanged { index }
+            } else {
+                self.favorites[index] = favorite;
+                FavoriteUpsertResult::Updated { index }
+            }
+        } else {
+            self.favorites.push(favorite);
+            FavoriteUpsertResult::Added {
+                index: self.favorites.len().saturating_sub(1),
+            }
+        }
+    }
+
+    fn favorite_entry_from_current_state(
+        &self,
+        zip_path: std::path::PathBuf,
+        psd_path_in_zip: std::path::PathBuf,
+        psd_file_name: String,
+        visibility_overrides: Vec<mascot_render_core::LayerVisibilityOverride>,
+        window_position: Option<[f32; 2]>,
+    ) -> Option<FavoriteEntry> {
+        Some(FavoriteEntry {
+            zip_path,
+            psd_path_in_zip,
+            psd_file_name,
+            visibility_overrides,
+            mascot_scale: self.mascot_scale,
+            window_position,
+        })
     }
 }
 
@@ -356,6 +413,17 @@ impl App {
 
     pub(crate) fn refresh_selected_psd_state_for_test(&mut self) -> Result<()> {
         self.refresh_selected_psd_state()
+    }
+
+    pub(crate) fn favorite_entries_for_test(&self) -> &[FavoriteEntry] {
+        &self.favorites
+    }
+
+    pub(crate) fn upsert_favorite_for_test(&mut self, favorite: FavoriteEntry) -> bool {
+        matches!(
+            self.upsert_favorite(favorite),
+            FavoriteUpsertResult::Added { .. } | FavoriteUpsertResult::Updated { .. }
+        )
     }
 }
 

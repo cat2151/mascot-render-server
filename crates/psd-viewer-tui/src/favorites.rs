@@ -1,6 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -11,7 +10,7 @@ const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "psd-viewer-tui.toml";
 const FAVORITES_FILE_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct FavoriteEntry {
     pub(crate) zip_path: PathBuf,
     pub(crate) psd_path_in_zip: PathBuf,
@@ -37,21 +36,29 @@ impl FavoriteEntry {
             psd_path_in_zip: self.psd_path_in_zip.clone(),
         }
     }
-}
 
-impl PartialEq for FavoriteEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.zip_path == other.zip_path && self.psd_path_in_zip == other.psd_path_in_zip
+    pub(crate) fn same_favorite_identity_as(&self, other: &Self) -> bool {
+        self.favorite_identity_key() == other.favorite_identity_key()
+    }
+
+    fn favorite_identity_key(&self) -> FavoriteIdentityKey {
+        FavoriteIdentityKey {
+            zip_path: self.zip_path.clone(),
+            psd_path_in_zip: self.psd_path_in_zip.clone(),
+            visibility_overrides: self
+                .visibility_overrides
+                .iter()
+                .map(|layer| (layer.layer_index, layer.visible))
+                .collect(),
+        }
     }
 }
 
-impl Eq for FavoriteEntry {}
-
-impl Hash for FavoriteEntry {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.zip_path.hash(state);
-        self.psd_path_in_zip.hash(state);
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct FavoriteIdentityKey {
+    zip_path: PathBuf,
+    psd_path_in_zip: PathBuf,
+    visibility_overrides: Vec<(usize, bool)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -134,7 +141,6 @@ pub(crate) fn favorite_selection_lookup(
 }
 
 fn sanitize_favorites(favorites: Vec<FavoriteEntry>) -> Vec<FavoriteEntry> {
-    let mut seen = HashSet::new();
     let mut sanitized = Vec::new();
     for mut favorite in favorites {
         if favorite.psd_file_name.is_empty() {
@@ -146,7 +152,13 @@ fn sanitize_favorites(favorites: Vec<FavoriteEntry>) -> Vec<FavoriteEntry> {
         }
         favorite.mascot_scale = sanitize_mascot_scale(favorite.mascot_scale);
         favorite.window_position = sanitize_window_position(favorite.window_position);
-        if seen.insert(favorite.key()) {
+        let identity = favorite.favorite_identity_key();
+        if let Some(index) = sanitized
+            .iter()
+            .position(|saved: &FavoriteEntry| saved.favorite_identity_key() == identity)
+        {
+            sanitized[index] = favorite;
+        } else {
             sanitized.push(favorite);
         }
     }
