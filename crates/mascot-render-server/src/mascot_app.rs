@@ -364,6 +364,10 @@ impl MascotApp {
         Ok(())
     }
 
+    /// Applies the startup restore once viewport frame metrics become available.
+    ///
+    /// This is called every frame until `current_viewport_info` returns data so the restored
+    /// anchor can be corrected by the platform-specific inner→outer offset.
     pub(crate) fn apply_pending_restored_anchor_position(&mut self, ctx: &egui::Context) {
         let Some(anchor_position) = self.pending_restored_anchor_position else {
             return;
@@ -384,6 +388,8 @@ impl MascotApp {
                     viewport_info.inner_to_outer_offset,
                 )
             })
+            // Before viewport info is available we can only place the window using the anchor
+            // offset. A later frame re-applies the restore with the measured frame offset.
             .unwrap_or(anchor_position - self.window_layout.anchor_offset());
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(outer_position));
     }
