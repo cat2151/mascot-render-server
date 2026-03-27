@@ -13,7 +13,7 @@ pub use crate::mascot_paths::{mascot_config_path, mascot_runtime_state_path};
 #[path = "mascot/config_files.rs"]
 mod config_files;
 
-use config_files::{LegacyMascotConfigFile, MascotRuntimeStateFile, MascotStaticConfigFile};
+use config_files::{MascotRuntimeStateFile, MascotStaticConfigFile};
 
 const DEFAULT_MAX_EDGE: f32 = 480.0;
 const DEFAULT_SCREEN_HEIGHT_RATIO: f32 = 0.33;
@@ -131,12 +131,11 @@ fn load_mascot_static_config_file(config_path: &Path) -> Result<MascotStaticConf
 
     let bytes = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
-    reject_legacy_always_squash_bounce_section(&bytes, config_path)?;
     let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
     validate_version(
         config.version,
-        1..=MASCOT_CONFIG_VERSION,
+        MASCOT_CONFIG_VERSION..=MASCOT_CONFIG_VERSION,
         config_path,
         "mascot config",
     )?;
@@ -148,19 +147,6 @@ fn load_mascot_runtime_target(config_path: &Path) -> Result<MascotTarget> {
     if state_path.exists() {
         return load_mascot_runtime_state_file(&state_path)
             .map(MascotRuntimeStateFile::into_target);
-    }
-
-    if config_path.exists() {
-        let legacy = load_legacy_mascot_config_file(config_path)?;
-        if legacy_has_runtime_state(&legacy) {
-            return Ok(MascotTarget {
-                png_path: legacy.png_path,
-                scale: legacy.scale,
-                zip_path: legacy.zip_path,
-                psd_path_in_zip: legacy.psd_path_in_zip,
-                display_diff_path: legacy.display_diff_path,
-            });
-        }
     }
 
     bail!(
@@ -181,20 +167,6 @@ fn load_mascot_runtime_state_file(state_path: &Path) -> Result<MascotRuntimeStat
         "mascot runtime state",
     )?;
     Ok(state)
-}
-
-fn load_legacy_mascot_config_file(config_path: &Path) -> Result<LegacyMascotConfigFile> {
-    let bytes = fs::read_to_string(config_path)
-        .with_context(|| format!("failed to read {}", config_path.display()))?;
-    let config = toml::from_str::<LegacyMascotConfigFile>(&bytes)
-        .with_context(|| format!("failed to parse {}", config_path.display()))?;
-    validate_version(
-        config.version,
-        1..=MASCOT_CONFIG_VERSION,
-        config_path,
-        "legacy mascot config",
-    )?;
-    Ok(config)
 }
 
 fn validate_version(
@@ -220,60 +192,14 @@ fn normalize_mascot_static_config(config_path: &Path) -> Result<()> {
 
     let bytes = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
-    reject_legacy_always_squash_bounce_section(&bytes, config_path)?;
     let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
     validate_version(
         config.version,
-        1..=MASCOT_CONFIG_VERSION,
+        MASCOT_CONFIG_VERSION..=MASCOT_CONFIG_VERSION,
         config_path,
         "mascot config",
     )?;
-
-    if mascot_static_config_needs_normalization(&bytes) {
-        write_mascot_static_config_file(config_path, &config)?;
-    }
-    Ok(())
-}
-
-fn mascot_static_config_needs_normalization(contents: &str) -> bool {
-    const RUNTIME_KEYS: [&str; 5] = [
-        "png_path",
-        "scale",
-        "zip_path",
-        "psd_path_in_zip",
-        "display_diff_path",
-    ];
-    const LEGACY_STATIC_KEYS: [&str; 1] = ["debug_flash_blue_background_on_transparent_input"];
-
-    contents.lines().any(|line| {
-        let trimmed = line.trim_start();
-        RUNTIME_KEYS
-            .iter()
-            .any(|key| trimmed.starts_with(&format!("{key} ")))
-            || RUNTIME_KEYS
-                .iter()
-                .any(|key| trimmed.starts_with(&format!("{key}=")))
-            || LEGACY_STATIC_KEYS
-                .iter()
-                .any(|key| trimmed.starts_with(&format!("{key} ")))
-            || LEGACY_STATIC_KEYS
-                .iter()
-                .any(|key| trimmed.starts_with(&format!("{key}=")))
-    })
-}
-
-fn reject_legacy_always_squash_bounce_section(contents: &str, config_path: &Path) -> Result<()> {
-    if contents
-        .lines()
-        .map(str::trim)
-        .any(|line| line == "[always_squash_bounce]")
-    {
-        bail!(
-            "mascot config '{}' still uses [always_squash_bounce]; rename it to [always_idle_sink]",
-            config_path.display()
-        );
-    }
     Ok(())
 }
 
@@ -297,10 +223,6 @@ fn write_mascot_static_config_file(
     fs::write(config_path, toml)
         .with_context(|| format!("failed to write {}", config_path.display()))?;
     Ok(())
-}
-
-fn legacy_has_runtime_state(config: &LegacyMascotConfigFile) -> bool {
-    !config.png_path.as_os_str().is_empty()
 }
 
 fn validate_mascot_target(target: &MascotTarget, state_path: &Path) -> Result<()> {

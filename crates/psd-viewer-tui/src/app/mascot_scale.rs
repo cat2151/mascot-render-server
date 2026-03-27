@@ -112,11 +112,7 @@ impl App {
             return Ok(());
         }
 
-        let legacy_scale = self.tui_runtime_state.legacy_mascot_scale;
-        self.restore_mascot_scale(legacy_scale);
-        if legacy_scale.is_some() {
-            self.persist_psd_mascot_scale(zip_path, psd_path_in_zip, legacy_scale)?;
-        }
+        self.restore_mascot_scale(None);
         Ok(())
     }
 
@@ -158,7 +154,6 @@ impl App {
     ) -> Result<()> {
         self.tui_runtime_state
             .set_mascot_scale_for_psd(zip_path, psd_path_in_zip, scale);
-        self.tui_runtime_state.legacy_mascot_scale = None;
         save_tui_runtime_state(&tui_config_path(), &self.tui_runtime_state)
     }
 }

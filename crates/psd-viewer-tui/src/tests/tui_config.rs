@@ -2,8 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::tui_config::{
-    ensure_tui_config_split, load_tui_config, load_tui_runtime_state, save_tui_config,
-    save_tui_runtime_state, tui_runtime_state_path, PsdRuntimeState, TuiConfig, TuiRuntimeState,
+    load_tui_config, load_tui_runtime_state, save_tui_config, save_tui_runtime_state,
+    tui_runtime_state_path, PsdRuntimeState, TuiConfig, TuiRuntimeState,
     DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
 };
 use mascot_render_core::workspace_cache_root;
@@ -60,7 +60,6 @@ fn tui_runtime_state_round_trips_mascot_scale_per_psd() {
     save_tui_runtime_state(
         &config_path,
         &TuiRuntimeState {
-            legacy_mascot_scale: None,
             psd_states: vec![
                 PsdRuntimeState {
                     zip_path: PathBuf::from("/workspace/a.zip"),
@@ -81,7 +80,6 @@ fn tui_runtime_state_round_trips_mascot_scale_per_psd() {
     assert_eq!(
         loaded,
         TuiRuntimeState {
-            legacy_mascot_scale: None,
             psd_states: vec![
                 PsdRuntimeState {
                     zip_path: PathBuf::from("/workspace/a.zip"),
@@ -100,11 +98,11 @@ fn tui_runtime_state_round_trips_mascot_scale_per_psd() {
     let raw = fs::read_to_string(runtime_state_path).expect("should read written runtime state");
     assert!(
         raw.contains("\"mascot_scale\""),
-        "runtime state should keep the mascot_scale key for compatibility"
+        "runtime state should keep per-PSD mascot_scale values"
     );
     assert!(
         !raw.contains("\"legacy_mascot_scale\""),
-        "runtime state should not write a compatibility-only field name"
+        "runtime state should not write removed compatibility fields"
     );
 }
 
@@ -158,10 +156,10 @@ fn tui_config_keeps_only_file_name_for_eye_blink_targets() {
 }
 
 #[test]
-fn tui_config_migrates_legacy_normal_eye_targets_to_basic_eye() {
-    let path = workspace_cache_root().join("test-tui-config-eye-migrate/psd-viewer-tui.toml");
-    let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-config-eye-migrate"));
-    fs::create_dir_all(workspace_cache_root().join("test-tui-config-eye-migrate"))
+fn legacy_eye_blink_target_names_are_not_migrated() {
+    let path = workspace_cache_root().join("test-tui-config-eye-names/psd-viewer-tui.toml");
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-config-eye-names"));
+    fs::create_dir_all(workspace_cache_root().join("test-tui-config-eye-names"))
         .expect("should create temp directory");
 
     fs::write(
@@ -176,29 +174,27 @@ first_layer_name = "普通目"
 second_layer_name = "閉じ目"
 "#,
     )
-    .expect("should seed legacy TUI config");
+    .expect("should seed TUI config");
 
-    let loaded = load_tui_config(&path).expect("should migrate legacy eye blink targets");
-    assert_eq!(loaded.eye_blink_targets[0].first_layer_name, "基本目");
+    let loaded = load_tui_config(&path).expect("should keep configured eye blink targets");
+    assert_eq!(loaded.eye_blink_targets[0].first_layer_name, "普通目");
     assert_eq!(loaded.eye_blink_targets[0].second_layer_name, "閉じ目");
 }
 
 #[test]
-fn legacy_combined_tui_config_supplies_runtime_scale_until_split() {
-    let config_path = workspace_cache_root().join("test-tui-legacy/psd-viewer-tui.toml");
+fn missing_tui_runtime_state_defaults_to_empty_state() {
+    let config_path = workspace_cache_root().join("test-tui-runtime-missing/psd-viewer-tui.toml");
     let runtime_state_path = tui_runtime_state_path(&config_path);
-    let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-legacy"));
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-runtime-missing"));
     let _ = fs::remove_file(&runtime_state_path);
-    fs::create_dir_all(workspace_cache_root().join("test-tui-legacy"))
+    fs::create_dir_all(workspace_cache_root().join("test-tui-runtime-missing"))
         .expect("should create temp directory");
 
     fs::write(
         &config_path,
         r#"
 version = 1
-mascot_scale = 0.41
 layer_scroll_margin_ratio = 0.33
-updated_at = 1774133654
 
 [[eye_blink_targets]]
 psd_file_name = "blink.psd"
@@ -206,26 +202,20 @@ first_layer_name = "open"
 second_layer_name = "closed"
 "#,
     )
-    .expect("should seed legacy combined TUI config");
+    .expect("should seed TUI config");
 
-    let runtime_state = load_tui_runtime_state(&config_path)
-        .expect("legacy TUI config should supply runtime scale");
-    assert_eq!(
-        runtime_state,
-        TuiRuntimeState {
-            legacy_mascot_scale: Some(0.41),
-            psd_states: Vec::new(),
-        }
-    );
+    let runtime_state =
+        load_tui_runtime_state(&config_path).expect("missing runtime state should default");
+    assert_eq!(runtime_state, TuiRuntimeState::default());
 }
 
 #[test]
-fn ensure_tui_config_split_rewrites_legacy_combined_toml_and_saves_runtime_state() {
-    let config_path = workspace_cache_root().join("test-tui-split/psd-viewer-tui.toml");
+fn legacy_combined_tui_config_falls_back_to_default_static_config() {
+    let config_path = workspace_cache_root().join("test-tui-legacy-static/psd-viewer-tui.toml");
     let runtime_state_path = tui_runtime_state_path(&config_path);
-    let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-split"));
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-legacy-static"));
     let _ = fs::remove_file(&runtime_state_path);
-    fs::create_dir_all(workspace_cache_root().join("test-tui-split"))
+    fs::create_dir_all(workspace_cache_root().join("test-tui-legacy-static"))
         .expect("should create temp directory");
 
     fs::write(
@@ -244,17 +234,10 @@ second_layer_name = "closed"
     )
     .expect("should seed legacy combined TUI config");
 
-    let config = load_tui_config(&config_path).expect("should load static TUI config");
-    let runtime_state =
-        load_tui_runtime_state(&config_path).expect("should load runtime state from legacy config");
-    ensure_tui_config_split(&config_path, &config, &runtime_state)
-        .expect("should split static config and runtime state");
-
-    let static_toml =
-        fs::read_to_string(&config_path).expect("should rewrite static TUI config TOML");
-    assert!(!static_toml.contains("mascot_scale ="));
+    let loaded = load_tui_config(&config_path).expect("legacy combined config should be ignored");
+    assert_eq!(loaded, TuiConfig::default());
     assert!(
-        runtime_state_path.exists(),
-        "runtime state should be persisted"
+        !runtime_state_path.exists(),
+        "runtime state should not be synthesized"
     );
 }

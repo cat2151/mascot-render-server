@@ -4,8 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use mascot_render_core::{
-    default_eye_blink_targets, local_data_root, migrate_eye_blink_layers, workspace_cache_root,
-    EyeBlinkTarget,
+    default_eye_blink_targets, local_data_root, workspace_cache_root, EyeBlinkTarget,
 };
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +30,6 @@ impl Default for TuiConfig {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct TuiRuntimeState {
-    pub(crate) legacy_mascot_scale: Option<f32>,
     pub(crate) psd_states: Vec<PsdRuntimeState>,
 }
 
@@ -79,7 +77,7 @@ pub(crate) struct PsdRuntimeState {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct TuiConfigFile {
     version: u32,
     layer_scroll_margin_ratio: f32,
@@ -98,11 +96,9 @@ impl Default for TuiConfigFile {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 struct TuiRuntimeStateFile {
     version: u32,
-    #[serde(default, rename = "mascot_scale", alias = "legacy_mascot_scale")]
-    legacy_mascot_scale: Option<f32>,
     #[serde(default)]
     psd_states: Vec<PsdRuntimeState>,
     updated_at: u64,
@@ -112,7 +108,6 @@ impl Default for TuiRuntimeStateFile {
     fn default() -> Self {
         Self {
             version: TUI_RUNTIME_STATE_VERSION,
-            legacy_mascot_scale: None,
             psd_states: Vec::new(),
             updated_at: 0,
         }
@@ -123,32 +118,8 @@ impl From<&TuiRuntimeState> for TuiRuntimeStateFile {
     fn from(state: &TuiRuntimeState) -> Self {
         Self {
             version: TUI_RUNTIME_STATE_VERSION,
-            legacy_mascot_scale: sanitize_scale(state.legacy_mascot_scale),
             psd_states: sanitize_psd_states(state.psd_states.clone()),
             updated_at: unix_timestamp(),
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(default)]
-struct LegacyTuiConfigFile {
-    version: u32,
-    mascot_scale: Option<f32>,
-    layer_scroll_margin_ratio: f32,
-    #[serde(default = "default_eye_blink_targets")]
-    eye_blink_targets: Vec<EyeBlinkTarget>,
-    updated_at: u64,
-}
-
-impl Default for LegacyTuiConfigFile {
-    fn default() -> Self {
-        Self {
-            version: TUI_CONFIG_VERSION,
-            mascot_scale: None,
-            layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
-            eye_blink_targets: default_eye_blink_targets(),
-            updated_at: 0,
         }
     }
 }
@@ -178,20 +149,7 @@ pub(crate) fn load_tui_runtime_state(config_path: &Path) -> Result<TuiRuntimeSta
         return load_tui_runtime_state_file(&state_path);
     }
 
-    if !config_path.exists() {
-        return Ok(TuiRuntimeState::default());
-    }
-
-    let bytes = fs::read_to_string(config_path)
-        .with_context(|| format!("failed to read TUI config {}", config_path.display()))?;
-    match toml::from_str::<LegacyTuiConfigFile>(&bytes) {
-        Ok(file) if file.version == TUI_CONFIG_VERSION => Ok(TuiRuntimeState {
-            legacy_mascot_scale: sanitize_scale(file.mascot_scale),
-            psd_states: Vec::new(),
-        }),
-        Ok(_) => Ok(TuiRuntimeState::default()),
-        Err(_) => Ok(TuiRuntimeState::default()),
-    }
+    Ok(TuiRuntimeState::default())
 }
 
 pub(crate) fn save_tui_config(path: &Path, config: &TuiConfig) -> Result<()> {
@@ -224,25 +182,6 @@ pub(crate) fn save_tui_runtime_state(config_path: &Path, state: &TuiRuntimeState
         .with_context(|| format!("failed to write TUI runtime state {}", path.display()))
 }
 
-pub(crate) fn ensure_tui_config_split(
-    config_path: &Path,
-    config: &TuiConfig,
-    runtime_state: &TuiRuntimeState,
-) -> Result<()> {
-    if !config_path.exists() || static_config_needs_normalization(config_path)? {
-        save_tui_config(config_path, config)?;
-    }
-
-    let runtime_state_path = tui_runtime_state_path(config_path);
-    if !runtime_state_path.exists()
-        && (runtime_state.legacy_mascot_scale.is_some() || !runtime_state.psd_states.is_empty())
-    {
-        save_tui_runtime_state(config_path, runtime_state)?;
-    }
-
-    Ok(())
-}
-
 pub(crate) fn tui_config_path() -> PathBuf {
     local_data_root().join(TUI_CONFIG_PATH)
 }
@@ -259,24 +198,11 @@ fn load_tui_runtime_state_file(path: &Path) -> Result<TuiRuntimeState> {
         .with_context(|| format!("failed to read TUI runtime state {}", path.display()))?;
     match serde_json::from_slice::<TuiRuntimeStateFile>(&bytes) {
         Ok(file) if file.version == TUI_RUNTIME_STATE_VERSION => Ok(TuiRuntimeState {
-            legacy_mascot_scale: sanitize_scale(file.legacy_mascot_scale),
             psd_states: sanitize_psd_states(file.psd_states),
         }),
         Ok(_) => Ok(TuiRuntimeState::default()),
         Err(_) => Ok(TuiRuntimeState::default()),
     }
-}
-
-fn static_config_needs_normalization(path: &Path) -> Result<bool> {
-    let bytes = fs::read_to_string(path)
-        .with_context(|| format!("failed to read TUI config {}", path.display()))?;
-    Ok(bytes.lines().any(|line| {
-        let trimmed = line.trim_start();
-        trimmed.starts_with("mascot_scale ")
-            || trimmed.starts_with("mascot_scale=")
-            || trimmed.starts_with("updated_at ")
-            || trimmed.starts_with("updated_at=")
-    }))
 }
 
 fn sanitize_scale(scale: Option<f32>) -> Option<f32> {
@@ -318,14 +244,8 @@ fn sanitize_eye_blink_targets(targets: Vec<EyeBlinkTarget>) -> Vec<EyeBlinkTarge
 
 fn sanitize_eye_blink_target(target: EyeBlinkTarget) -> Option<EyeBlinkTarget> {
     let psd_file_name = sanitize_psd_file_name(&target.psd_file_name);
-    let mut first_layer_name = target.first_layer_name.trim().to_string();
-    let mut second_layer_name = target.second_layer_name.trim().to_string();
-    if let Some((migrated_first, migrated_second)) =
-        migrate_eye_blink_layers(&psd_file_name, &first_layer_name, &second_layer_name)
-    {
-        first_layer_name = migrated_first.to_string();
-        second_layer_name = migrated_second.to_string();
-    }
+    let first_layer_name = target.first_layer_name.trim().to_string();
+    let second_layer_name = target.second_layer_name.trim().to_string();
     if psd_file_name.is_empty() || first_layer_name.is_empty() || second_layer_name.is_empty() {
         return None;
     }

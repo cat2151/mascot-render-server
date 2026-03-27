@@ -43,7 +43,7 @@ fn invalid_window_history_is_reported() {
 }
 
 #[test]
-fn legacy_v1_window_history_is_ignored_without_error() {
+fn legacy_v1_window_history_reports_parse_error() {
     let path = workspace_cache_root().join("test-window-history-v1/history_server.json");
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-window-history-v1"));
     fs::create_dir_all(workspace_cache_root().join("test-window-history-v1"))
@@ -58,8 +58,8 @@ fn legacy_v1_window_history_is_ignored_without_error() {
     )
     .expect("should seed legacy history");
 
-    let loaded = load_window_position(&path).expect("legacy history should be ignored");
-    assert_eq!(loaded, None);
+    let error = load_window_position(&path).expect_err("legacy history should fail to parse");
+    assert!(error.to_string().contains("failed to parse window history"));
 }
 
 #[test]

@@ -85,23 +85,6 @@ pub fn default_eye_blink_targets() -> Vec<EyeBlinkTarget> {
         .collect()
 }
 
-pub fn migrate_eye_blink_layers(
-    psd_file_name: &str,
-    first_layer_name: &str,
-    second_layer_name: &str,
-) -> Option<(&'static str, &'static str)> {
-    if second_layer_name != CLOSED_EYE_LAYER {
-        return None;
-    }
-
-    match (psd_file_name, first_layer_name) {
-        (PSD_ZUNDAMON_111, NORMAL_EYE_LAYER)
-        | (PSD_ZUNDAMON_V32_BASIC, NORMAL_EYE_LAYER)
-        | (PSD_ZUNDAMON_V32_FULL, NORMAL_EYE_LAYER) => Some((BASIC_EYE_LAYER, CLOSED_EYE_LAYER)),
-        _ => None,
-    }
-}
-
 pub fn find_eye_blink_target<'a>(
     targets: &'a [EyeBlinkTarget],
     psd_file_name: &str,
