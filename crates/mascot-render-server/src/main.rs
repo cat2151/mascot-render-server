@@ -26,9 +26,7 @@ use mascot_app::MascotApp;
 use mascot_render_server::window_history::{
     load_window_position, outer_position_for_anchor, window_history_path,
 };
-use mascot_render_server::{
-    squash_bounce_bounds_config, start_mascot_control_server_with_notify, MascotWindowLayout,
-};
+use mascot_render_server::{start_mascot_control_server_with_notify, MascotWindowLayout};
 
 use app_support::{alpha_mask, content_bounds, size_vec, window_title};
 use mascot_render_core::{load_mascot_config, load_mascot_image, run_workspace_update};
@@ -58,7 +56,8 @@ fn main() -> Result<()> {
         [image.width, image.height],
         initial_content_bounds,
         config.bounce,
-        squash_bounce_bounds_config(config.squash_bounce, config.always_squash_bounce),
+        config.squash_bounce,
+        config.always_idle_sink,
     );
     let window_size = initial_window_layout.window_size();
     let history_path = window_history_path(&config);

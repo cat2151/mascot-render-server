@@ -3,7 +3,8 @@ use std::time::{Duration, Instant};
 use eframe::egui::{Pos2, Rect, Vec2};
 
 use crate::{
-    BounceAnimationConfig, HeadHitbox, MotionState, MotionTransform, SquashBounceAnimationConfig,
+    BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, MotionState, MotionTransform,
+    SquashBounceAnimationConfig,
 };
 
 #[test]
@@ -42,7 +43,7 @@ fn bounce_transform_moves_image_upward() {
         now + Duration::from_millis(180),
         BounceAnimationConfig::default(),
         SquashBounceAnimationConfig::default(),
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
 
     assert!(transform.offset_y < 0.0);
@@ -59,7 +60,7 @@ fn squash_bounce_changes_scale() {
         now + Duration::from_millis(50),
         BounceAnimationConfig::default(),
         SquashBounceAnimationConfig::default(),
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
     motion.trigger(now + Duration::from_millis(60));
 
@@ -67,7 +68,7 @@ fn squash_bounce_changes_scale() {
         now + Duration::from_millis(180),
         BounceAnimationConfig::default(),
         SquashBounceAnimationConfig::default(),
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
 
     assert!(transform.scale_x > 1.0);
@@ -84,19 +85,19 @@ fn shake_motion_holds_each_random_offset_for_50ms() {
         now + Duration::from_millis(25),
         BounceAnimationConfig::default(),
         SquashBounceAnimationConfig::default(),
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
     let same_frame = motion.sample(
         now + Duration::from_millis(49),
         BounceAnimationConfig::default(),
         SquashBounceAnimationConfig::default(),
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
     let next_frame = motion.sample(
         now + Duration::from_millis(50),
         BounceAnimationConfig::default(),
         SquashBounceAnimationConfig::default(),
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
 
     assert_eq!(first, same_frame);
@@ -118,13 +119,13 @@ fn shake_motion_finishes_after_requested_duration() {
         now + Duration::from_millis(4_999),
         BounceAnimationConfig::default(),
         SquashBounceAnimationConfig::default(),
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
     let finished = motion.sample(
         now + Duration::from_millis(5_000),
         BounceAnimationConfig::default(),
         SquashBounceAnimationConfig::default(),
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
 
     assert_ne!(running, MotionTransform::identity());
@@ -133,7 +134,7 @@ fn shake_motion_finishes_after_requested_duration() {
 }
 
 #[test]
-fn always_bouncing_idle_uses_always_squash_bounce_duration() {
+fn always_bouncing_idle_uses_always_idle_sink_duration() {
     let mut motion = MotionState::new();
     let now = Instant::now();
     let bounce = BounceAnimationConfig::default();
@@ -141,9 +142,9 @@ fn always_bouncing_idle_uses_always_squash_bounce_duration() {
         duration_ms: 40,
         ..SquashBounceAnimationConfig::default()
     };
-    let always_squash_bounce = SquashBounceAnimationConfig {
+    let always_idle_sink = IdleSinkAnimationConfig {
         duration_ms: 100,
-        ..SquashBounceAnimationConfig::default_for_always_bouncing()
+        ..IdleSinkAnimationConfig::default_for_always_bouncing()
     };
 
     motion.set_always_bouncing(true, now);
@@ -152,29 +153,29 @@ fn always_bouncing_idle_uses_always_squash_bounce_duration() {
         now + Duration::from_millis(60),
         bounce,
         squash_bounce,
-        always_squash_bounce,
+        always_idle_sink,
     );
     let restarted = motion.sample(
         now + Duration::from_millis(100),
         bounce,
         squash_bounce,
-        always_squash_bounce,
+        always_idle_sink,
     );
     let second_cycle = motion.sample(
         now + Duration::from_millis(140),
         bounce,
         squash_bounce,
-        always_squash_bounce,
+        always_idle_sink,
     );
 
-    assert!(running.scale_x > 1.0);
+    assert_ne!(running, MotionTransform::identity());
     assert_eq!(restarted, MotionTransform::identity());
-    assert!(second_cycle.scale_x > 1.0);
+    assert_ne!(second_cycle, MotionTransform::identity());
     assert!(motion.is_active());
 }
 
 #[test]
-fn always_bouncing_triggered_animation_ignores_always_squash_bounce() {
+fn always_bouncing_triggered_animation_ignores_always_idle_sink() {
     let mut motion = MotionState::new();
     let now = Instant::now();
     let bounce = BounceAnimationConfig::default();
@@ -182,9 +183,9 @@ fn always_bouncing_triggered_animation_ignores_always_squash_bounce() {
         duration_ms: 100,
         ..SquashBounceAnimationConfig::default()
     };
-    let always_squash_bounce = SquashBounceAnimationConfig {
+    let always_idle_sink = IdleSinkAnimationConfig {
         duration_ms: 500,
-        ..SquashBounceAnimationConfig::default_for_always_bouncing()
+        ..IdleSinkAnimationConfig::default_for_always_bouncing()
     };
 
     motion.set_always_bouncing(true, now);
@@ -195,7 +196,7 @@ fn always_bouncing_triggered_animation_ignores_always_squash_bounce() {
         now + Duration::from_millis(150),
         bounce,
         squash_bounce,
-        always_squash_bounce,
+        always_idle_sink,
     );
 
     assert_eq!(transform, MotionTransform::identity());
@@ -215,7 +216,7 @@ fn disabling_always_bouncing_stops_idle_animation() {
         now + Duration::from_millis(20),
         BounceAnimationConfig::default(),
         SquashBounceAnimationConfig::default(),
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
 
     assert_eq!(transform, MotionTransform::identity());
@@ -241,9 +242,45 @@ fn disabling_always_bouncing_keeps_triggered_squash_bounce_running() {
         now + Duration::from_millis(20),
         bounce,
         squash_bounce,
-        SquashBounceAnimationConfig::default_for_always_bouncing(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
     );
 
     assert!(transform.scale_x > 1.0);
     assert!(motion.is_active());
+}
+
+#[test]
+fn idle_sink_starts_at_rest_and_then_lifts_after_sinking() {
+    let mut motion = MotionState::new();
+    let now = Instant::now();
+    let idle_sink = IdleSinkAnimationConfig {
+        duration_ms: 400,
+        amplitude_px: 8.0,
+        ..IdleSinkAnimationConfig::default_for_always_bouncing()
+    };
+
+    motion.set_always_bouncing(true, now);
+
+    let resting = motion.sample(
+        now,
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        idle_sink,
+    );
+    let sinking = motion.sample(
+        now + Duration::from_millis(100),
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        idle_sink,
+    );
+    let lifting = motion.sample(
+        now + Duration::from_millis(300),
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        idle_sink,
+    );
+
+    assert_eq!(resting, MotionTransform::identity());
+    assert!(sinking.offset_y > 0.0);
+    assert!(lifting.offset_y < 0.0);
 }

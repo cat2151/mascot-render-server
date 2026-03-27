@@ -2,7 +2,7 @@
 
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use mascot_render_core::SquashBounceAnimationConfig;
+use mascot_render_core::IdleSinkAnimationConfig;
 
 const DEFAULT_MEDIAN_MS: f64 = 3600.0;
 const DEFAULT_LOG_SIGMA: f64 = 0.42;
@@ -132,16 +132,16 @@ fn clamp_interval_ms(interval_ms: f64, min_ms: u64, max_ms: u64) -> u64 {
     interval_ms.round().clamp(min_ms as f64, max_ms as f64) as u64
 }
 
-pub(crate) fn always_squash_bounce_for_blink_median(
-    config: SquashBounceAnimationConfig,
+pub(crate) fn always_idle_sink_for_blink_median(
+    config: IdleSinkAnimationConfig,
     blink_median_ms: f64,
-) -> SquashBounceAnimationConfig {
+) -> IdleSinkAnimationConfig {
     // Keep the always_bouncing tempo aligned with the blink median drift range (±20%).
     let duration_scale = (blink_median_ms / DEFAULT_MEDIAN_MS).clamp(
         ALWAYS_BOUNCE_DURATION_SCALE_MIN,
         ALWAYS_BOUNCE_DURATION_SCALE_MAX,
     ) as f32;
-    SquashBounceAnimationConfig {
+    IdleSinkAnimationConfig {
         duration_ms: ((config.duration_ms as f32) * duration_scale)
             .round()
             .max(1.0) as u64,

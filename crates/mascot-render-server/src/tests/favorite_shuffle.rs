@@ -8,8 +8,8 @@ use crate::favorite_shuffle::{
     FavoriteEntry, FavoriteShufflePlaylist, FAVORITE_SHUFFLE_INTERVAL,
 };
 use mascot_render_core::{
-    workspace_cache_root, BounceAnimationConfig, Core, CoreConfig, HeadHitbox, MascotConfig,
-    SquashBounceAnimationConfig,
+    workspace_cache_root, BounceAnimationConfig, Core, CoreConfig, HeadHitbox,
+    IdleSinkAnimationConfig, MascotConfig, SquashBounceAnimationConfig,
 };
 
 #[test]
@@ -166,7 +166,7 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
         head_hitbox: HeadHitbox::default(),
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
-        always_squash_bounce: SquashBounceAnimationConfig::default_for_always_bouncing(),
+        always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
     }
 }
 

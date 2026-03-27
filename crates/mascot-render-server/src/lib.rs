@@ -31,6 +31,6 @@ pub use window_history::{
     window_history_path_for_paths, SavedWindowPosition,
 };
 pub use window_layout::{
-    alpha_bounds_from_mask, anchored_inner_origin, squash_bounce_bounds_config,
-    transformed_image_rect, AlphaBounds, MascotWindowLayout,
+    alpha_bounds_from_mask, anchored_inner_origin, transformed_image_rect, AlphaBounds,
+    MascotWindowLayout,
 };

@@ -15,9 +15,9 @@ use mascot_render_server::window_history::{
     WindowHistoryTracker,
 };
 use mascot_render_server::{
-    anchored_inner_origin, apply_motion_timeline_request, squash_bounce_bounds_config, AlphaBounds,
-    FavoriteShufflePlaylist, MascotControlCommand, MascotSkinCache, MascotWindowLayout,
-    TransparentHitTestUpdate, TransparentHitTestWindow,
+    anchored_inner_origin, apply_motion_timeline_request, AlphaBounds, FavoriteShufflePlaylist,
+    MascotControlCommand, MascotSkinCache, MascotWindowLayout, TransparentHitTestUpdate,
+    TransparentHitTestWindow,
 };
 
 use crate::app_support::{
@@ -77,7 +77,8 @@ impl MascotApp {
             open_skin.image_size,
             open_skin.content_bounds,
             config.bounce,
-            squash_bounce_bounds_config(config.squash_bounce, config.always_squash_bounce),
+            config.squash_bounce,
+            config.always_idle_sink,
         );
         let mut skin_cache = MascotSkinCache::new(SKIN_CACHE_CAPACITY);
         skin_cache.insert(image.path.clone(), open_skin.clone());
@@ -403,10 +404,8 @@ impl MascotApp {
             self.open_skin.image_size,
             content_bounds,
             self.config.bounce,
-            squash_bounce_bounds_config(
-                self.config.squash_bounce,
-                self.config.always_squash_bounce,
-            ),
+            self.config.squash_bounce,
+            self.config.always_idle_sink,
         );
         if let Some(viewport_info) = viewport_info {
             let inner_origin = anchored_inner_origin(

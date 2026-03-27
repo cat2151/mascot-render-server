@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use image::ImageReader;
 
-use crate::mascot_motion::{BounceAnimationConfig, HeadHitbox, SquashBounceAnimationConfig};
+use crate::mascot_motion::{
+    BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
+};
 use crate::mascot_paths::unix_timestamp;
 pub use crate::mascot_paths::{mascot_config_path, mascot_runtime_state_path};
 #[path = "mascot/config_files.rs"]
@@ -39,7 +41,7 @@ pub struct MascotConfig {
     pub head_hitbox: HeadHitbox,
     pub bounce: BounceAnimationConfig,
     pub squash_bounce: SquashBounceAnimationConfig,
-    pub always_squash_bounce: SquashBounceAnimationConfig,
+    pub always_idle_sink: IdleSinkAnimationConfig,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -98,7 +100,7 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
         head_hitbox: static_config.head_hitbox,
         bounce: static_config.bounce,
         squash_bounce: static_config.squash_bounce,
-        always_squash_bounce: static_config.always_squash_bounce,
+        always_idle_sink: static_config.always_idle_sink,
     })
 }
 
@@ -129,6 +131,7 @@ fn load_mascot_static_config_file(config_path: &Path) -> Result<MascotStaticConf
 
     let bytes = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
+    reject_legacy_always_squash_bounce_section(&bytes, config_path)?;
     let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
     validate_version(
@@ -217,6 +220,7 @@ fn normalize_mascot_static_config(config_path: &Path) -> Result<()> {
 
     let bytes = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
+    reject_legacy_always_squash_bounce_section(&bytes, config_path)?;
     let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
     validate_version(
@@ -257,6 +261,20 @@ fn mascot_static_config_needs_normalization(contents: &str) -> bool {
                 .iter()
                 .any(|key| trimmed.starts_with(&format!("{key}=")))
     })
+}
+
+fn reject_legacy_always_squash_bounce_section(contents: &str, config_path: &Path) -> Result<()> {
+    if contents
+        .lines()
+        .map(str::trim)
+        .any(|line| line == "[always_squash_bounce]")
+    {
+        bail!(
+            "mascot config '{}' still uses [always_squash_bounce]; rename it to [always_idle_sink]",
+            config_path.display()
+        );
+    }
+    Ok(())
 }
 
 fn write_mascot_static_config_file(

@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use eframe::egui::Pos2;
 use mascot_render_core::{
-    workspace_cache_root, BounceAnimationConfig, HeadHitbox, MascotConfig,
+    workspace_cache_root, BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, MascotConfig,
     SquashBounceAnimationConfig,
 };
 
@@ -153,6 +153,6 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
         head_hitbox: HeadHitbox::default(),
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
-        always_squash_bounce: SquashBounceAnimationConfig::default_for_always_bouncing(),
+        always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
     }
 }
