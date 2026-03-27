@@ -3,16 +3,17 @@ use std::time::{Duration, Instant};
 
 use mascot_render_core::{
     display_path, find_eye_blink_target, resolve_eye_blink_rows, variation_spec_path, DisplayDiff,
-    EyeBlinkRows, PsdDocument, PsdEntry, RenderRequest,
+    EyeBlinkRows, EyeBlinkTarget, PsdDocument, PsdEntry, RenderRequest,
 };
 
 use super::support::current_preview_status;
 use super::App;
-use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override};
+use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override, LayerRow};
 use crate::tui_config::tui_config_path;
 
 const EYE_BLINK_DURATION: Duration = Duration::from_secs(5);
 const EYE_BLINK_INTERVAL: Duration = Duration::from_millis(250);
+const AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS: [&str; 2] = ["閉じ目", "にっこり"];
 
 #[derive(Debug)]
 pub(crate) struct EyeBlinkAnimation {
@@ -127,20 +128,46 @@ impl App {
             &extracted_dir,
             &document.psd_path_in_zip,
         );
-        let target = find_eye_blink_target(&self.eye_blink_targets, &psd_entry.file_name)
-            .cloned()
-            .ok_or_else(|| {
-                format!(
-                    "selected PSD '{}' is not configured for eye blink in {}",
-                    psd_entry.file_name,
-                    display_path(&tui_config_path())
-                )
-            })?;
         let base_variation = self
             .variations
             .get(&selected_psd_path)
             .cloned()
             .unwrap_or_default();
+        let target = find_eye_blink_target(&self.eye_blink_targets, &psd_entry.file_name)
+            .cloned()
+            .or_else(|| {
+                let selected_layer_index = self.selected_layer_selection()?;
+                let layer_rows = resolve_layer_rows(document, &base_variation);
+                match auto_generate_eye_blink_target(
+                    &psd_entry.file_name,
+                    &layer_rows,
+                    selected_layer_index,
+                ) {
+                    Ok((target, log)) => {
+                        eprintln!("{log}");
+                        Some(target)
+                    }
+                    Err(error) => {
+                        eprintln!(
+                            "{}",
+                            format_auto_eye_blink_generation_failure_log(
+                                &psd_entry.file_name,
+                                &layer_rows,
+                                selected_layer_index,
+                                &error
+                            )
+                        );
+                        None
+                    }
+                }
+            })
+            .ok_or_else(|| {
+                format!(
+                    "selected PSD '{}' is not configured for eye blink in {}, and auto-generation failed",
+                    psd_entry.file_name,
+                    display_path(&tui_config_path())
+                )
+            })?;
         let resolved = resolve_eye_blink_rows(document, &base_variation, &target)?;
         let frame_context = EyeBlinkFrameContext {
             zip_path: &zip_path,
@@ -217,6 +244,101 @@ impl App {
             Some(variation_spec_path(&rendered.output_path)),
         ))
     }
+}
+
+pub(crate) fn auto_generate_eye_blink_target(
+    psd_file_name: &str,
+    layer_rows: &[LayerRow],
+    selected_layer_index: usize,
+) -> Result<(EyeBlinkTarget, String), String> {
+    let selected_row = layer_rows
+        .get(selected_layer_index)
+        .ok_or_else(|| format!("selected layer index {selected_layer_index} is out of range"))?;
+    let first_layer_name = normalize_eye_blink_layer_name(&selected_row.name);
+    if first_layer_name.is_empty() {
+        return Err("selected layer name is empty".to_string());
+    }
+
+    let (second_layer_name, matched_keyword) = AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS
+        .iter()
+        .find_map(|keyword| {
+            layer_rows
+                .iter()
+                .enumerate()
+                .find(|(index, row)| {
+                    *index != selected_layer_index
+                        && normalize_eye_blink_layer_name(&row.name).contains(keyword)
+                })
+                .map(|(_, row)| (normalize_eye_blink_layer_name(&row.name), *keyword))
+        })
+        .ok_or_else(|| {
+            format!(
+                "no layer matched auto eye blink keywords: {}",
+                AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS.join(", ")
+            )
+        })?;
+
+    let target = EyeBlinkTarget {
+        psd_file_name: psd_file_name.to_string(),
+        first_layer_name: first_layer_name.to_string(),
+        second_layer_name: second_layer_name.to_string(),
+    };
+    let log = format_auto_eye_blink_target_log(
+        psd_file_name,
+        layer_rows,
+        selected_layer_index,
+        &target,
+        matched_keyword,
+    );
+    Ok((target, log))
+}
+
+fn format_auto_eye_blink_target_log(
+    psd_file_name: &str,
+    layer_rows: &[LayerRow],
+    selected_layer_index: usize,
+    target: &EyeBlinkTarget,
+    matched_keyword: &str,
+) -> String {
+    format!(
+        "Auto-generated eye blink target for PSD '{psd_file_name}'.\nlayer list:\n{}\nselected layer index: {selected_layer_index}\nfirst_layer_name: '{}' (from selected layer)\nsecond_layer_name: '{}' (matched keyword '{}')",
+        format_eye_blink_layer_rows(layer_rows, selected_layer_index),
+        target.first_layer_name,
+        target.second_layer_name,
+        matched_keyword
+    )
+}
+
+fn format_auto_eye_blink_generation_failure_log(
+    psd_file_name: &str,
+    layer_rows: &[LayerRow],
+    selected_layer_index: usize,
+    error: &str,
+) -> String {
+    format!(
+        "Failed to auto-generate eye blink target for PSD '{psd_file_name}'.\nlayer list:\n{}\nselected layer index: {selected_layer_index}\nreason: {error}",
+        format_eye_blink_layer_rows(layer_rows, selected_layer_index)
+    )
+}
+
+fn format_eye_blink_layer_rows(layer_rows: &[LayerRow], selected_layer_index: usize) -> String {
+    layer_rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| {
+            let selected = if index == selected_layer_index {
+                " <selected>"
+            } else {
+                ""
+            };
+            format!("  - [{}] {}{}", index, row.display_label(), selected)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn normalize_eye_blink_layer_name(name: &str) -> &str {
+    name.trim().trim_start_matches(['*', '!']).trim()
 }
 
 fn ensure_named_row_visible(
