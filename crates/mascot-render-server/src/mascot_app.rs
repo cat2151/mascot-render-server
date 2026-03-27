@@ -255,7 +255,11 @@ impl MascotApp {
         }
         self.refresh_window_layout(ctx, previous_layout, previous_base_size);
         if let Some(position) = restored_window_position {
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(position));
+            let inner_origin = position - self.window_layout.anchor_offset();
+            let outer_position = current_viewport_info(ctx)
+                .map(|viewport_info| inner_origin - viewport_info.inner_to_outer_offset)
+                .unwrap_or(inner_origin);
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(outer_position));
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(window_title(
             &self.config,
@@ -293,8 +297,10 @@ impl MascotApp {
 
     fn sync_window_history(&mut self, ctx: &egui::Context, now: Instant) -> Result<()> {
         if let Some(viewport_info) = current_viewport_info(ctx) {
-            self.window_history
-                .observe(viewport_info.outer_origin, now)?;
+            self.window_history.observe(
+                viewport_info.inner_origin + self.window_layout.anchor_offset(),
+                now,
+            )?;
             self.window_history_modified_at = path_modified_at(self.window_history.path());
         }
         Ok(())

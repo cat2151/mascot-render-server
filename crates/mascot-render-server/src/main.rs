@@ -52,14 +52,14 @@ fn main() -> Result<()> {
     let initial_alpha_mask = alpha_mask(&image.rgba);
     let initial_content_bounds =
         content_bounds([image.width, image.height], initial_alpha_mask.as_ref());
-    let window_size = MascotWindowLayout::new(
+    let initial_window_layout = MascotWindowLayout::new(
         base_size,
         [image.width, image.height],
         initial_content_bounds,
         config.bounce,
         squash_bounce_bounds_config(config.squash_bounce, config.always_squash_bounce),
-    )
-    .window_size();
+    );
+    let window_size = initial_window_layout.window_size();
     let history_path = window_history_path(&config);
     let saved_window_position = match load_window_position(&history_path) {
         Ok(position) => position,
@@ -81,7 +81,7 @@ fn main() -> Result<()> {
         .with_always_on_top()
         .with_title_shown(false);
     if let Some(position) = saved_window_position {
-        viewport = viewport.with_position(position);
+        viewport = viewport.with_position(position - initial_window_layout.anchor_offset());
     }
     let native_options = NativeOptions {
         viewport,

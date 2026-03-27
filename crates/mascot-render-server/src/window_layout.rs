@@ -75,6 +75,7 @@ pub fn alpha_bounds_from_mask(
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MascotWindowLayout {
     crop_rect: Rect,
+    anchor_offset: Vec2,
     shake_amplitude_px: f32,
 }
 
@@ -82,6 +83,7 @@ impl MascotWindowLayout {
     pub fn full(base_size: Vec2) -> Self {
         Self {
             crop_rect: Rect::from_min_size(Pos2::ZERO, base_size),
+            anchor_offset: Vec2::new(base_size.x * 0.5, base_size.y),
             shake_amplitude_px: 0.0,
         }
     }
@@ -95,8 +97,10 @@ impl MascotWindowLayout {
     ) -> Self {
         let (crop_rect, shake_amplitude_px) =
             crop_rect_for_motion(base_size, image_size, content_bounds, bounce, squash_bounce);
+        let anchor_offset = anchor_offset(base_size, image_size, content_bounds, crop_rect);
         Self {
             crop_rect,
+            anchor_offset,
             shake_amplitude_px,
         }
     }
@@ -113,6 +117,10 @@ impl MascotWindowLayout {
         self.image_rect(base_size, MotionTransform::identity())
             .min
             .to_vec2()
+    }
+
+    pub fn anchor_offset(self) -> Vec2 {
+        self.anchor_offset
     }
 
     pub fn shake_amplitude_px(self) -> f32 {
@@ -143,13 +151,12 @@ pub fn squash_bounce_bounds_config(
 pub fn anchored_inner_origin(
     previous_inner_origin: Pos2,
     previous_layout: MascotWindowLayout,
-    previous_base_size: Vec2,
+    _previous_base_size: Vec2,
     next_layout: MascotWindowLayout,
-    next_base_size: Vec2,
+    _next_base_size: Vec2,
 ) -> Pos2 {
-    let canvas_origin =
-        previous_inner_origin + previous_layout.canvas_origin_offset(previous_base_size);
-    canvas_origin - next_layout.canvas_origin_offset(next_base_size)
+    let anchor_position = previous_inner_origin + previous_layout.anchor_offset();
+    anchor_position - next_layout.anchor_offset()
 }
 
 pub fn transformed_image_rect(base_size: Vec2, transform: MotionTransform) -> Rect {
@@ -270,4 +277,22 @@ fn content_rect(image_rect: Rect, image_size: [u32; 2], content_bounds: AlphaBou
         image_rect.min.y + image_rect.height() * (content_bounds.max_y as f32 / height),
     );
     Rect::from_min_max(min, max)
+}
+
+fn anchor_offset(
+    base_size: Vec2,
+    image_size: [u32; 2],
+    content_bounds: AlphaBounds,
+    crop_rect: Rect,
+) -> Vec2 {
+    let content_rect = content_rect(
+        transformed_image_rect(base_size, MotionTransform::identity()),
+        image_size,
+        content_bounds,
+    );
+    let anchor = Pos2::new(
+        (content_rect.min.x + content_rect.max.x) * 0.5,
+        content_rect.max.y,
+    );
+    anchor.to_vec2() - crop_rect.min.to_vec2()
 }
