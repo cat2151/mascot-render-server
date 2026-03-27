@@ -76,6 +76,24 @@ fn auto_generate_eye_blink_target_errors_when_no_candidate_exists() {
     assert!(error.contains("no layer matched auto eye blink keywords"));
 }
 
+#[test]
+fn auto_generate_eye_blink_target_prefers_nearest_same_depth_candidate() {
+    let layer_rows = vec![
+        layer_row("*遠い閉じ目", false, 1),
+        layer_row("*普通目", true, 1),
+        layer_row("*基本目", true, 2),
+        layer_row("*近い閉じ目", false, 2),
+        layer_row("*さらに遠い閉じ目", false, 2),
+    ];
+
+    let (target, log) =
+        auto_generate_eye_blink_target("demo.psd", &layer_rows, 2).expect("should auto-generate");
+
+    assert_eq!(target.first_layer_name, "基本目");
+    assert_eq!(target.second_layer_name, "近い閉じ目");
+    assert!(log.contains("second_layer_name: '近い閉じ目'"));
+}
+
 fn layer_row(name: &str, visible: bool, depth: usize) -> LayerRow {
     LayerRow {
         name: name.to_string(),

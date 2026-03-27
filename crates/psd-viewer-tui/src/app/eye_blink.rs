@@ -251,10 +251,14 @@ pub(crate) fn auto_generate_eye_blink_target(
     layer_rows: &[LayerRow],
     selected_layer_index: usize,
 ) -> Result<(EyeBlinkTarget, String), String> {
-    let selected_row = layer_rows
+    let normalized_layer_names = layer_rows
+        .iter()
+        .map(|row| normalize_eye_blink_layer_name(&row.name))
+        .collect::<Vec<_>>();
+    layer_rows
         .get(selected_layer_index)
         .ok_or_else(|| format!("selected layer index {selected_layer_index} is out of range"))?;
-    let first_layer_name = normalize_eye_blink_layer_name(&selected_row.name);
+    let first_layer_name = normalized_layer_names[selected_layer_index];
     if first_layer_name.is_empty() {
         return Err(format!(
             "selected layer name is empty for PSD '{psd_file_name}'"
@@ -264,14 +268,13 @@ pub(crate) fn auto_generate_eye_blink_target(
     let (second_layer_name, matched_keyword) = AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS
         .iter()
         .find_map(|keyword| {
-            layer_rows
-                .iter()
-                .enumerate()
-                .find(|(index, row)| {
-                    *index != selected_layer_index
-                        && normalize_eye_blink_layer_name(&row.name).contains(keyword)
-                })
-                .map(|(_, row)| (normalize_eye_blink_layer_name(&row.name), *keyword))
+            find_best_auto_eye_blink_candidate_index(
+                layer_rows,
+                &normalized_layer_names,
+                selected_layer_index,
+                keyword,
+            )
+            .map(|index| (normalized_layer_names[index], *keyword))
         })
         .ok_or_else(|| {
             format!(
@@ -337,6 +340,28 @@ fn format_eye_blink_layer_rows(layer_rows: &[LayerRow], selected_layer_index: us
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn find_best_auto_eye_blink_candidate_index(
+    layer_rows: &[LayerRow],
+    normalized_layer_names: &[&str],
+    selected_layer_index: usize,
+    keyword: &str,
+) -> Option<usize> {
+    let selected_depth = layer_rows.get(selected_layer_index)?.depth;
+
+    normalized_layer_names
+        .iter()
+        .enumerate()
+        .filter(|(index, normalized_name)| {
+            *index != selected_layer_index && normalized_name.contains(keyword)
+        })
+        .min_by_key(|(index, _)| {
+            let depth_penalty = usize::from(layer_rows[*index].depth != selected_depth);
+            let distance = index.abs_diff(selected_layer_index);
+            (depth_penalty, distance, *index)
+        })
+        .map(|(index, _)| index)
 }
 
 fn normalize_eye_blink_layer_name(name: &str) -> &str {
