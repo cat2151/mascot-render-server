@@ -256,7 +256,9 @@ pub(crate) fn auto_generate_eye_blink_target(
         .ok_or_else(|| format!("selected layer index {selected_layer_index} is out of range"))?;
     let first_layer_name = normalize_eye_blink_layer_name(&selected_row.name);
     if first_layer_name.is_empty() {
-        return Err("selected layer name is empty".to_string());
+        return Err(format!(
+            "selected layer name is empty for PSD '{psd_file_name}'"
+        ));
     }
 
     let (second_layer_name, matched_keyword) = AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS
