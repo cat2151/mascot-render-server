@@ -1,6 +1,8 @@
 use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+#[cfg(not(target_os = "windows"))]
+use anyhow::bail;
+use anyhow::{Context, Result};
 
 const UPDATE_GIT_URL: &str = "https://github.com/cat2151/mascot-render-server";
 const UPDATE_PACKAGES: [&str; 2] = ["mascot-render-server", "psd-viewer-tui"];
@@ -70,7 +72,7 @@ pub fn run_workspace_update() -> Result<()> {
 
         println!("Launching update script: {}", bat_path.display());
         println!("The application will now exit so the update can finish.");
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(target_os = "windows"))]

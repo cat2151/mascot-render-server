@@ -3,7 +3,7 @@ mod mascot_control;
 mod mascot_skin_cache;
 mod motion_timeline;
 mod transparent_hit_test;
-mod window_history;
+pub mod window_history;
 mod window_layout;
 mod window_region;
 mod window_region_sync;

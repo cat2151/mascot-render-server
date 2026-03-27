@@ -10,13 +10,13 @@ use mascot_render_core::{workspace_cache_root, MascotConfig};
 use serde::{Deserialize, Serialize};
 
 const WINDOW_HISTORY_VERSION: u32 = 2;
-pub(crate) const WINDOW_HISTORY_SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
+pub const WINDOW_HISTORY_SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
 const WINDOW_HISTORY_NAME_STEM_LIMIT: usize = 64;
 
 #[derive(Clone, Copy)]
-pub(crate) struct ViewportInfo {
-    pub(crate) inner_origin: Pos2,
-    pub(crate) inner_to_outer_offset: Vec2,
+pub struct ViewportInfo {
+    pub inner_origin: Pos2,
+    pub inner_to_outer_offset: Vec2,
 }
 
 /// Serializable mascot anchor coordinates used when favorites capture and restore mascot position.
@@ -37,7 +37,7 @@ struct WindowHistoryFile {
 }
 
 #[derive(Debug)]
-pub(crate) struct WindowHistoryTracker {
+pub struct WindowHistoryTracker {
     path: PathBuf,
     last_saved_position: Option<Pos2>,
     last_observed_position: Option<Pos2>,
@@ -46,7 +46,7 @@ pub(crate) struct WindowHistoryTracker {
 }
 
 impl WindowHistoryTracker {
-    pub(crate) fn new(path: PathBuf, last_saved_position: Option<Pos2>) -> Self {
+    pub fn new(path: PathBuf, last_saved_position: Option<Pos2>) -> Self {
         Self {
             path,
             last_saved_position,
@@ -56,7 +56,7 @@ impl WindowHistoryTracker {
         }
     }
 
-    pub(crate) fn observe(&mut self, position: Pos2, now: Instant) -> Result<()> {
+    pub fn observe(&mut self, position: Pos2, now: Instant) -> Result<()> {
         let changed = match self.last_observed_position {
             Some(previous) => !same_position(previous, position),
             None => true,
@@ -75,7 +75,7 @@ impl WindowHistoryTracker {
         Ok(())
     }
 
-    pub(crate) fn flush(&mut self) -> Result<()> {
+    pub fn flush(&mut self) -> Result<()> {
         let Some(position) = self.pending_position else {
             return Ok(());
         };
@@ -95,12 +95,12 @@ impl WindowHistoryTracker {
         Ok(())
     }
 
-    pub(crate) fn path(&self) -> &Path {
+    pub fn path(&self) -> &Path {
         &self.path
     }
 }
 
-pub(crate) fn window_history_path(config: &MascotConfig) -> PathBuf {
+pub fn window_history_path(config: &MascotConfig) -> PathBuf {
     window_history_path_for_paths(&config.zip_path, &config.psd_path_in_zip)
 }
 
@@ -112,7 +112,7 @@ pub fn window_history_path_for_paths(zip_path: &Path, psd_path_in_zip: &Path) ->
     ))
 }
 
-pub(crate) fn load_window_position(path: &Path) -> Result<Option<Pos2>> {
+pub fn load_window_position(path: &Path) -> Result<Option<Pos2>> {
     if !path.exists() {
         return Ok(None);
     }
@@ -154,7 +154,7 @@ pub fn save_window_position_for_paths(
     )
 }
 
-pub(crate) fn current_viewport_info(ctx: &egui::Context) -> Option<ViewportInfo> {
+pub fn current_viewport_info(ctx: &egui::Context) -> Option<ViewportInfo> {
     ctx.input(|input| {
         let inner_rect = input.viewport().inner_rect?;
         let outer_origin = input
@@ -169,7 +169,7 @@ pub(crate) fn current_viewport_info(ctx: &egui::Context) -> Option<ViewportInfo>
     })
 }
 
-pub(crate) fn outer_position_for_anchor(
+pub fn outer_position_for_anchor(
     anchor_position: Pos2,
     anchor_offset: Vec2,
     inner_to_outer_offset: Vec2,

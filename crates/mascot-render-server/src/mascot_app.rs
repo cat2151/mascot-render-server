@@ -10,6 +10,10 @@ use mascot_render_core::{
     load_mascot_config, load_mascot_image, mascot_runtime_state_path, Core, CoreConfig,
     MascotConfig, MascotImageData, MotionState, MotionTransform,
 };
+use mascot_render_server::window_history::{
+    current_viewport_info, load_window_position, outer_position_for_anchor, window_history_path,
+    WindowHistoryTracker,
+};
 use mascot_render_server::{
     anchored_inner_origin, apply_motion_timeline_request, squash_bounce_bounds_config, AlphaBounds,
     FavoriteShufflePlaylist, MascotControlCommand, MascotSkinCache, MascotWindowLayout,
@@ -23,10 +27,6 @@ use crate::eye_blink::{render_closed_eye_png, EyeBlinkLoop};
 use crate::mascot_scale::{
     adjust_scale, effective_scale, keyboard_scale_steps, persist_scale, scroll_scale_steps,
     SCALE_PERSIST_DEBOUNCE,
-};
-use crate::window_history::{
-    current_viewport_info, load_window_position, outer_position_for_anchor, window_history_path,
-    WindowHistoryTracker,
 };
 use crate::SKIN_CACHE_CAPACITY;
 #[path = "mascot_app/runtime.rs"]

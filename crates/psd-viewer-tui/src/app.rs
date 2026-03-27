@@ -9,6 +9,7 @@ mod selection;
 mod startup;
 mod support;
 
+#[cfg(test)]
 pub(crate) use favorites::{apply_favorite_variation, apply_favorite_window_position};
 
 use std::collections::HashMap;

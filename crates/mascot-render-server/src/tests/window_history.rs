@@ -8,7 +8,7 @@ use mascot_render_core::{
     SquashBounceAnimationConfig,
 };
 
-use crate::window_history::{
+use mascot_render_server::window_history::{
     load_saved_window_position_for_paths, load_window_position, outer_position_for_anchor,
     save_window_position_for_paths, window_history_path, SavedWindowPosition, WindowHistoryTracker,
     WINDOW_HISTORY_SAVE_DEBOUNCE,
