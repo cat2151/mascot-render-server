@@ -1,0 +1,36 @@
+version = 4
+always_bouncing = false
+transparent_background_click_through = false
+flash_blue_background_on_transparent_input = true
+updated_at = 1774570629
+
+[head_hitbox]
+x = 0.18000000715255737
+y = 0.019999999552965164
+width = 0.6399999856948853
+height = 0.41999998688697815
+
+[bounce]
+algorithm = "damped_sine"
+duration_ms = 900
+amplitude_px = 40.0
+cycles = 1.75
+damping = 2.5999999046325684
+
+[squash_bounce]
+algorithm = "squash_stretch"
+duration_ms = 760
+amplitude_px = 28.0
+cycles = 1.5
+damping = 2.200000047683716
+squash_amount = 0.1599999964237213
+stretch_amount = 0.10000000149011612
+
+[always_squash_bounce]
+algorithm = "squash_stretch"
+duration_ms = 1400
+amplitude_px = 12.0
+cycles = 1.2000000476837158
+damping = 2.799999952316284
+squash_amount = 0.07999999821186066
+stretch_amount = 0.05000000074505806
