@@ -30,7 +30,7 @@ pub struct SavedWindowPosition {
 struct WindowHistoryFile {
     version: u32,
     // v1 persisted this as outer_position. Keep the field optional so legacy files deserialize
-    // successfully before the version check rejects them as outdated.
+    // successfully before the version check ignores them as outdated.
     #[serde(default, alias = "outer_position")]
     anchor_position: Option<[f32; 2]>,
     updated_at: u64,
