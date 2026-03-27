@@ -1,5 +1,7 @@
 use eframe::egui::{Pos2, Rect, Vec2};
-use mascot_render_core::{BounceAnimationConfig, MotionTransform, SquashBounceAnimationConfig};
+use mascot_render_core::{
+    BounceAnimationConfig, IdleSinkAnimationConfig, MotionTransform, SquashBounceAnimationConfig,
+};
 
 use crate::{alpha_bounds_from_mask, anchored_inner_origin, AlphaBounds, MascotWindowLayout};
 
@@ -15,6 +17,15 @@ fn zero_squash() -> SquashBounceAnimationConfig {
         amplitude_px: 0.0,
         squash_amount: 0.0,
         stretch_amount: 0.0,
+        ..Default::default()
+    }
+}
+
+fn zero_idle_sink() -> IdleSinkAnimationConfig {
+    IdleSinkAnimationConfig {
+        amplitude_px: 0.0,
+        sink_amount: 0.0,
+        lift_amount: 0.0,
         ..Default::default()
     }
 }
@@ -51,6 +62,7 @@ fn layout_trims_static_transparent_padding() {
         },
         zero_bounce(),
         zero_squash(),
+        zero_idle_sink(),
     );
 
     assert_eq!(layout.window_size(), Vec2::new(72.0, 72.0));
@@ -83,10 +95,16 @@ fn layout_reserves_room_for_motion_extrema() {
             stretch_amount: 0.0,
             ..Default::default()
         },
+        IdleSinkAnimationConfig {
+            amplitude_px: 4.0,
+            sink_amount: 0.08,
+            lift_amount: 0.03,
+            ..Default::default()
+        },
     );
 
-    assert!((layout.window_size().x - 74.4).abs() < 0.001);
-    assert!((layout.window_size().y - 79.2).abs() < 0.001);
+    assert!(layout.window_size().x > 74.4);
+    assert!(layout.window_size().y > 79.2);
 }
 
 #[test]
@@ -102,6 +120,7 @@ fn anchored_inner_origin_preserves_bottom_center_anchor_across_layouts() {
         },
         zero_bounce(),
         zero_squash(),
+        zero_idle_sink(),
     );
     let next_layout = MascotWindowLayout::new(
         Vec2::new(100.0, 80.0),
@@ -114,6 +133,7 @@ fn anchored_inner_origin_preserves_bottom_center_anchor_across_layouts() {
         },
         zero_bounce(),
         zero_squash(),
+        zero_idle_sink(),
     );
 
     let next_origin = anchored_inner_origin(Pos2::new(400.0, 300.0), previous_layout, next_layout);

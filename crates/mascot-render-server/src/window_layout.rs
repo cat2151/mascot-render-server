@@ -1,5 +1,7 @@
 use eframe::egui::{Pos2, Rect, Vec2};
-use mascot_render_core::{BounceAnimationConfig, MotionTransform, SquashBounceAnimationConfig};
+use mascot_render_core::{
+    BounceAnimationConfig, IdleSinkAnimationConfig, MotionTransform, SquashBounceAnimationConfig,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AlphaBounds {
@@ -94,9 +96,16 @@ impl MascotWindowLayout {
         content_bounds: AlphaBounds,
         bounce: BounceAnimationConfig,
         squash_bounce: SquashBounceAnimationConfig,
+        idle_sink: IdleSinkAnimationConfig,
     ) -> Self {
-        let (crop_rect, shake_amplitude_px) =
-            crop_rect_for_motion(base_size, image_size, content_bounds, bounce, squash_bounce);
+        let (crop_rect, shake_amplitude_px) = crop_rect_for_motion(
+            base_size,
+            image_size,
+            content_bounds,
+            bounce,
+            squash_bounce,
+            idle_sink,
+        );
         let anchor_offset = anchor_offset(base_size, image_size, content_bounds, crop_rect);
         Self {
             crop_rect,
@@ -128,26 +137,6 @@ impl MascotWindowLayout {
     }
 }
 
-/// Combines regular and always_bouncing squash/stretch settings so the window layout
-/// reserves enough room for either motion path.
-pub fn squash_bounce_bounds_config(
-    squash_bounce: SquashBounceAnimationConfig,
-    always_squash_bounce: SquashBounceAnimationConfig,
-) -> SquashBounceAnimationConfig {
-    SquashBounceAnimationConfig {
-        amplitude_px: squash_bounce
-            .amplitude_px
-            .max(always_squash_bounce.amplitude_px),
-        squash_amount: squash_bounce
-            .squash_amount
-            .max(always_squash_bounce.squash_amount),
-        stretch_amount: squash_bounce
-            .stretch_amount
-            .max(always_squash_bounce.stretch_amount),
-        ..squash_bounce
-    }
-}
-
 pub fn anchored_inner_origin(
     previous_inner_origin: Pos2,
     previous_layout: MascotWindowLayout,
@@ -174,6 +163,7 @@ fn crop_rect_for_motion(
     content_bounds: AlphaBounds,
     bounce: BounceAnimationConfig,
     squash_bounce: SquashBounceAnimationConfig,
+    idle_sink: IdleSinkAnimationConfig,
 ) -> (Rect, f32) {
     let base_candidates = [
         MotionTransform::identity(),
@@ -194,6 +184,18 @@ fn crop_rect_for_motion(
             offset_y: 0.0,
             scale_x: 1.0 + squash_bounce.squash_amount.max(0.0),
             scale_y: 1.0 - squash_bounce.stretch_amount.max(0.0),
+        },
+        MotionTransform {
+            offset_x: 0.0,
+            offset_y: idle_sink.amplitude_px.max(0.0),
+            scale_x: 1.0 + idle_sink.sink_amount.max(0.0),
+            scale_y: 1.0 - idle_sink.sink_amount.max(0.0),
+        },
+        MotionTransform {
+            offset_x: 0.0,
+            offset_y: -idle_sink.amplitude_px.max(0.0),
+            scale_x: 1.0 - idle_sink.lift_amount.max(0.0) * 0.35,
+            scale_y: 1.0 + idle_sink.lift_amount.max(0.0),
         },
     ];
     let Some(base_union) =

@@ -5,7 +5,7 @@ use eframe::egui::{self, Color32, Pos2, Rect};
 use eframe::App;
 use mascot_render_server::{captures_logical_point, TransparentHitTestUpdate};
 
-use crate::eye_blink_timing::always_squash_bounce_for_blink_median;
+use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 
 use super::{keyboard_scale_steps, scroll_scale_steps, MascotApp};
 
@@ -58,15 +58,15 @@ impl App for MascotApp {
             eprintln!("{error:#}");
         }
         let blink_closed = self.closed_skin.is_some() && self.eye_blink.is_closed(now);
-        let always_squash_bounce = always_squash_bounce_for_blink_median(
-            self.config.always_squash_bounce,
+        let always_idle_sink = always_idle_sink_for_blink_median(
+            self.config.always_idle_sink,
             self.eye_blink.current_median_ms(),
         );
         let transform = self.motion.sample(
             now,
             self.config.bounce,
             self.config.squash_bounce,
-            always_squash_bounce,
+            always_idle_sink,
         );
         let image_rect = self.window_layout.image_rect(self.base_size, transform);
         let active_skin = if blink_closed {
@@ -158,7 +158,7 @@ impl App for MascotApp {
                 now,
                 self.config.bounce,
                 self.config.squash_bounce,
-                always_squash_bounce,
+                always_idle_sink,
             )
             .unwrap_or_else(|| {
                 self.eye_blink

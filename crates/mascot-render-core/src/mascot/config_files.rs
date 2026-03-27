@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::mascot_motion::{BounceAnimationConfig, HeadHitbox, SquashBounceAnimationConfig};
+use crate::mascot_motion::{
+    BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
+};
 
 use super::{unix_timestamp, MascotTarget, MASCOT_CONFIG_VERSION, MASCOT_RUNTIME_STATE_VERSION};
 
@@ -17,7 +19,7 @@ pub(super) struct MascotStaticConfigFile {
     pub(super) head_hitbox: HeadHitbox,
     pub(super) bounce: BounceAnimationConfig,
     pub(super) squash_bounce: SquashBounceAnimationConfig,
-    pub(super) always_squash_bounce: SquashBounceAnimationConfig,
+    pub(super) always_idle_sink: IdleSinkAnimationConfig,
     pub(super) updated_at: u64,
 }
 
@@ -31,7 +33,7 @@ impl Default for MascotStaticConfigFile {
             head_hitbox: HeadHitbox::default(),
             bounce: BounceAnimationConfig::default(),
             squash_bounce: SquashBounceAnimationConfig::default(),
-            always_squash_bounce: SquashBounceAnimationConfig::default_for_always_bouncing(),
+            always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
             updated_at: 0,
         }
     }
@@ -105,7 +107,7 @@ pub(super) struct LegacyMascotConfigFile {
     pub(super) head_hitbox: HeadHitbox,
     pub(super) bounce: BounceAnimationConfig,
     pub(super) squash_bounce: SquashBounceAnimationConfig,
-    pub(super) always_squash_bounce: SquashBounceAnimationConfig,
+    pub(super) always_idle_sink: IdleSinkAnimationConfig,
     pub(super) updated_at: u64,
 }
 
@@ -124,7 +126,7 @@ impl Default for LegacyMascotConfigFile {
             head_hitbox: HeadHitbox::default(),
             bounce: BounceAnimationConfig::default(),
             squash_bounce: SquashBounceAnimationConfig::default(),
-            always_squash_bounce: SquashBounceAnimationConfig::default_for_always_bouncing(),
+            always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
             updated_at: 0,
         }
     }

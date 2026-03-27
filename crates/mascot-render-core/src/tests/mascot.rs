@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use crate::{
     default_mascot_scale_for_screen_height, load_mascot_config, mascot_config_path,
     mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path, workspace_cache_root,
-    workspace_path, write_mascot_config, BounceAlgorithm, HeadHitbox, MascotTarget,
-    SquashAlgorithm, SquashBounceAnimationConfig,
+    workspace_path, write_mascot_config, BounceAlgorithm, HeadHitbox, IdleSinkAnimationConfig,
+    MascotTarget, SquashAlgorithm,
 };
 
 #[test]
@@ -76,8 +76,8 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
         SquashAlgorithm::SquashStretch
     );
     assert_eq!(
-        loaded.always_squash_bounce,
-        SquashBounceAnimationConfig::default_for_always_bouncing()
+        loaded.always_idle_sink,
+        IdleSinkAnimationConfig::default_for_always_bouncing()
     );
 
     let static_toml =
@@ -85,7 +85,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!static_toml.contains("png_path ="));
     assert!(!static_toml.contains("zip_path ="));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
-    assert!(static_toml.contains("[always_squash_bounce]"));
+    assert!(static_toml.contains("[always_idle_sink]"));
     assert!(
         runtime_state_path.exists(),
         "runtime state should be written"
@@ -120,8 +120,8 @@ transparent_background_click_through = false
     assert!(loaded.always_bouncing);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(
-        loaded.always_squash_bounce,
-        SquashBounceAnimationConfig::default_for_always_bouncing()
+        loaded.always_idle_sink,
+        IdleSinkAnimationConfig::default_for_always_bouncing()
     );
     assert!(!runtime_state_path.exists());
 }
@@ -190,8 +190,8 @@ stretch_amount = 0.08
     assert_eq!(loaded.bounce.duration_ms, 1200);
     assert_eq!(loaded.squash_bounce.squash_amount, 0.22);
     assert_eq!(
-        loaded.always_squash_bounce,
-        SquashBounceAnimationConfig::default_for_always_bouncing()
+        loaded.always_idle_sink,
+        IdleSinkAnimationConfig::default_for_always_bouncing()
     );
     assert!(!runtime_state_path.exists());
 }
@@ -262,8 +262,8 @@ stretch_amount = 0.08
     assert_eq!(loaded.bounce.duration_ms, 1200);
     assert_eq!(loaded.squash_bounce.squash_amount, 0.22);
     assert_eq!(
-        loaded.always_squash_bounce,
-        SquashBounceAnimationConfig::default_for_always_bouncing()
+        loaded.always_idle_sink,
+        IdleSinkAnimationConfig::default_for_always_bouncing()
     );
 
     let static_toml =
@@ -271,7 +271,7 @@ stretch_amount = 0.08
     assert!(!static_toml.contains("png_path ="));
     assert!(!static_toml.contains("psd_path_in_zip ="));
     assert!(static_toml.contains("always_bouncing = true"));
-    assert!(static_toml.contains("[always_squash_bounce]"));
+    assert!(static_toml.contains("[always_idle_sink]"));
     let runtime_json =
         fs::read_to_string(&runtime_state_path).expect("should write mascot runtime JSON");
     assert!(runtime_json.contains("\"png_path\""));

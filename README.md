@@ -47,9 +47,10 @@ psd-viewer-tui
 - mascot-render-server.toml
     - always_bouncing
         - If set to true, a small squash/stretch breathing-like motion will constantly play for UX verification.
-    - always_squash_bounce
-        - This is a squash/stretch setting specifically for `always_bouncing`.
-        - By default, it is slower and smaller than normal `squash_bounce`, and the tempo changes gradually in sync with the median fluctuation of the blink interval.
+    - always_idle_sink
+        - This is an IdleSink breathing setting specifically for `always_bouncing`.
+        - By default, it sinks and lifts more gently than normal `squash_bounce`, and the tempo changes gradually in sync with the median fluctuation of the blink interval.
+        - `sink_amount` and `lift_amount` let you tune the exhale and inhale pose separately.
     - transparent_background_click_through
         - If set to true, it becomes very heavy, but you can reduce "confusion from dragging empty space."
     - flash_blue_background_on_transparent_input

@@ -19,6 +19,13 @@ pub enum SquashAlgorithm {
     SquashStretch,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum IdleAlgorithm {
+    #[default]
+    IdleSink,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HeadHitbox {
@@ -116,6 +123,34 @@ impl SquashBounceAnimationConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IdleSinkAnimationConfig {
+    pub algorithm: IdleAlgorithm,
+    pub duration_ms: u64,
+    pub amplitude_px: f32,
+    pub sink_amount: f32,
+    pub lift_amount: f32,
+}
+
+impl Default for IdleSinkAnimationConfig {
+    fn default() -> Self {
+        Self {
+            algorithm: IdleAlgorithm::IdleSink,
+            duration_ms: 2200,
+            amplitude_px: 6.0,
+            sink_amount: 0.045,
+            lift_amount: 0.03,
+        }
+    }
+}
+
+impl IdleSinkAnimationConfig {
+    pub fn default_for_always_bouncing() -> Self {
+        Self::default()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct MotionTransform {
     pub offset_x: f32,
@@ -139,6 +174,7 @@ impl MotionTransform {
 enum AnimationKind {
     Bounce,
     SquashBounce,
+    IdleSink,
     Shake,
 }
 
@@ -177,6 +213,7 @@ impl MotionState {
         self.next_kind = Some(match kind {
             AnimationKind::Bounce => AnimationKind::SquashBounce,
             AnimationKind::SquashBounce => AnimationKind::Bounce,
+            AnimationKind::IdleSink => AnimationKind::Bounce,
             AnimationKind::Shake => AnimationKind::Bounce,
         });
     }
@@ -203,14 +240,10 @@ impl MotionState {
         let was_idle_animation = self
             .active
             .is_some_and(|active| active.idle && self.idle_kind == Some(active.kind));
-        self.idle_kind = enabled.then_some(AnimationKind::SquashBounce);
+        self.idle_kind = enabled.then_some(AnimationKind::IdleSink);
         if enabled {
             if self.active.is_none() {
-                self.active = Some(Self::start_animation(
-                    AnimationKind::SquashBounce,
-                    now,
-                    true,
-                ));
+                self.active = Some(Self::start_animation(AnimationKind::IdleSink, now, true));
             }
         } else if was_idle_animation {
             self.active = None;
@@ -226,16 +259,11 @@ impl MotionState {
         now: Instant,
         bounce: BounceAnimationConfig,
         squash_bounce: SquashBounceAnimationConfig,
-        always_squash_bounce: SquashBounceAnimationConfig,
+        always_idle_sink: IdleSinkAnimationConfig,
     ) -> MotionTransform {
         self.ensure_idle_animation(now);
         let Some(active) = self.active else {
             return MotionTransform::identity();
-        };
-        let active_squash_bounce = if active.idle {
-            always_squash_bounce
-        } else {
-            squash_bounce
         };
 
         let (duration, transform) = match active.kind {
@@ -244,8 +272,12 @@ impl MotionState {
                 sample_bounce(now, active.started_at, bounce),
             ),
             AnimationKind::SquashBounce => (
-                Duration::from_millis(active_squash_bounce.duration_ms.max(1)),
-                sample_squash_bounce(now, active.started_at, active_squash_bounce),
+                Duration::from_millis(squash_bounce.duration_ms.max(1)),
+                sample_squash_bounce(now, active.started_at, squash_bounce),
+            ),
+            AnimationKind::IdleSink => (
+                Duration::from_millis(always_idle_sink.duration_ms.max(1)),
+                sample_idle_sink(now, active.started_at, always_idle_sink),
             ),
             AnimationKind::Shake => (
                 active.shake_duration,
@@ -273,23 +305,17 @@ impl MotionState {
         now: Instant,
         bounce: BounceAnimationConfig,
         squash_bounce: SquashBounceAnimationConfig,
-        always_squash_bounce: SquashBounceAnimationConfig,
+        always_idle_sink: IdleSinkAnimationConfig,
     ) -> Option<Duration> {
         let active = match self.active {
             Some(active) => active,
             None if self.idle_kind.is_some() => return Some(ANIMATION_FRAME_INTERVAL),
             None => return None,
         };
-        let active_squash_bounce = if active.idle {
-            always_squash_bounce
-        } else {
-            squash_bounce
-        };
         let duration = match active.kind {
             AnimationKind::Bounce => Duration::from_millis(bounce.duration_ms.max(1)),
-            AnimationKind::SquashBounce => {
-                Duration::from_millis(active_squash_bounce.duration_ms.max(1))
-            }
+            AnimationKind::SquashBounce => Duration::from_millis(squash_bounce.duration_ms.max(1)),
+            AnimationKind::IdleSink => Duration::from_millis(always_idle_sink.duration_ms.max(1)),
             AnimationKind::Shake => active.shake_duration,
         };
         let remaining = duration.saturating_sub(now.duration_since(active.started_at));
@@ -298,7 +324,7 @@ impl MotionState {
         }
 
         Some(match active.kind {
-            AnimationKind::Bounce | AnimationKind::SquashBounce => {
+            AnimationKind::Bounce | AnimationKind::SquashBounce | AnimationKind::IdleSink => {
                 remaining.min(ANIMATION_FRAME_INTERVAL)
             }
             AnimationKind::Shake => remaining.min(next_shake_frame_after(
@@ -372,6 +398,24 @@ fn sample_squash_bounce(
     }
 }
 
+fn sample_idle_sink(
+    now: Instant,
+    started_at: Instant,
+    config: IdleSinkAnimationConfig,
+) -> MotionTransform {
+    let t = animation_progress(now, started_at, config.duration_ms);
+    let sink = phase_pulse(t, 0.0, 0.25, 0.5);
+    let lift = phase_pulse(t, 0.5, 0.75, 1.0);
+
+    MotionTransform {
+        offset_x: 0.0,
+        offset_y: config.amplitude_px.max(0.0) * (sink - lift),
+        scale_x: 1.0 + config.sink_amount.max(0.0) * sink
+            - config.lift_amount.max(0.0) * lift * 0.35,
+        scale_y: 1.0 - config.sink_amount.max(0.0) * sink + config.lift_amount.max(0.0) * lift,
+    }
+}
+
 fn sample_shake(
     now: Instant,
     started_at: Instant,
@@ -394,6 +438,21 @@ fn animation_progress(now: Instant, started_at: Instant, duration_ms: u64) -> f3
     let duration = Duration::from_millis(duration_ms.max(1));
     let elapsed = now.duration_since(started_at);
     (elapsed.as_secs_f32() / duration.as_secs_f32()).clamp(0.0, 1.0)
+}
+
+fn phase_pulse(t: f32, start: f32, peak: f32, end: f32) -> f32 {
+    if t <= start || t >= end {
+        return 0.0;
+    }
+    if t < peak {
+        return smoothstep((t - start) / (peak - start).max(f32::EPSILON));
+    }
+    smoothstep((end - t) / (end - peak).max(f32::EPSILON))
+}
+
+fn smoothstep(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }
 
 fn next_shake_frame_after(
@@ -447,6 +506,7 @@ impl MotionState {
         match self.next_kind.unwrap_or(AnimationKind::Bounce) {
             AnimationKind::Bounce => "bounce",
             AnimationKind::SquashBounce => "squash_bounce",
+            AnimationKind::IdleSink => "idle_sink",
             AnimationKind::Shake => "shake",
         }
     }

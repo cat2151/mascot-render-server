@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Result};
 use image::ImageReader;
 
-use crate::mascot_motion::{BounceAnimationConfig, HeadHitbox, SquashBounceAnimationConfig};
+use crate::mascot_motion::{
+    BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
+};
 use crate::mascot_paths::unix_timestamp;
 pub use crate::mascot_paths::{mascot_config_path, mascot_runtime_state_path};
 #[path = "mascot/config_files.rs"]
@@ -39,7 +41,7 @@ pub struct MascotConfig {
     pub head_hitbox: HeadHitbox,
     pub bounce: BounceAnimationConfig,
     pub squash_bounce: SquashBounceAnimationConfig,
-    pub always_squash_bounce: SquashBounceAnimationConfig,
+    pub always_idle_sink: IdleSinkAnimationConfig,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -98,7 +100,7 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
         head_hitbox: static_config.head_hitbox,
         bounce: static_config.bounce,
         squash_bounce: static_config.squash_bounce,
-        always_squash_bounce: static_config.always_squash_bounce,
+        always_idle_sink: static_config.always_idle_sink,
     })
 }
 
