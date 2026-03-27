@@ -27,7 +27,7 @@ use mascot_app::MascotApp;
 use mascot_render_server::{
     squash_bounce_bounds_config, start_mascot_control_server_with_notify, MascotWindowLayout,
 };
-use window_history::{load_window_position, window_history_path};
+use window_history::{load_window_position, outer_position_for_anchor, window_history_path};
 
 use app_support::{alpha_mask, content_bounds, size_vec, window_title};
 use mascot_render_core::{load_mascot_config, load_mascot_image, run_workspace_update};
@@ -81,7 +81,11 @@ fn main() -> Result<()> {
         .with_always_on_top()
         .with_title_shown(false);
     if let Some(position) = saved_window_position {
-        viewport = viewport.with_position(position - initial_window_layout.anchor_offset());
+        viewport = viewport.with_position(outer_position_for_anchor(
+            position,
+            initial_window_layout.anchor_offset(),
+            egui::Vec2::ZERO,
+        ));
     }
     let native_options = NativeOptions {
         viewport,

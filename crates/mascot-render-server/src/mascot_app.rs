@@ -25,7 +25,8 @@ use crate::mascot_scale::{
     SCALE_PERSIST_DEBOUNCE,
 };
 use crate::window_history::{
-    current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
+    current_viewport_info, load_window_position, outer_position_for_anchor, window_history_path,
+    WindowHistoryTracker,
 };
 use crate::SKIN_CACHE_CAPACITY;
 #[path = "mascot_app/runtime.rs"]
@@ -53,6 +54,7 @@ pub(crate) struct MascotApp {
     transparent_hit_test: TransparentHitTestWindow,
     window_layout: MascotWindowLayout,
     window_history: WindowHistoryTracker,
+    pending_restored_anchor_position: Option<Pos2>,
 }
 
 impl MascotApp {
@@ -109,6 +111,7 @@ impl MascotApp {
             transparent_hit_test,
             window_layout: initial_window_layout,
             window_history: WindowHistoryTracker::new(history_path, saved_window_position),
+            pending_restored_anchor_position: saved_window_position,
         };
         app.motion
             .set_always_bouncing(app.config.always_bouncing, Instant::now());
@@ -253,11 +256,7 @@ impl MascotApp {
         }
         self.refresh_window_layout(ctx, previous_layout);
         if let Some(position) = restored_window_position {
-            let inner_origin = position - self.window_layout.anchor_offset();
-            let outer_position = current_viewport_info(ctx)
-                .map(|viewport_info| inner_origin - viewport_info.inner_to_outer_offset)
-                .unwrap_or(inner_origin);
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(outer_position));
+            self.restore_anchor_position(ctx, position);
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(window_title(
             &self.config,
@@ -363,6 +362,30 @@ impl MascotApp {
         self.last_scale_change_at = None;
         self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
         Ok(())
+    }
+
+    pub(crate) fn apply_pending_restored_anchor_position(&mut self, ctx: &egui::Context) {
+        let Some(anchor_position) = self.pending_restored_anchor_position else {
+            return;
+        };
+        if current_viewport_info(ctx).is_none() {
+            return;
+        }
+        self.restore_anchor_position(ctx, anchor_position);
+        self.pending_restored_anchor_position = None;
+    }
+
+    fn restore_anchor_position(&mut self, ctx: &egui::Context, anchor_position: Pos2) {
+        let outer_position = current_viewport_info(ctx)
+            .map(|viewport_info| {
+                outer_position_for_anchor(
+                    anchor_position,
+                    self.window_layout.anchor_offset(),
+                    viewport_info.inner_to_outer_offset,
+                )
+            })
+            .unwrap_or(anchor_position - self.window_layout.anchor_offset());
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(outer_position));
     }
 
     fn refresh_window_layout(&mut self, ctx: &egui::Context, previous_layout: MascotWindowLayout) {

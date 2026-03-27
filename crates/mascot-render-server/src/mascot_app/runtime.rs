@@ -31,6 +31,7 @@ impl App for MascotApp {
         if let Err(error) = self.reload_config_if_needed(ctx) {
             eprintln!("{error:#}");
         }
+        self.apply_pending_restored_anchor_position(ctx);
 
         let now = Instant::now();
         if let Err(error) = self.sync_window_history(ctx, now) {

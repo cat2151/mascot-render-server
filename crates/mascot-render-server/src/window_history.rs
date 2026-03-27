@@ -29,7 +29,8 @@ pub struct SavedWindowPosition {
 #[derive(Debug, Serialize, Deserialize)]
 struct WindowHistoryFile {
     version: u32,
-    anchor_position: [f32; 2],
+    #[serde(default, alias = "outer_position")]
+    anchor_position: Option<[f32; 2]>,
     updated_at: u64,
 }
 
@@ -122,7 +123,10 @@ pub(crate) fn load_window_position(path: &Path) -> Result<Option<Pos2>> {
         return Ok(None);
     }
 
-    Ok(Some(sanitize_position(file.anchor_position)?))
+    let anchor_position = file
+        .anchor_position
+        .context("window history is missing anchor_position")?;
+    Ok(Some(sanitize_position(anchor_position)?))
 }
 
 /// Loads the saved mascot window position for the given ZIP/PSD pair.
@@ -163,6 +167,14 @@ pub(crate) fn current_viewport_info(ctx: &egui::Context) -> Option<ViewportInfo>
     })
 }
 
+pub(crate) fn outer_position_for_anchor(
+    anchor_position: Pos2,
+    anchor_offset: Vec2,
+    inner_to_outer_offset: Vec2,
+) -> Pos2 {
+    anchor_position - anchor_offset - inner_to_outer_offset
+}
+
 fn save_window_position(path: &Path, position: Pos2) -> Result<()> {
     if let Some(parent) = path.parent().filter(|value| !value.as_os_str().is_empty()) {
         fs::create_dir_all(parent)
@@ -171,7 +183,7 @@ fn save_window_position(path: &Path, position: Pos2) -> Result<()> {
 
     let file = WindowHistoryFile {
         version: WINDOW_HISTORY_VERSION,
-        anchor_position: [position.x, position.y],
+        anchor_position: Some([position.x, position.y]),
         updated_at: unix_timestamp(),
     };
     let json = serde_json::to_string_pretty(&file).context("failed to serialize window history")?;
