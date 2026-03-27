@@ -135,7 +135,7 @@ fn load_mascot_static_config_file(config_path: &Path) -> Result<MascotStaticConf
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
     validate_version(
         config.version,
-        MASCOT_CONFIG_VERSION..=MASCOT_CONFIG_VERSION,
+        MASCOT_CONFIG_VERSION,
         config_path,
         "mascot config",
     )?;
@@ -162,20 +162,15 @@ fn load_mascot_runtime_state_file(state_path: &Path) -> Result<MascotRuntimeStat
         .with_context(|| format!("failed to parse {}", state_path.display()))?;
     validate_version(
         state.version,
-        MASCOT_RUNTIME_STATE_VERSION..=MASCOT_RUNTIME_STATE_VERSION,
+        MASCOT_RUNTIME_STATE_VERSION,
         state_path,
         "mascot runtime state",
     )?;
     Ok(state)
 }
 
-fn validate_version(
-    version: u32,
-    supported: std::ops::RangeInclusive<u32>,
-    path: &Path,
-    label: &str,
-) -> Result<()> {
-    if !supported.contains(&version) {
+fn validate_version(version: u32, supported_version: u32, path: &Path, label: &str) -> Result<()> {
+    if version != supported_version {
         bail!(
             "unsupported {label} version {} in '{}'",
             version,
@@ -196,7 +191,7 @@ fn normalize_mascot_static_config(config_path: &Path) -> Result<()> {
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
     validate_version(
         config.version,
-        MASCOT_CONFIG_VERSION..=MASCOT_CONFIG_VERSION,
+        MASCOT_CONFIG_VERSION,
         config_path,
         "mascot config",
     )?;

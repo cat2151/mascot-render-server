@@ -156,7 +156,7 @@ fn tui_config_keeps_only_file_name_for_eye_blink_targets() {
 }
 
 #[test]
-fn legacy_eye_blink_target_names_are_not_migrated() {
+fn configured_eye_blink_targets_are_preserved() {
     let path = workspace_cache_root().join("test-tui-config-eye-names/psd-viewer-tui.toml");
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-config-eye-names"));
     fs::create_dir_all(workspace_cache_root().join("test-tui-config-eye-names"))
