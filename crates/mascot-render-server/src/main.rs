@@ -27,7 +27,7 @@ use mascot_app::MascotApp;
 use mascot_render_server::{
     squash_bounce_bounds_config, start_mascot_control_server_with_notify, MascotWindowLayout,
 };
-use window_history::{load_window_position, window_history_path};
+use window_history::{load_window_position, outer_position_for_anchor, window_history_path};
 
 use app_support::{alpha_mask, content_bounds, size_vec, window_title};
 use mascot_render_core::{load_mascot_config, load_mascot_image, run_workspace_update};
@@ -52,14 +52,14 @@ fn main() -> Result<()> {
     let initial_alpha_mask = alpha_mask(&image.rgba);
     let initial_content_bounds =
         content_bounds([image.width, image.height], initial_alpha_mask.as_ref());
-    let window_size = MascotWindowLayout::new(
+    let initial_window_layout = MascotWindowLayout::new(
         base_size,
         [image.width, image.height],
         initial_content_bounds,
         config.bounce,
         squash_bounce_bounds_config(config.squash_bounce, config.always_squash_bounce),
-    )
-    .window_size();
+    );
+    let window_size = initial_window_layout.window_size();
     let history_path = window_history_path(&config);
     let saved_window_position = match load_window_position(&history_path) {
         Ok(position) => position,
@@ -81,7 +81,11 @@ fn main() -> Result<()> {
         .with_always_on_top()
         .with_title_shown(false);
     if let Some(position) = saved_window_position {
-        viewport = viewport.with_position(position);
+        viewport = viewport.with_position(outer_position_for_anchor(
+            position,
+            initial_window_layout.anchor_offset(),
+            egui::Vec2::ZERO,
+        ));
     }
     let native_options = NativeOptions {
         viewport,

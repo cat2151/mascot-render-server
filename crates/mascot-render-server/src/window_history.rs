@@ -9,7 +9,7 @@ use eframe::egui::{self, Pos2, Vec2};
 use mascot_render_core::{workspace_cache_root, MascotConfig};
 use serde::{Deserialize, Serialize};
 
-const WINDOW_HISTORY_VERSION: u32 = 1;
+const WINDOW_HISTORY_VERSION: u32 = 2;
 pub(crate) const WINDOW_HISTORY_SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
 const WINDOW_HISTORY_NAME_STEM_LIMIT: usize = 64;
 
@@ -17,10 +17,9 @@ const WINDOW_HISTORY_NAME_STEM_LIMIT: usize = 64;
 pub(crate) struct ViewportInfo {
     pub(crate) inner_origin: Pos2,
     pub(crate) inner_to_outer_offset: Vec2,
-    pub(crate) outer_origin: Pos2,
 }
 
-/// Serializable window coordinates used when favorites capture and restore mascot position.
+/// Serializable mascot anchor coordinates used when favorites capture and restore mascot position.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SavedWindowPosition {
     pub x: f32,
@@ -30,7 +29,10 @@ pub struct SavedWindowPosition {
 #[derive(Debug, Serialize, Deserialize)]
 struct WindowHistoryFile {
     version: u32,
-    outer_position: [f32; 2],
+    // v1 persisted this as outer_position. Keep the field optional so legacy files deserialize
+    // successfully before the version check ignores them as outdated.
+    #[serde(default, alias = "outer_position")]
+    anchor_position: Option<[f32; 2]>,
     updated_at: u64,
 }
 
@@ -123,7 +125,10 @@ pub(crate) fn load_window_position(path: &Path) -> Result<Option<Pos2>> {
         return Ok(None);
     }
 
-    Ok(Some(sanitize_position(file.outer_position)?))
+    let anchor_position = file
+        .anchor_position
+        .context("window history is missing anchor_position")?;
+    Ok(Some(sanitize_position(anchor_position)?))
 }
 
 /// Loads the saved mascot window position for the given ZIP/PSD pair.
@@ -160,9 +165,16 @@ pub(crate) fn current_viewport_info(ctx: &egui::Context) -> Option<ViewportInfo>
         Some(ViewportInfo {
             inner_origin: inner_rect.min,
             inner_to_outer_offset: inner_rect.min - outer_origin,
-            outer_origin,
         })
     })
+}
+
+pub(crate) fn outer_position_for_anchor(
+    anchor_position: Pos2,
+    anchor_offset: Vec2,
+    inner_to_outer_offset: Vec2,
+) -> Pos2 {
+    anchor_position - anchor_offset - inner_to_outer_offset
 }
 
 fn save_window_position(path: &Path, position: Pos2) -> Result<()> {
@@ -173,7 +185,7 @@ fn save_window_position(path: &Path, position: Pos2) -> Result<()> {
 
     let file = WindowHistoryFile {
         version: WINDOW_HISTORY_VERSION,
-        outer_position: [position.x, position.y],
+        anchor_position: Some([position.x, position.y]),
         updated_at: unix_timestamp(),
     };
     let json = serde_json::to_string_pretty(&file).context("failed to serialize window history")?;
@@ -183,7 +195,7 @@ fn save_window_position(path: &Path, position: Pos2) -> Result<()> {
 
 fn sanitize_position([x, y]: [f32; 2]) -> Result<Pos2> {
     if !x.is_finite() || !y.is_finite() {
-        bail!("window history contains a non-finite position: [{x}, {y}]");
+        bail!("window history contains a non-finite anchor position: [{x}, {y}]");
     }
     Ok(Pos2::new(x, y))
 }

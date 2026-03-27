@@ -25,7 +25,8 @@ use crate::mascot_scale::{
     SCALE_PERSIST_DEBOUNCE,
 };
 use crate::window_history::{
-    current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
+    current_viewport_info, load_window_position, outer_position_for_anchor, window_history_path,
+    WindowHistoryTracker,
 };
 use crate::SKIN_CACHE_CAPACITY;
 #[path = "mascot_app/runtime.rs"]
@@ -53,6 +54,7 @@ pub(crate) struct MascotApp {
     transparent_hit_test: TransparentHitTestWindow,
     window_layout: MascotWindowLayout,
     window_history: WindowHistoryTracker,
+    pending_restored_anchor_position: Option<Pos2>,
 }
 
 impl MascotApp {
@@ -109,13 +111,14 @@ impl MascotApp {
             transparent_hit_test,
             window_layout: initial_window_layout,
             window_history: WindowHistoryTracker::new(history_path, saved_window_position),
+            pending_restored_anchor_position: saved_window_position,
         };
         app.motion
             .set_always_bouncing(app.config.always_bouncing, Instant::now());
         if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
             eprintln!("{error:#}");
         }
-        app.refresh_window_layout(&cc.egui_ctx, app.window_layout, app.base_size);
+        app.refresh_window_layout(&cc.egui_ctx, app.window_layout);
         app.transparent_hit_test.update(TransparentHitTestUpdate {
             now: Instant::now(),
             enabled: app.config.transparent_background_click_through,
@@ -164,7 +167,6 @@ impl MascotApp {
         }
 
         let previous_layout = self.window_layout;
-        let previous_base_size = self.base_size;
         self.open_skin = self.load_skin(ctx, png_path)?;
         self.base_size = size_vec(
             self.open_skin.image_size[0],
@@ -174,7 +176,7 @@ impl MascotApp {
         self.config.png_path = png_path.to_path_buf();
         self.closed_skin = None;
         self.eye_blink.reset(Instant::now());
-        self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        self.refresh_window_layout(ctx, previous_layout);
         Ok(())
     }
 
@@ -191,7 +193,6 @@ impl MascotApp {
         }
 
         let previous_layout = self.window_layout;
-        let previous_base_size = self.base_size;
         let next_config = load_mascot_config(&self.config_path)
             .with_context(|| format!("failed to hot-reload {}", self.config_path.display()))?;
         self.config_modified_at = next_config_modified_at;
@@ -253,9 +254,9 @@ impl MascotApp {
                 WindowHistoryTracker::new(next_history_path, saved_window_position);
             restored_window_position = saved_window_position;
         }
-        self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        self.refresh_window_layout(ctx, previous_layout);
         if let Some(position) = restored_window_position {
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(position));
+            self.restore_anchor_position(ctx, position);
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(window_title(
             &self.config,
@@ -293,8 +294,10 @@ impl MascotApp {
 
     fn sync_window_history(&mut self, ctx: &egui::Context, now: Instant) -> Result<()> {
         if let Some(viewport_info) = current_viewport_info(ctx) {
-            self.window_history
-                .observe(viewport_info.outer_origin, now)?;
+            self.window_history.observe(
+                viewport_info.inner_origin + self.window_layout.anchor_offset(),
+                now,
+            )?;
             self.window_history_modified_at = path_modified_at(self.window_history.path());
         }
         Ok(())
@@ -306,7 +309,6 @@ impl MascotApp {
         };
 
         let previous_layout = self.window_layout;
-        let previous_base_size = self.base_size;
         self.config.scale = Some(next_scale);
         self.scale = next_scale;
         self.pending_persisted_scale = Some(next_scale);
@@ -316,7 +318,7 @@ impl MascotApp {
             self.open_skin.image_size[1],
             Some(self.scale),
         );
-        self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        self.refresh_window_layout(ctx, previous_layout);
         ctx.request_repaint();
         Ok(())
     }
@@ -362,12 +364,38 @@ impl MascotApp {
         Ok(())
     }
 
-    fn refresh_window_layout(
-        &mut self,
-        ctx: &egui::Context,
-        previous_layout: MascotWindowLayout,
-        previous_base_size: Vec2,
-    ) {
+    /// Applies the startup restore once viewport frame metrics become available.
+    ///
+    /// This is called every frame until `current_viewport_info` returns data so the restored
+    /// anchor can be corrected by the platform-specific inner→outer offset.
+    pub(crate) fn apply_pending_restored_anchor_position(&mut self, ctx: &egui::Context) {
+        let Some(anchor_position) = self.pending_restored_anchor_position else {
+            return;
+        };
+        if current_viewport_info(ctx).is_none() {
+            return;
+        }
+        self.restore_anchor_position(ctx, anchor_position);
+        self.pending_restored_anchor_position = None;
+    }
+
+    fn restore_anchor_position(&mut self, ctx: &egui::Context, anchor_position: Pos2) {
+        let outer_position = current_viewport_info(ctx)
+            .map(|viewport_info| {
+                outer_position_for_anchor(
+                    anchor_position,
+                    self.window_layout.anchor_offset(),
+                    viewport_info.inner_to_outer_offset,
+                )
+            })
+            // Before viewport info is available we can only place the window using the anchor
+            // offset. `apply_pending_restored_anchor_position()` re-applies the restore on a later
+            // frame once the measured frame offset becomes available.
+            .unwrap_or(anchor_position - self.window_layout.anchor_offset());
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(outer_position));
+    }
+
+    fn refresh_window_layout(&mut self, ctx: &egui::Context, previous_layout: MascotWindowLayout) {
         let viewport_info = current_viewport_info(ctx);
         let content_bounds = self.window_content_bounds();
         self.window_layout = MascotWindowLayout::new(
@@ -384,9 +412,7 @@ impl MascotApp {
             let inner_origin = anchored_inner_origin(
                 viewport_info.inner_origin,
                 previous_layout,
-                previous_base_size,
                 self.window_layout,
-                self.base_size,
             );
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(
                 inner_origin - viewport_info.inner_to_outer_offset,

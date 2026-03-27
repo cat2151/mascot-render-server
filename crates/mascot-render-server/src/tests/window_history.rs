@@ -9,8 +9,9 @@ use mascot_render_core::{
 };
 
 use crate::window_history::{
-    load_saved_window_position_for_paths, load_window_position, save_window_position_for_paths,
-    window_history_path, SavedWindowPosition, WindowHistoryTracker, WINDOW_HISTORY_SAVE_DEBOUNCE,
+    load_saved_window_position_for_paths, load_window_position, outer_position_for_anchor,
+    save_window_position_for_paths, window_history_path, SavedWindowPosition, WindowHistoryTracker,
+    WINDOW_HISTORY_SAVE_DEBOUNCE,
 };
 
 #[test]
@@ -42,6 +43,26 @@ fn invalid_window_history_is_reported() {
 }
 
 #[test]
+fn legacy_v1_window_history_is_ignored_without_error() {
+    let path = workspace_cache_root().join("test-window-history-v1/history_server.json");
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-window-history-v1"));
+    fs::create_dir_all(workspace_cache_root().join("test-window-history-v1"))
+        .expect("should create temp directory");
+    fs::write(
+        &path,
+        r#"{
+  "version": 1,
+  "outer_position": [120.0, 48.0],
+  "updated_at": 123
+}"#,
+    )
+    .expect("should seed legacy history");
+
+    let loaded = load_window_position(&path).expect("legacy history should be ignored");
+    assert_eq!(loaded, None);
+}
+
+#[test]
 fn tracker_saves_after_position_stabilizes() {
     let path = workspace_cache_root().join("test-window-history-debounce/history_server.json");
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-window-history-debounce"));
@@ -62,6 +83,18 @@ fn tracker_saves_after_position_stabilizes() {
 
     let loaded = load_window_position(&path).expect("should read saved history");
     assert_eq!(loaded, Some(Pos2::new(20.0, 30.0)));
+}
+
+#[test]
+fn outer_position_for_anchor_subtracts_anchor_and_frame_offsets() {
+    assert_eq!(
+        outer_position_for_anchor(
+            Pos2::new(320.0, 240.0),
+            eframe::egui::Vec2::new(36.0, 66.0),
+            eframe::egui::Vec2::new(8.0, 30.0),
+        ),
+        Pos2::new(276.0, 144.0)
+    );
 }
 
 #[test]

@@ -54,6 +54,7 @@ fn layout_trims_static_transparent_padding() {
     );
 
     assert_eq!(layout.window_size(), Vec2::new(72.0, 72.0));
+    assert_eq!(layout.anchor_offset(), Vec2::new(36.0, 66.0));
     assert_eq!(layout.shake_amplitude_px(), 6.0);
     assert_eq!(
         layout.image_rect(Vec2::new(100.0, 80.0), MotionTransform::identity()),
@@ -89,7 +90,7 @@ fn layout_reserves_room_for_motion_extrema() {
 }
 
 #[test]
-fn anchored_inner_origin_preserves_canvas_coordinates_across_layouts() {
+fn anchored_inner_origin_preserves_bottom_center_anchor_across_layouts() {
     let previous_layout = MascotWindowLayout::new(
         Vec2::new(100.0, 80.0),
         [10, 8],
@@ -115,16 +116,9 @@ fn anchored_inner_origin_preserves_canvas_coordinates_across_layouts() {
         zero_squash(),
     );
 
-    let next_origin = anchored_inner_origin(
-        Pos2::new(400.0, 300.0),
-        previous_layout,
-        Vec2::new(100.0, 80.0),
-        next_layout,
-        Vec2::new(100.0, 80.0),
-    );
+    let next_origin = anchored_inner_origin(Pos2::new(400.0, 300.0), previous_layout, next_layout);
 
-    let previous_canvas_origin =
-        Pos2::new(400.0, 300.0) + previous_layout.canvas_origin_offset(Vec2::new(100.0, 80.0));
-    let next_canvas_origin = next_origin + next_layout.canvas_origin_offset(Vec2::new(100.0, 80.0));
-    assert_eq!(previous_canvas_origin, next_canvas_origin);
+    let previous_anchor = Pos2::new(400.0, 300.0) + previous_layout.anchor_offset();
+    let next_anchor = next_origin + next_layout.anchor_offset();
+    assert_eq!(previous_anchor, next_anchor);
 }
