@@ -251,13 +251,13 @@ pub(crate) fn auto_generate_eye_blink_target(
     layer_rows: &[LayerRow],
     selected_layer_index: usize,
 ) -> Result<(EyeBlinkTarget, String), String> {
+    layer_rows
+        .get(selected_layer_index)
+        .ok_or_else(|| format!("selected layer index {selected_layer_index} is out of range"))?;
     let normalized_layer_names = layer_rows
         .iter()
         .map(|row| normalize_eye_blink_layer_name(&row.name))
         .collect::<Vec<_>>();
-    layer_rows
-        .get(selected_layer_index)
-        .ok_or_else(|| format!("selected layer index {selected_layer_index} is out of range"))?;
     let first_layer_name = normalized_layer_names[selected_layer_index];
     if first_layer_name.is_empty() {
         return Err(format!(
