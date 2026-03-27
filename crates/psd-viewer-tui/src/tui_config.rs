@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use mascot_render_core::{
     default_eye_blink_targets, local_data_root, workspace_cache_root, EyeBlinkTarget,
 };
@@ -196,13 +196,18 @@ pub(crate) fn tui_runtime_state_path(config_path: &Path) -> PathBuf {
 fn load_tui_runtime_state_file(path: &Path) -> Result<TuiRuntimeState> {
     let bytes = fs::read(path)
         .with_context(|| format!("failed to read TUI runtime state {}", path.display()))?;
-    match serde_json::from_slice::<TuiRuntimeStateFile>(&bytes) {
-        Ok(file) if file.version == TUI_RUNTIME_STATE_VERSION => Ok(TuiRuntimeState {
-            psd_states: sanitize_psd_states(file.psd_states),
-        }),
-        Ok(_) => Ok(TuiRuntimeState::default()),
-        Err(_) => Ok(TuiRuntimeState::default()),
+    let file = serde_json::from_slice::<TuiRuntimeStateFile>(&bytes)
+        .with_context(|| format!("failed to parse TUI runtime state {}", path.display()))?;
+    if file.version != TUI_RUNTIME_STATE_VERSION {
+        bail!(
+            "unsupported TUI runtime state version {} in '{}'",
+            file.version,
+            path.display()
+        );
     }
+    Ok(TuiRuntimeState {
+        psd_states: sanitize_psd_states(file.psd_states),
+    })
 }
 
 fn sanitize_scale(scale: Option<f32>) -> Option<f32> {

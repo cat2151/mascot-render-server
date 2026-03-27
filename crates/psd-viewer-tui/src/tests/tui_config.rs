@@ -119,7 +119,7 @@ fn invalid_tui_config_falls_back_to_default() {
 }
 
 #[test]
-fn invalid_tui_runtime_state_falls_back_to_default() {
+fn invalid_tui_runtime_state_reports_error() {
     let config_path = workspace_cache_root().join("test-tui-runtime-invalid/psd-viewer-tui.toml");
     let runtime_state_path = tui_runtime_state_path(&config_path);
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-runtime-invalid"));
@@ -128,9 +128,40 @@ fn invalid_tui_runtime_state_falls_back_to_default() {
         .expect("should create temp directory");
     fs::write(&runtime_state_path, "{ invalid json").expect("should seed invalid runtime state");
 
-    let loaded =
-        load_tui_runtime_state(&config_path).expect("invalid runtime state should fall back");
-    assert_eq!(loaded, TuiRuntimeState::default());
+    let error =
+        load_tui_runtime_state(&config_path).expect_err("invalid runtime state should fail");
+    assert!(
+        format!("{error:#}").contains("failed to parse TUI runtime state"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
+fn tui_runtime_state_with_unknown_field_reports_error() {
+    let config_path =
+        workspace_cache_root().join("test-tui-runtime-unknown-field/psd-viewer-tui.toml");
+    let runtime_state_path = tui_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-runtime-unknown-field"));
+    let _ = fs::remove_file(&runtime_state_path);
+    fs::create_dir_all(workspace_cache_root().join("test-tui-runtime-unknown-field"))
+        .expect("should create temp directory");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "psd_states": [],
+  "extra_field": true,
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state with unknown field");
+
+    let error = load_tui_runtime_state(&config_path)
+        .expect_err("runtime state with unknown field should fail");
+    assert!(
+        format!("{error:#}").contains("failed to parse TUI runtime state"),
+        "unexpected error: {error:#}"
+    );
 }
 
 #[test]
