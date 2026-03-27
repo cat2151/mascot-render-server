@@ -4,6 +4,7 @@ use eframe::egui::{Pos2, Rect};
 use serde::{Deserialize, Serialize};
 
 const ANIMATION_FRAME_INTERVAL: Duration = Duration::from_millis(16);
+pub const IDLE_SINK_LIFT_SCALE_X_RATIO: f32 = 0.35;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -411,7 +412,7 @@ fn sample_idle_sink(
         offset_x: 0.0,
         offset_y: config.amplitude_px.max(0.0) * (sink - lift),
         scale_x: 1.0 + config.sink_amount.max(0.0) * sink
-            - config.lift_amount.max(0.0) * lift * 0.35,
+            - config.lift_amount.max(0.0) * lift * IDLE_SINK_LIFT_SCALE_X_RATIO,
         scale_y: 1.0 - config.sink_amount.max(0.0) * sink + config.lift_amount.max(0.0) * lift,
     }
 }

@@ -43,6 +43,7 @@ pub use mascot::{
 pub use mascot_motion::{
     BounceAlgorithm, BounceAnimationConfig, HeadHitbox, IdleAlgorithm, IdleSinkAnimationConfig,
     MotionState, MotionTransform, SquashAlgorithm, SquashBounceAnimationConfig,
+    IDLE_SINK_LIFT_SCALE_X_RATIO,
 };
 pub use model::{LayerKind, LayerNode, PsdEntry, ZipEntry};
 pub use variation::{

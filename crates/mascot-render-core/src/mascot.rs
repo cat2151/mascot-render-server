@@ -131,6 +131,7 @@ fn load_mascot_static_config_file(config_path: &Path) -> Result<MascotStaticConf
 
     let bytes = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
+    reject_legacy_always_squash_bounce_section(&bytes, config_path)?;
     let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
     validate_version(
@@ -219,6 +220,7 @@ fn normalize_mascot_static_config(config_path: &Path) -> Result<()> {
 
     let bytes = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
+    reject_legacy_always_squash_bounce_section(&bytes, config_path)?;
     let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
     validate_version(
@@ -259,6 +261,20 @@ fn mascot_static_config_needs_normalization(contents: &str) -> bool {
                 .iter()
                 .any(|key| trimmed.starts_with(&format!("{key}=")))
     })
+}
+
+fn reject_legacy_always_squash_bounce_section(contents: &str, config_path: &Path) -> Result<()> {
+    if contents
+        .lines()
+        .map(str::trim)
+        .any(|line| line == "[always_squash_bounce]")
+    {
+        bail!(
+            "mascot config '{}' still uses [always_squash_bounce]; rename it to [always_idle_sink]",
+            config_path.display()
+        );
+    }
+    Ok(())
 }
 
 fn write_mascot_static_config_file(

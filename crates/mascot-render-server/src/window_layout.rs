@@ -1,6 +1,7 @@
 use eframe::egui::{Pos2, Rect, Vec2};
 use mascot_render_core::{
     BounceAnimationConfig, IdleSinkAnimationConfig, MotionTransform, SquashBounceAnimationConfig,
+    IDLE_SINK_LIFT_SCALE_X_RATIO,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -194,7 +195,7 @@ fn crop_rect_for_motion(
         MotionTransform {
             offset_x: 0.0,
             offset_y: -idle_sink.amplitude_px.max(0.0),
-            scale_x: 1.0 - idle_sink.lift_amount.max(0.0) * 0.35,
+            scale_x: 1.0 - idle_sink.lift_amount.max(0.0) * IDLE_SINK_LIFT_SCALE_X_RATIO,
             scale_y: 1.0 + idle_sink.lift_amount.max(0.0),
         },
     ];

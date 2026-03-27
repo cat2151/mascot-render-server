@@ -197,6 +197,42 @@ stretch_amount = 0.08
 }
 
 #[test]
+fn load_mascot_config_rejects_legacy_always_squash_bounce_section() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-legacy-idle-name/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-legacy-idle-name"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-legacy-idle-name"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+version = 4
+png_path = "cache/legacy/render.png"
+zip_path = "assets/zip/legacy.zip"
+psd_path_in_zip = "legacy/basic.psd"
+
+[always_squash_bounce]
+duration_ms = 1200
+amplitude_px = 9.0
+squash_amount = 0.08
+stretch_amount = 0.05
+"#,
+    )
+    .expect("should seed legacy idle config");
+
+    let error =
+        load_mascot_config(&config_path).expect_err("legacy idle section should be rejected");
+
+    assert!(
+        error.to_string().contains("[always_idle_sink]"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
 fn writing_mascot_config_preserves_custom_static_sections_and_normalizes_legacy_file() {
     let config_path = workspace_cache_root().join("test-mascot-preserve/mascot-render-server.toml");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
