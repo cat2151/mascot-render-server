@@ -17,10 +17,8 @@ pub(crate) fn parse_cli(args: impl IntoIterator<Item = OsString>) -> Result<CliA
     let _program = args.next();
 
     match args.next() {
-        None => return Ok(CliAction::Run),
-        Some(arg) if arg == "--help" || arg == "-h" => {
-            return Ok(CliAction::PrintHelp(help_text()));
-        }
+        None => Ok(CliAction::Run),
+        Some(arg) if arg == "--help" || arg == "-h" => Ok(CliAction::PrintHelp(help_text())),
         Some(arg) if arg == "update" => {
             if let Some(next) = args.next() {
                 if next == "--help" || next == "-h" {
@@ -31,7 +29,7 @@ pub(crate) fn parse_cli(args: impl IntoIterator<Item = OsString>) -> Result<CliA
                     next.to_string_lossy()
                 );
             }
-            return Ok(CliAction::Update);
+            Ok(CliAction::Update)
         }
         Some(arg) if arg.to_string_lossy().starts_with('-') => {
             bail!(

@@ -4,7 +4,6 @@ mod eye_blink;
 mod eye_blink_timing;
 mod mascot_app;
 mod mascot_scale;
-mod window_history;
 
 #[cfg(test)]
 #[path = "tests/cli.rs"]
@@ -24,10 +23,12 @@ use cli::{parse_cli, CliAction};
 use eframe::egui;
 use eframe::NativeOptions;
 use mascot_app::MascotApp;
+use mascot_render_server::window_history::{
+    load_window_position, outer_position_for_anchor, window_history_path,
+};
 use mascot_render_server::{
     squash_bounce_bounds_config, start_mascot_control_server_with_notify, MascotWindowLayout,
 };
-use window_history::{load_window_position, outer_position_for_anchor, window_history_path};
 
 use app_support::{alpha_mask, content_bounds, size_vec, window_title};
 use mascot_render_core::{load_mascot_config, load_mascot_image, run_workspace_update};
