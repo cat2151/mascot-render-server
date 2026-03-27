@@ -151,9 +151,7 @@ pub fn squash_bounce_bounds_config(
 pub fn anchored_inner_origin(
     previous_inner_origin: Pos2,
     previous_layout: MascotWindowLayout,
-    _previous_base_size: Vec2,
     next_layout: MascotWindowLayout,
-    _next_base_size: Vec2,
 ) -> Pos2 {
     let anchor_position = previous_inner_origin + previous_layout.anchor_offset();
     anchor_position - next_layout.anchor_offset()

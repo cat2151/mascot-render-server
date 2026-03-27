@@ -116,13 +116,7 @@ fn anchored_inner_origin_preserves_bottom_center_anchor_across_layouts() {
         zero_squash(),
     );
 
-    let next_origin = anchored_inner_origin(
-        Pos2::new(400.0, 300.0),
-        previous_layout,
-        Vec2::new(100.0, 80.0),
-        next_layout,
-        Vec2::new(100.0, 80.0),
-    );
+    let next_origin = anchored_inner_origin(Pos2::new(400.0, 300.0), previous_layout, next_layout);
 
     let previous_anchor = Pos2::new(400.0, 300.0) + previous_layout.anchor_offset();
     let next_anchor = next_origin + next_layout.anchor_offset();

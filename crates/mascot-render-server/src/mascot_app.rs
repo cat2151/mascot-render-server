@@ -115,7 +115,7 @@ impl MascotApp {
         if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
             eprintln!("{error:#}");
         }
-        app.refresh_window_layout(&cc.egui_ctx, app.window_layout, app.base_size);
+        app.refresh_window_layout(&cc.egui_ctx, app.window_layout);
         app.transparent_hit_test.update(TransparentHitTestUpdate {
             now: Instant::now(),
             enabled: app.config.transparent_background_click_through,
@@ -164,7 +164,6 @@ impl MascotApp {
         }
 
         let previous_layout = self.window_layout;
-        let previous_base_size = self.base_size;
         self.open_skin = self.load_skin(ctx, png_path)?;
         self.base_size = size_vec(
             self.open_skin.image_size[0],
@@ -174,7 +173,7 @@ impl MascotApp {
         self.config.png_path = png_path.to_path_buf();
         self.closed_skin = None;
         self.eye_blink.reset(Instant::now());
-        self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        self.refresh_window_layout(ctx, previous_layout);
         Ok(())
     }
 
@@ -191,7 +190,6 @@ impl MascotApp {
         }
 
         let previous_layout = self.window_layout;
-        let previous_base_size = self.base_size;
         let next_config = load_mascot_config(&self.config_path)
             .with_context(|| format!("failed to hot-reload {}", self.config_path.display()))?;
         self.config_modified_at = next_config_modified_at;
@@ -253,7 +251,7 @@ impl MascotApp {
                 WindowHistoryTracker::new(next_history_path, saved_window_position);
             restored_window_position = saved_window_position;
         }
-        self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        self.refresh_window_layout(ctx, previous_layout);
         if let Some(position) = restored_window_position {
             let inner_origin = position - self.window_layout.anchor_offset();
             let outer_position = current_viewport_info(ctx)
@@ -312,7 +310,6 @@ impl MascotApp {
         };
 
         let previous_layout = self.window_layout;
-        let previous_base_size = self.base_size;
         self.config.scale = Some(next_scale);
         self.scale = next_scale;
         self.pending_persisted_scale = Some(next_scale);
@@ -322,7 +319,7 @@ impl MascotApp {
             self.open_skin.image_size[1],
             Some(self.scale),
         );
-        self.refresh_window_layout(ctx, previous_layout, previous_base_size);
+        self.refresh_window_layout(ctx, previous_layout);
         ctx.request_repaint();
         Ok(())
     }
@@ -368,12 +365,7 @@ impl MascotApp {
         Ok(())
     }
 
-    fn refresh_window_layout(
-        &mut self,
-        ctx: &egui::Context,
-        previous_layout: MascotWindowLayout,
-        previous_base_size: Vec2,
-    ) {
+    fn refresh_window_layout(&mut self, ctx: &egui::Context, previous_layout: MascotWindowLayout) {
         let viewport_info = current_viewport_info(ctx);
         let content_bounds = self.window_content_bounds();
         self.window_layout = MascotWindowLayout::new(
@@ -390,9 +382,7 @@ impl MascotApp {
             let inner_origin = anchored_inner_origin(
                 viewport_info.inner_origin,
                 previous_layout,
-                previous_base_size,
                 self.window_layout,
-                self.base_size,
             );
             ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(
                 inner_origin - viewport_info.inner_to_outer_offset,
