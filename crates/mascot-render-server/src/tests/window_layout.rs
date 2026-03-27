@@ -103,8 +103,8 @@ fn layout_reserves_room_for_motion_extrema() {
         },
     );
 
-    assert!(layout.window_size().x > 74.4);
-    assert!(layout.window_size().y > 79.2);
+    assert!((layout.window_size().x - 75.52).abs() < 0.001);
+    assert!((layout.window_size().y - 79.76).abs() < 0.001);
 }
 
 #[test]
