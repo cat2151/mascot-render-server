@@ -389,7 +389,8 @@ impl MascotApp {
                 )
             })
             // Before viewport info is available we can only place the window using the anchor
-            // offset. A later frame re-applies the restore with the measured frame offset.
+            // offset. `apply_pending_restored_anchor_position()` re-applies the restore on a later
+            // frame once the measured frame offset becomes available.
             .unwrap_or(anchor_position - self.window_layout.anchor_offset());
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(outer_position));
     }
