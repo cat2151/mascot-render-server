@@ -102,6 +102,17 @@ fn is_favorites_toggle_key(key: &crossterm::event::KeyEvent, favorites_visible: 
     matches!(key.code, KeyCode::Char('v')) || favorites_visible && matches!(key.code, KeyCode::Esc)
 }
 
+fn is_favorite_save_key(
+    key: &crossterm::event::KeyEvent,
+    focus: app::FocusPane,
+    favorites_visible: bool,
+) -> bool {
+    key.modifiers == KeyModifiers::NONE
+        && matches!(key.code, KeyCode::Char('f'))
+        && !favorites_visible
+        && matches!(focus, app::FocusPane::Library | app::FocusPane::Layer)
+}
+
 fn run_app(
     terminal: &mut Terminal<Backend>,
     picker: &mut Option<ratatui_image::picker::Picker>,
@@ -197,10 +208,8 @@ fn run_app(
                     _ if is_favorites_toggle_key(&key, app.favorites_visible()) => {
                         app.toggle_favorites_view();
                     }
-                    KeyCode::Char('f') if key.modifiers == KeyModifiers::NONE => {
-                        if app.focus == app::FocusPane::Layer && !app.favorites_visible() {
-                            app.add_current_favorite()?;
-                        }
+                    _ if is_favorite_save_key(&key, app.focus, app.favorites_visible()) => {
+                        app.add_current_favorite()?;
                     }
                     KeyCode::Up | KeyCode::Char('k') if key.modifiers == KeyModifiers::NONE => {
                         app.select_previous()?;

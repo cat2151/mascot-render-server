@@ -75,7 +75,7 @@ impl App {
             self.sync_favorite_selection_bounds();
         }
         self.status = if self.favorites.is_empty() {
-            "No favorites saved yet. Press f on the layer pane to add one.".to_string()
+            "No favorites saved yet. Press f on the ZIP / PSD or layer pane to add one.".to_string()
         } else {
             format!("Opened favorites list ({} items).", self.favorites.len())
         };

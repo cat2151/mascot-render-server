@@ -69,7 +69,7 @@ pub(crate) fn draw(
         let favorite_rows = app.favorite_rows();
         if favorite_rows.is_empty() {
             vec![
-                ListItem::new("No favorites saved yet. Press f on the layer pane.")
+                ListItem::new("No favorites saved yet. Press f on the ZIP / PSD or layer pane.")
                     .style(comment_style(terminal_focused)),
             ]
         } else {
