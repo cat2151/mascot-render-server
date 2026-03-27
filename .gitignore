@@ -30,6 +30,7 @@ target
 /crates/*/cache/
 /log/
 /crates/*/log/
+/mascot-render-server.toml
 
 # Source assets supplied outside this repository
 *.psd
