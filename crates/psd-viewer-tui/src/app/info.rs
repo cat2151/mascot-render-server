@@ -133,7 +133,7 @@ impl App {
             Line::from("h/l or Left/Right: switch pane"),
             Line::from("PageUp/PageDown: page scroll"),
             Line::from("Space/Enter: toggle selected layer"),
-            Line::from("f: save current PSD to favorites (layer pane)"),
+            Line::from("f: save current PSD to favorites (ZIP / PSD or layer pane)"),
             Line::from("v: open/close favorites list, Esc: close favorites list"),
             Line::from("Enter on favorites list: select PSD"),
             Line::from("-/+: mascot scale"),

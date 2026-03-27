@@ -4,9 +4,9 @@ use std::path::PathBuf;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{apply_favorite_variation, apply_favorite_window_position, App};
+use crate::app::{apply_favorite_variation, apply_favorite_window_position, App, FocusPane};
 use crate::favorites::{favorite_selection_lookup, load_favorites, save_favorites, FavoriteEntry};
-use crate::is_favorites_toggle_key;
+use crate::{is_favorite_save_key, is_favorites_toggle_key};
 use mascot_render_core::workspace_cache_root;
 use mascot_render_core::{DisplayDiff, LayerVisibilityOverride, PsdEntry, ZipEntry};
 use mascot_render_server::{load_saved_window_position_for_paths, window_history_path_for_paths};
@@ -262,6 +262,17 @@ fn favorites_toggle_accepts_v_always_and_esc_only_when_visible() {
     assert!(!is_favorites_toggle_key(&plain_esc, false));
     assert!(is_favorites_toggle_key(&plain_esc, true));
     assert!(!is_favorites_toggle_key(&ctrl_v, true));
+}
+
+#[test]
+fn favorite_save_key_accepts_f_from_library_and_layer_when_favorites_hidden() {
+    let plain_f = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE);
+    let ctrl_f = KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL);
+
+    assert!(is_favorite_save_key(&plain_f, FocusPane::Library, false));
+    assert!(is_favorite_save_key(&plain_f, FocusPane::Layer, false));
+    assert!(!is_favorite_save_key(&plain_f, FocusPane::Library, true));
+    assert!(!is_favorite_save_key(&ctrl_f, FocusPane::Layer, false));
 }
 
 #[test]

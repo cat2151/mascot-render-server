@@ -41,7 +41,7 @@ fn help_overlay_includes_all_shortcuts() {
         "help overlay should describe layer toggling"
     );
     assert!(
-        lines.contains(&"f: save current PSD to favorites (layer pane)".to_string()),
+        lines.contains(&"f: save current PSD to favorites (ZIP / PSD or layer pane)".to_string()),
         "help overlay should describe favorite saving"
     );
     assert!(
