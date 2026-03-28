@@ -357,7 +357,81 @@ stretch_amount = 0.08
 
 #[test]
 fn load_mascot_config_disables_favorite_ensemble_while_psd_viewer_tui_is_active() {
-    let root = workspace_cache_root().join("test-mascot-active-psd-viewer-tui");
+    let (config_path, activity_path) =
+        seed_favorite_ensemble_config("test-mascot-active-psd-viewer-tui");
+    fs::write(&activity_path, crate::unix_timestamp().to_string())
+        .expect("should write psd-viewer-tui heartbeat");
+
+    let loaded = load_mascot_config(&config_path).expect("config should load");
+
+    assert!(
+        !loaded.favorite_ensemble_enabled,
+        "psd-viewer-tui activity should temporarily disable favorite ensemble"
+    );
+}
+
+#[test]
+fn load_mascot_config_reenables_favorite_ensemble_after_psd_viewer_tui_activity_ends() {
+    let (config_path, activity_path) =
+        seed_favorite_ensemble_config("test-mascot-ended-psd-viewer-tui");
+    fs::write(&activity_path, crate::unix_timestamp().to_string())
+        .expect("should write psd-viewer-tui heartbeat");
+
+    let active = load_mascot_config(&config_path).expect("config should load while active");
+    assert!(!active.favorite_ensemble_enabled);
+
+    fs::remove_file(&activity_path).expect("should remove psd-viewer-tui heartbeat");
+    let inactive =
+        load_mascot_config(&config_path).expect("config should reload after heartbeat removal");
+    assert!(inactive.favorite_ensemble_enabled);
+
+    fs::write(
+        &activity_path,
+        crate::unix_timestamp().saturating_sub(10).to_string(),
+    )
+    .expect("should write stale psd-viewer-tui heartbeat");
+    let stale = load_mascot_config(&config_path).expect("config should load with stale heartbeat");
+    assert!(stale.favorite_ensemble_enabled);
+}
+
+#[test]
+fn load_mascot_config_ignores_invalid_psd_viewer_tui_heartbeats() {
+    let cases = vec![
+        (String::new(), "empty"),
+        ("not-a-timestamp".to_string(), "invalid"),
+        ((crate::unix_timestamp() + 60).to_string(), "future"),
+    ];
+
+    for (heartbeat, label) in cases {
+        let root_name = format!("test-mascot-invalid-psd-viewer-tui-{label}");
+        let (config_path, activity_path) = seed_favorite_ensemble_config(&root_name);
+        fs::write(&activity_path, heartbeat).expect("should write psd-viewer-tui heartbeat");
+
+        let loaded = load_mascot_config(&config_path)
+            .unwrap_or_else(|error| panic!("{label} heartbeat should be ignored: {error:#}"));
+
+        assert!(
+            loaded.favorite_ensemble_enabled,
+            "{label} heartbeat should not disable favorite ensemble"
+        );
+    }
+}
+
+#[test]
+fn mascot_window_size_uses_scale_or_legacy_fallback() {
+    assert_eq!(mascot_window_size(1200, 600, None), [480.0, 240.0]);
+    assert_eq!(mascot_window_size(400, 200, Some(0.5)), [200.0, 100.0]);
+}
+
+#[test]
+fn default_mascot_scale_targets_thirty_three_percent_of_screen_height() {
+    let scale = default_mascot_scale_for_screen_height(1650, 1440);
+
+    assert!((scale - 0.288).abs() < 0.001, "unexpected scale: {scale}");
+}
+
+fn seed_favorite_ensemble_config(test_name: &str) -> (PathBuf, PathBuf) {
+    let root = workspace_cache_root().join(test_name);
     let config_path = root.join("mascot-render-server.toml");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
     let activity_path = psd_viewer_tui_activity_path(&config_path);
@@ -384,26 +458,6 @@ favorite_ensemble_enabled = true
 }"#,
     )
     .expect("should seed runtime state");
-    fs::write(&activity_path, crate::unix_timestamp().to_string())
-        .expect("should write psd-viewer-tui heartbeat");
 
-    let loaded = load_mascot_config(&config_path).expect("config should load");
-
-    assert!(
-        !loaded.favorite_ensemble_enabled,
-        "psd-viewer-tui activity should temporarily disable favorite ensemble"
-    );
-}
-
-#[test]
-fn mascot_window_size_uses_scale_or_legacy_fallback() {
-    assert_eq!(mascot_window_size(1200, 600, None), [480.0, 240.0]);
-    assert_eq!(mascot_window_size(400, 200, Some(0.5)), [200.0, 100.0]);
-}
-
-#[test]
-fn default_mascot_scale_targets_thirty_three_percent_of_screen_height() {
-    let scale = default_mascot_scale_for_screen_height(1650, 1440);
-
-    assert!((scale - 0.288).abs() < 0.001, "unexpected scale: {scale}");
+    (config_path, activity_path)
 }

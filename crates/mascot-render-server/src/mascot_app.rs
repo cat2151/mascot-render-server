@@ -1,14 +1,14 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{Context, Result};
 use eframe::egui::{self, Pos2, Vec2};
 use eframe::CreationContext;
 use mascot_render_core::{
-    load_mascot_config, load_mascot_image, mascot_runtime_state_path, Core, CoreConfig,
-    MascotConfig, MascotImageData, MotionState, MotionTransform,
+    load_mascot_config, load_mascot_image, mascot_runtime_state_path, psd_viewer_tui_activity_path,
+    Core, CoreConfig, MascotConfig, MascotImageData, MotionState, MotionTransform,
 };
 use mascot_render_server::window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
@@ -35,13 +35,26 @@ mod runtime;
 mod scale;
 use ensemble::FavoriteEnsembleScene;
 
+const EFFECTIVE_CONFIG_POLL_INTERVAL: Duration = Duration::from_secs(1);
+
+#[derive(Clone, Copy)]
+struct ReloadInputs {
+    config_modified_at: Option<SystemTime>,
+    runtime_state_modified_at: Option<SystemTime>,
+    favorite_ensemble_modified_at: Option<SystemTime>,
+    psd_viewer_tui_activity_modified_at: Option<SystemTime>,
+    window_history_modified_at: Option<SystemTime>,
+}
+
 pub(crate) struct MascotApp {
     config_path: PathBuf,
     runtime_state_path: PathBuf,
     config_modified_at: Option<SystemTime>,
     runtime_state_modified_at: Option<SystemTime>,
     favorite_ensemble_modified_at: Option<SystemTime>,
+    psd_viewer_tui_activity_modified_at: Option<SystemTime>,
     window_history_modified_at: Option<SystemTime>,
+    last_effective_config_check_at: Instant,
     config: MascotConfig,
     core: Core,
     open_skin: CachedSkin,
@@ -97,6 +110,8 @@ impl MascotApp {
         let config_modified_at = path_modified_at(&config_path);
         let runtime_state_modified_at = path_modified_at(&runtime_state_path);
         let favorite_ensemble_modified_at = path_modified_at(&favorite_ensemble_path());
+        let psd_viewer_tui_activity_modified_at =
+            path_modified_at(&psd_viewer_tui_activity_path(&config_path));
         let open_skin = cached_skin_from_image(&cc.egui_ctx, &image);
         let favorite_ensemble = favorite_ensemble_data.map(|ensemble| {
             FavoriteEnsembleScene::from_loaded(&cc.egui_ctx, ensemble, config.always_bouncing, now)
@@ -134,7 +149,9 @@ impl MascotApp {
             config_modified_at,
             runtime_state_modified_at,
             favorite_ensemble_modified_at,
+            psd_viewer_tui_activity_modified_at,
             window_history_modified_at,
+            last_effective_config_check_at: now,
             config,
             core: Core::new(CoreConfig::default()),
             open_skin,
@@ -229,17 +246,33 @@ impl MascotApp {
     }
 
     fn reload_config_if_needed(&mut self, ctx: &egui::Context) -> Result<()> {
+        let now = Instant::now();
         let next_config_modified_at = path_modified_at(&self.config_path);
         let next_runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
         let favorites_path = favorite_ensemble_path();
         let next_favorite_ensemble_modified_at = path_modified_at(&favorites_path);
+        let next_psd_viewer_tui_activity_modified_at =
+            path_modified_at(&psd_viewer_tui_activity_path(&self.config_path));
         let current_history_path = window_history_path(&self.config);
         let next_window_history_modified_at = path_modified_at(&current_history_path);
-        if self.config_modified_at == next_config_modified_at
-            && self.runtime_state_modified_at == next_runtime_state_modified_at
-            && self.favorite_ensemble_modified_at == next_favorite_ensemble_modified_at
-            && self.window_history_modified_at == next_window_history_modified_at
-        {
+        if !should_reload_config(
+            ReloadInputs {
+                config_modified_at: self.config_modified_at,
+                runtime_state_modified_at: self.runtime_state_modified_at,
+                favorite_ensemble_modified_at: self.favorite_ensemble_modified_at,
+                psd_viewer_tui_activity_modified_at: self.psd_viewer_tui_activity_modified_at,
+                window_history_modified_at: self.window_history_modified_at,
+            },
+            ReloadInputs {
+                config_modified_at: next_config_modified_at,
+                runtime_state_modified_at: next_runtime_state_modified_at,
+                favorite_ensemble_modified_at: next_favorite_ensemble_modified_at,
+                psd_viewer_tui_activity_modified_at: next_psd_viewer_tui_activity_modified_at,
+                window_history_modified_at: next_window_history_modified_at,
+            },
+            self.last_effective_config_check_at,
+            now,
+        ) {
             return Ok(());
         }
 
@@ -251,6 +284,8 @@ impl MascotApp {
         self.config_modified_at = next_config_modified_at;
         self.runtime_state_modified_at = next_runtime_state_modified_at;
         self.favorite_ensemble_modified_at = next_favorite_ensemble_modified_at;
+        self.psd_viewer_tui_activity_modified_at = next_psd_viewer_tui_activity_modified_at;
+        self.last_effective_config_check_at = now;
 
         let ensemble_mode_changed =
             self.config.favorite_ensemble_enabled != next_config.favorite_ensemble_enabled;
@@ -430,5 +465,46 @@ fn ensemble_window_layout(
         config.bounce,
         config.squash_bounce,
         config.always_idle_sink,
+    )
+}
+
+fn should_reload_config(
+    current: ReloadInputs,
+    next: ReloadInputs,
+    last_effective_config_check_at: Instant,
+    now: Instant,
+) -> bool {
+    current.config_modified_at != next.config_modified_at
+        || current.runtime_state_modified_at != next.runtime_state_modified_at
+        || current.favorite_ensemble_modified_at != next.favorite_ensemble_modified_at
+        || current.psd_viewer_tui_activity_modified_at != next.psd_viewer_tui_activity_modified_at
+        || current.window_history_modified_at != next.window_history_modified_at
+        || now.duration_since(last_effective_config_check_at) >= EFFECTIVE_CONFIG_POLL_INTERVAL
+}
+
+#[cfg(test)]
+pub(crate) fn should_reload_config_for_test(
+    current: [Option<SystemTime>; 5],
+    next: [Option<SystemTime>; 5],
+    last_effective_config_check_at: Instant,
+    now: Instant,
+) -> bool {
+    should_reload_config(
+        ReloadInputs {
+            config_modified_at: current[0],
+            runtime_state_modified_at: current[1],
+            favorite_ensemble_modified_at: current[2],
+            psd_viewer_tui_activity_modified_at: current[3],
+            window_history_modified_at: current[4],
+        },
+        ReloadInputs {
+            config_modified_at: next[0],
+            runtime_state_modified_at: next[1],
+            favorite_ensemble_modified_at: next[2],
+            psd_viewer_tui_activity_modified_at: next[3],
+            window_history_modified_at: next[4],
+        },
+        last_effective_config_check_at,
+        now,
     )
 }
