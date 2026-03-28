@@ -1,16 +1,19 @@
-use std::collections::{HashSet, VecDeque};
+mod favorites_store;
+
+use std::collections::VecDeque;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use mascot_render_core::{
     local_data_root, psd_viewer_tui_activity_path, unix_timestamp, write_mascot_config, Core,
-    DisplayDiff, LayerVisibilityOverride, MascotConfig, MascotTarget, RenderRequest,
+    DisplayDiff, MascotConfig, MascotTarget, RenderRequest,
 };
-use serde::{Deserialize, Serialize};
+
+pub(crate) use favorites_store::load_favorites;
 
 const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";
@@ -47,28 +50,6 @@ pub(crate) struct FavoriteKey {
     psd_path_in_zip: PathBuf,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-struct FavoriteEntryFile {
-    zip_path: PathBuf,
-    psd_path_in_zip: PathBuf,
-    #[serde(default)]
-    psd_file_name: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    visibility_overrides: Vec<LayerVisibilityOverride>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    mascot_scale: Option<f32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    window_position: Option<[f32; 2]>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    favorite_ensemble_position: Option<[f32; 2]>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
-#[serde(default, deny_unknown_fields)]
-struct FavoritesFile {
-    favorites: Vec<FavoriteEntryFile>,
-}
-
 impl FavoriteEntry {
     pub(crate) fn key(&self) -> FavoriteKey {
         FavoriteKey {
@@ -101,26 +82,6 @@ impl Hash for FavoriteEntry {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.zip_path.hash(state);
         self.psd_path_in_zip.hash(state);
-    }
-}
-
-impl From<FavoriteEntryFile> for FavoriteEntry {
-    fn from(value: FavoriteEntryFile) -> Self {
-        let psd_file_name = if value.psd_file_name.is_empty() {
-            value
-                .psd_path_in_zip
-                .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_else(|| value.psd_path_in_zip.display().to_string())
-        } else {
-            value.psd_file_name
-        };
-        Self {
-            zip_path: value.zip_path,
-            psd_path_in_zip: value.psd_path_in_zip,
-            psd_file_name,
-            mascot_scale: sanitize_mascot_scale(value.mascot_scale),
-        }
     }
 }
 
@@ -218,26 +179,14 @@ impl FavoriteShufflePlaylist {
         let Some(current_key) = current_config_key(current_config) else {
             return Ok(false);
         };
-        let Some(mut favorites_file) = load_favorites_file(&self.favorites_path)? else {
-            return Ok(false);
-        };
-
         let sanitized_scale = sanitize_mascot_scale(Some(scale));
-        let mut matched = false;
-        for favorite in &mut favorites_file.favorites {
-            if favorite.zip_path == current_key.zip_path
-                && favorite.psd_path_in_zip == current_key.psd_path_in_zip
-            {
-                favorite.mascot_scale = sanitized_scale;
-                matched = true;
-            }
-        }
-
-        if !matched {
+        if !favorites_store::persist_scale_for_key(
+            &self.favorites_path,
+            &current_key,
+            sanitized_scale,
+        )? {
             return Ok(false);
         }
-
-        save_favorites_file(&self.favorites_path, &favorites_file)?;
         eprintln!(
             "shuffleモード : + - 操作があったので、zip {} psd {} の拡大率を{}にして保存しました",
             current_key.zip_path.display(),
@@ -416,12 +365,6 @@ pub(crate) fn favorites_path_for(data_root: &Path) -> PathBuf {
     data_root.join(FAVORITES_DIR).join(FAVORITES_FILE_NAME)
 }
 
-pub(crate) fn load_favorites(path: &Path) -> Result<Vec<FavoriteEntry>> {
-    Ok(load_favorites_file(path)?
-        .map(|file| sanitize_favorites(file.favorites))
-        .unwrap_or_default())
-}
-
 pub(crate) fn build_playlist(
     favorites: &[FavoriteEntry],
     current_key: Option<&FavoriteKey>,
@@ -450,55 +393,6 @@ pub(crate) fn build_playlist(
     }
 
     VecDeque::from(playlist)
-}
-
-fn sanitize_favorites(favorites: Vec<FavoriteEntryFile>) -> Vec<FavoriteEntry> {
-    let mut seen = HashSet::new();
-    let mut sanitized = Vec::new();
-    for (index, favorite) in favorites.into_iter().map(FavoriteEntry::from).enumerate() {
-        if favorite.zip_path.as_os_str().is_empty()
-            || favorite.psd_path_in_zip.as_os_str().is_empty()
-        {
-            eprintln!(
-                "favorite shuffle dropped empty-path favorite entry at index {}",
-                index
-            );
-            continue;
-        }
-        if seen.insert(favorite.key()) {
-            sanitized.push(favorite);
-        }
-    }
-    sanitized
-}
-
-fn load_favorites_file(path: &Path) -> Result<Option<FavoritesFile>> {
-    if !path.exists() {
-        return Ok(None);
-    }
-
-    let bytes = fs::read_to_string(path)
-        .with_context(|| format!("failed to read favorites {}", path.display()))?;
-    match toml::from_str::<FavoritesFile>(&bytes) {
-        Ok(file) => Ok(Some(file)),
-        Err(error) => {
-            eprintln!(
-                "favorite shuffle ignored invalid favorites cache {}: {error:#}",
-                path.display()
-            );
-            Ok(None)
-        }
-    }
-}
-
-fn save_favorites_file(path: &Path, favorites_file: &FavoritesFile) -> Result<()> {
-    if let Some(parent) = path.parent().filter(|value| !value.as_os_str().is_empty()) {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-
-    let toml = toml::to_string_pretty(favorites_file).context("failed to serialize favorites")?;
-    fs::write(path, toml).with_context(|| format!("failed to write favorites {}", path.display()))
 }
 
 /// Keeps only finite, positive mascot scales so invalid values do not leak into shuffle restores.

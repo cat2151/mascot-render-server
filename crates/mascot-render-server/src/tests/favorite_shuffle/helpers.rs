@@ -1,0 +1,60 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use crate::favorite_shuffle::FavoriteEntry;
+use mascot_render_core::{
+    AlwaysBendConfig, BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, MascotConfig,
+    SquashBounceAnimationConfig,
+};
+
+pub(super) fn favorite(
+    zip_path: &str,
+    psd_path_in_zip: &str,
+    psd_file_name: &str,
+) -> FavoriteEntry {
+    FavoriteEntry {
+        zip_path: PathBuf::from(zip_path),
+        psd_path_in_zip: PathBuf::from(psd_path_in_zip),
+        psd_file_name: psd_file_name.to_string(),
+        mascot_scale: None,
+    }
+}
+
+pub(super) fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
+    MascotConfig {
+        png_path: PathBuf::from("/workspace/render.png"),
+        scale: Some(1.0),
+        favorite_ensemble_scale: None,
+        zip_path: PathBuf::from(zip_path),
+        psd_path_in_zip: PathBuf::from(psd_path_in_zip),
+        display_diff_path: None,
+        always_idle_sink_enabled: false,
+        always_bend: AlwaysBendConfig::default(),
+        favorite_ensemble_enabled: false,
+        transparent_background_click_through: false,
+        flash_blue_background_on_transparent_input: true,
+        head_hitbox: HeadHitbox::default(),
+        bounce: BounceAnimationConfig::default(),
+        squash_bounce: SquashBounceAnimationConfig::default(),
+        always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
+    }
+}
+
+pub(super) fn create_invalid_favorites_path(favorites_path: &Path) {
+    let favorites_dir = favorites_path
+        .parent()
+        .expect("favorites path should have a parent directory");
+    fs::create_dir_all(favorites_dir).expect("should create favorites directory");
+    fs::create_dir(favorites_path).expect(
+        "should create directory at favorites file path to simulate invalid favorites file",
+    );
+}
+
+/// RAII guard that removes a temporary test fixture path on drop.
+pub(super) struct TestFixtureCleanup(pub(super) PathBuf);
+
+impl Drop for TestFixtureCleanup {
+    fn drop(&mut self) {
+        fs::remove_dir_all(&self.0).ok();
+    }
+}
