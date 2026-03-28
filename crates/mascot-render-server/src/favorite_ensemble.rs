@@ -138,11 +138,9 @@ pub(crate) fn fill_missing_positions(
     for entry in layout_entries.iter() {
         max_height = max_height.max(entry.size[1]);
         if let Some([x, y]) = entry.position {
-            let visible_left_edge = x + entry.content_x_bounds[0];
-            existing_right_edge = Some(
-                existing_right_edge
-                    .map_or(visible_left_edge, |current| current.min(visible_left_edge)),
-            );
+            let visible_left = x + entry.content_x_bounds[0];
+            existing_right_edge =
+                Some(existing_right_edge.map_or(visible_left, |current| current.min(visible_left)));
             let bottom = y + entry.size[1];
             existing_bottom = Some(existing_bottom.map_or(bottom, |current| current.max(bottom)));
         }
@@ -203,17 +201,24 @@ fn scaled_content_x_bounds(
     image: &MascotImageData,
     base_size: [f32; 2],
 ) -> [f32; 2] {
-    let Some(bounds) = alpha_bounds_from_mask(
-        [image.width, image.height],
-        &image
-            .rgba
-            .chunks_exact(4)
-            .map(|pixel| pixel[3])
-            .collect::<Vec<_>>(),
-        1,
-    ) else {
+    let alpha_mask = image
+        .rgba
+        .chunks_exact(4)
+        .map(|pixel| pixel[3])
+        .collect::<Vec<_>>();
+    let Some(bounds) = alpha_bounds_from_mask([image.width, image.height], &alpha_mask, 1) else {
+        let reason = if alpha_mask.len() != image.width as usize * image.height as usize {
+            format!(
+                "invalid alpha mask length {} for image size {}x{}",
+                alpha_mask.len(),
+                image.width,
+                image.height
+            )
+        } else {
+            "image is fully transparent".to_string()
+        };
         eprintln!(
-            "favorite ensemble could not detect visible bounds for {} :: {}; using full image width",
+            "favorite ensemble could not detect visible bounds for {} :: {} ({reason}); using full image width",
             entry.zip_path.display(),
             entry.psd_path_in_zip.display()
         );
@@ -221,7 +226,8 @@ fn scaled_content_x_bounds(
     };
     let scale = base_size[0] / image.width as f32;
     let left = (bounds.min_x as f32 * scale).clamp(0.0, base_size[0]);
-    let right = (bounds.max_x as f32 * scale).clamp(left, base_size[0]);
+    let raw_right = (bounds.max_x as f32 * scale).clamp(0.0, base_size[0]);
+    let right = raw_right.max(left);
     [left, right]
 }
 
