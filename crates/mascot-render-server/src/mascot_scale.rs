@@ -55,6 +55,25 @@ pub(crate) fn persist_scale(config_path: &Path, config: &MascotConfig, scale: f3
         &MascotTarget {
             png_path: config.png_path.clone(),
             scale: Some(scale),
+            favorite_ensemble_scale: config.favorite_ensemble_scale,
+            zip_path: config.zip_path.clone(),
+            psd_path_in_zip: config.psd_path_in_zip.clone(),
+            display_diff_path: config.display_diff_path.clone(),
+        },
+    )
+}
+
+pub(crate) fn persist_favorite_ensemble_scale(
+    config_path: &Path,
+    config: &MascotConfig,
+    scale: f32,
+) -> Result<()> {
+    write_mascot_config(
+        config_path,
+        &MascotTarget {
+            png_path: config.png_path.clone(),
+            scale: config.scale,
+            favorite_ensemble_scale: Some(scale),
             zip_path: config.zip_path.clone(),
             psd_path_in_zip: config.psd_path_in_zip.clone(),
             display_diff_path: config.display_diff_path.clone(),

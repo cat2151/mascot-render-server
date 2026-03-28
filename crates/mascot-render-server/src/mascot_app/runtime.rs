@@ -3,7 +3,10 @@ use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, Pos2, Rect};
 use eframe::App;
-use mascot_render_server::{captures_logical_point, TransparentHitTestUpdate};
+use mascot_render_core::MotionTransform;
+use mascot_render_server::{
+    captures_logical_point, transformed_image_rect, TransparentHitTestUpdate,
+};
 
 use crate::always_bend;
 use crate::eye_blink_timing::always_idle_sink_for_blink_median;
@@ -63,6 +66,130 @@ impl App for MascotApp {
             self.config.always_idle_sink,
             self.eye_blink.current_median_ms(),
         );
+        let precise_pointer_interaction = self.allows_precise_pointer_interaction();
+        if self.favorite_ensemble.is_some() {
+            self.transparent_hit_test.update(TransparentHitTestUpdate {
+                now,
+                enabled: false,
+                debug_flash_enabled: false,
+                alpha_mask: Arc::clone(&self.open_skin.alpha_mask),
+                image_size: self.open_skin.image_size,
+                image_rect: self
+                    .window_layout
+                    .image_rect(self.base_size, MotionTransform::identity()),
+                pixels_per_point: ctx.pixels_per_point(),
+            });
+
+            let canvas_origin = self
+                .window_layout
+                .image_rect(self.base_size, MotionTransform::identity())
+                .min
+                .to_vec2();
+            let scale = self.scale.max(0.01);
+            let interaction = {
+                let favorite_ensemble = self
+                    .favorite_ensemble
+                    .as_mut()
+                    .expect("favorite_ensemble checked above");
+                egui::Area::new("favorite-ensemble".into())
+                    .fixed_pos(Pos2::ZERO)
+                    .show(ctx, |ui| {
+                        ui.set_min_size(self.window_layout.window_size());
+                        let (response, painter) = ui.allocate_painter(
+                            self.window_layout.window_size(),
+                            egui::Sense::click_and_drag(),
+                        );
+                        let pointer_pos = response.interact_pointer_pos();
+                        let mut handled_click = false;
+
+                        for member in favorite_ensemble.members.iter_mut() {
+                            let member_transform = member.motion.sample(
+                                now,
+                                self.config.bounce,
+                                self.config.squash_bounce,
+                                always_idle_sink,
+                            );
+                            let member_origin = canvas_origin + member.origin.to_vec2() * scale;
+                            let member_base_size = member.base_size * scale;
+                            let image_rect =
+                                transformed_image_rect(member_base_size, member_transform)
+                                    .translate(member_origin);
+
+                            if let Some(bend_transform) = self.config.always_bend.then(|| {
+                                always_bend::sample_always_bend(
+                                    now - self.always_bend_started_at,
+                                    image_rect,
+                                )
+                            }) {
+                                painter.add(egui::Shape::mesh(always_bend::mesh(
+                                    member.skin.texture.id(),
+                                    image_rect,
+                                    bend_transform,
+                                )));
+                            } else {
+                                painter.image(
+                                    member.skin.texture.id(),
+                                    image_rect,
+                                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                                    Color32::WHITE,
+                                );
+                            }
+
+                            if !handled_click
+                                && precise_pointer_interaction
+                                && response.clicked()
+                                && pointer_pos.is_some_and(|pos| {
+                                    self.config.head_hitbox.contains(image_rect, pos)
+                                })
+                            {
+                                member.motion.trigger(now);
+                                handled_click = true;
+                            }
+                        }
+
+                        if response.drag_started() || response.dragged() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                        }
+
+                        if response.secondary_clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+
+                        response.hovered()
+                    })
+                    .inner
+            };
+
+            if interaction {
+                let scroll_steps = ctx.input(|input| scroll_scale_steps(input.raw_scroll_delta.y));
+                if let Err(error) = self.apply_scale_steps(ctx, now, scroll_steps) {
+                    eprintln!("{error:#}");
+                }
+            }
+
+            let repaint_after = self
+                .favorite_ensemble
+                .as_ref()
+                .expect("favorite_ensemble should still exist")
+                .repaint_after(
+                    now,
+                    self.config.bounce,
+                    self.config.squash_bounce,
+                    always_idle_sink,
+                )
+                .unwrap_or_else(|| Duration::from_millis(250));
+            let repaint_after = self
+                .pending_scale_persist_remaining(now)
+                .map(|remaining| repaint_after.min(remaining))
+                .unwrap_or(repaint_after);
+            let repaint_after = if self.config.always_bend {
+                repaint_after.min(always_bend::repaint_after())
+            } else {
+                repaint_after
+            };
+            ctx.request_repaint_after(repaint_after);
+            return;
+        }
         let transform = self.motion.sample(
             now,
             self.config.bounce,

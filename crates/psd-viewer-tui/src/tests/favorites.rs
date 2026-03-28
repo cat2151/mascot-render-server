@@ -26,6 +26,7 @@ fn favorites_round_trip_as_toml() {
             }],
             mascot_scale: Some(0.75),
             window_position: Some([120.0, 48.0]),
+            favorite_ensemble_position: Some([300.0, 90.0]),
         },
         FavoriteEntry {
             zip_path: PathBuf::from("/workspace/b.zip"),
@@ -37,6 +38,7 @@ fn favorites_round_trip_as_toml() {
             }],
             mascot_scale: Some(0.5),
             window_position: Some([300.0, 90.0]),
+            favorite_ensemble_position: Some([180.0, 24.0]),
         },
     ];
 
@@ -76,6 +78,7 @@ psd_file_name = "body.psd"
 visibility_overrides = [{ layer_index = 3, visible = false }]
 mascot_scale = 0.75
 window_position = [120.0, 48.0]
+favorite_ensemble_position = [300.0, 90.0]
 
 [[favorites]]
 zip_path = "/workspace/a.zip"
@@ -84,6 +87,7 @@ psd_file_name = "body-copy.psd"
 visibility_overrides = [{ layer_index = 3, visible = false }]
 mascot_scale = 1.25
 window_position = [300.0, 90.0]
+favorite_ensemble_position = [180.0, 24.0]
 "#,
     )
     .expect("should seed duplicate favorites");
@@ -100,6 +104,7 @@ window_position = [300.0, 90.0]
     );
     assert_eq!(loaded[0].mascot_scale, Some(1.25));
     assert_eq!(loaded[0].window_position, Some([300.0, 90.0]));
+    assert_eq!(loaded[0].favorite_ensemble_position, Some([180.0, 24.0]));
 }
 
 #[test]

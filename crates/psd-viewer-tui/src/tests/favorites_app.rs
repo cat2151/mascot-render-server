@@ -52,6 +52,7 @@ fn apply_favorite_variation_restores_saved_visibility() {
         }],
         mascot_scale: Some(0.6),
         window_position: Some([150.0, 75.0]),
+        favorite_ensemble_position: None,
     };
 
     apply_favorite_variation(&mut variations, &psd_path, &favorite);
@@ -85,6 +86,7 @@ fn apply_favorite_variation_clears_previous_override_when_favorite_is_default() 
         visibility_overrides: Vec::new(),
         mascot_scale: None,
         window_position: None,
+        favorite_ensemble_position: None,
     };
 
     apply_favorite_variation(&mut variations, &psd_path, &favorite);
@@ -101,6 +103,7 @@ fn apply_favorite_window_position_persists_saved_coordinates() {
         visibility_overrides: Vec::new(),
         mascot_scale: Some(0.8),
         window_position: Some([222.0, 111.0]),
+        favorite_ensemble_position: None,
     };
     let history_path = window_history_path_for_paths(&favorite.zip_path, &favorite.psd_path_in_zip);
     remove_file_if_exists(&history_path);
@@ -126,6 +129,7 @@ fn apply_favorite_window_position_ignores_missing_coordinates() {
         visibility_overrides: Vec::new(),
         mascot_scale: Some(0.8),
         window_position: None,
+        favorite_ensemble_position: None,
     };
 
     assert!(!apply_favorite_window_position(&favorite).expect("should ignore missing coordinates"));
@@ -143,6 +147,7 @@ fn selected_preview_png_path_prefers_favorite_preview_while_favorites_are_visibl
         visibility_overrides: Vec::new(),
         mascot_scale: None,
         window_position: None,
+        favorite_ensemble_position: None,
     };
     app.zip_entries = vec![ZipEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
@@ -183,6 +188,7 @@ fn sync_selected_favorite_preview_uses_default_png_for_visible_favorite() {
         visibility_overrides: Vec::new(),
         mascot_scale: None,
         window_position: None,
+        favorite_ensemble_position: None,
     };
     let mut app = App::loading(None);
     app.zip_entries = vec![ZipEntry {
@@ -221,6 +227,7 @@ fn favorites_view_prefers_exact_current_state_when_same_psd_has_multiple_entries
         }],
         mascot_scale: None,
         window_position: None,
+        favorite_ensemble_position: None,
     };
     let default_favorite = FavoriteEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
@@ -229,6 +236,7 @@ fn favorites_view_prefers_exact_current_state_when_same_psd_has_multiple_entries
         visibility_overrides: Vec::new(),
         mascot_scale: None,
         window_position: None,
+        favorite_ensemble_position: None,
     };
     let mut app = App::loading(None);
     app.zip_entries = vec![ZipEntry {
@@ -251,6 +259,7 @@ fn favorites_view_prefers_exact_current_state_when_same_psd_has_multiple_entries
                 visibility_overrides: Vec::new(),
                 mascot_scale: None,
                 window_position: None,
+                favorite_ensemble_position: None,
             }
             .key(),
             (0, 0),
@@ -274,6 +283,7 @@ fn upsert_favorite_updates_existing_entry_when_only_scale_and_position_change() 
         }],
         mascot_scale: Some(0.75),
         window_position: Some([120.0, 48.0]),
+        favorite_ensemble_position: None,
     };
     let updated = FavoriteEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
@@ -285,12 +295,49 @@ fn upsert_favorite_updates_existing_entry_when_only_scale_and_position_change() 
         }],
         mascot_scale: Some(1.25),
         window_position: Some([300.0, 90.0]),
+        favorite_ensemble_position: None,
     };
     let mut app = App::loading(None);
     app.set_favorites_for_test(vec![existing], HashMap::new());
 
     assert!(app.upsert_favorite_for_test(updated.clone()));
     assert_eq!(app.favorite_entries_for_test(), &[updated]);
+}
+
+#[test]
+fn upsert_favorite_preserves_existing_ensemble_position_when_new_entry_omits_it() {
+    let existing = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: vec![LayerVisibilityOverride {
+            layer_index: 4,
+            visible: true,
+        }],
+        mascot_scale: Some(0.75),
+        window_position: Some([120.0, 48.0]),
+        favorite_ensemble_position: Some([360.0, 12.0]),
+    };
+    let updated = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: vec![LayerVisibilityOverride {
+            layer_index: 4,
+            visible: true,
+        }],
+        mascot_scale: Some(1.25),
+        window_position: Some([300.0, 90.0]),
+        favorite_ensemble_position: None,
+    };
+    let mut app = App::loading(None);
+    app.set_favorites_for_test(vec![existing], HashMap::new());
+
+    assert!(app.upsert_favorite_for_test(updated));
+    assert_eq!(
+        app.favorite_entries_for_test()[0].favorite_ensemble_position,
+        Some([360.0, 12.0])
+    );
 }
 
 #[test]
@@ -304,6 +351,7 @@ fn refresh_rebuilds_favorite_preview_when_visible() {
         visibility_overrides: Vec::new(),
         mascot_scale: None,
         window_position: None,
+        favorite_ensemble_position: None,
     };
     let mut app = App::loading(None);
     let _ = fs::remove_dir_all(&root);

@@ -279,6 +279,7 @@ psd_path_in_zip = "a/body.psd"
 psd_file_name = "body.psd"
 visibility_overrides = [{ layer_index = 3, visible = false }]
 window_position = [120.0, 48.0]
+favorite_ensemble_position = [360.0, 12.0]
 
 [[favorites]]
 zip_path = "/workspace/b.zip"
@@ -311,6 +312,11 @@ mascot_scale = 0.8
         "window position should be preserved: {raw}"
     );
     assert_eq!(
+        favorites[0]["favorite_ensemble_position"].as_array(),
+        Some(&vec![toml::Value::from(360.0), toml::Value::from(12.0)]),
+        "favorite ensemble position should be preserved: {raw}"
+    );
+    assert_eq!(
         favorites[0]["visibility_overrides"][0]["layer_index"].as_integer(),
         Some(3),
         "visibility override should be preserved: {raw}"
@@ -335,11 +341,13 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
     MascotConfig {
         png_path: PathBuf::from("/workspace/render.png"),
         scale: Some(1.0),
+        favorite_ensemble_scale: None,
         zip_path: PathBuf::from(zip_path),
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         display_diff_path: None,
         always_bouncing: false,
         always_bend: false,
+        favorite_ensemble_enabled: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,
         head_hitbox: HeadHitbox::default(),
