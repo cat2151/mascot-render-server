@@ -112,20 +112,18 @@ pub(crate) fn fill_missing_positions(
         return Vec::new();
     }
 
-    let existing_right_edge = layout_entries
-        .iter()
-        .filter_map(|entry| entry.position.map(|[x, _]| x))
-        .reduce(f32::min);
-    let bottom = layout_entries
-        .iter()
-        .filter_map(|entry| entry.position.map(|[_, y]| y + entry.size[1]))
-        .reduce(f32::max)
-        .unwrap_or_else(|| {
-            layout_entries
-                .iter()
-                .map(|entry| entry.size[1])
-                .fold(0.0, f32::max)
-        });
+    let mut existing_right_edge = None::<f32>;
+    let mut existing_bottom = None::<f32>;
+    let mut fallback_bottom = 0.0_f32;
+    for entry in layout_entries.iter() {
+        fallback_bottom = fallback_bottom.max(entry.size[1]);
+        if let Some([x, y]) = entry.position {
+            existing_right_edge = Some(existing_right_edge.map_or(x, |current| current.min(x)));
+            let bottom = y + entry.size[1];
+            existing_bottom = Some(existing_bottom.map_or(bottom, |current| current.max(bottom)));
+        }
+    }
+    let bottom = existing_bottom.unwrap_or(fallback_bottom);
 
     let missing_sizes = missing_indices
         .iter()
@@ -349,15 +347,19 @@ pub(crate) fn patch_favorite_gallery_positions_toml(
         let Some(position) = update.favorite_gallery_position else {
             continue;
         };
-        let Some(entry) = favorites.iter_mut().find(|entry| {
-            favorite_entry_matches_update(entry, update)
-                && entry
-                    .get("favorite_gallery_position")
-                    .and_then(toml::Value::as_array)
-                    .is_none()
-        }) else {
+        let Some(entry) = favorites
+            .iter_mut()
+            .find(|entry| favorite_entry_matches_update(entry, update))
+        else {
             continue;
         };
+        if entry
+            .get("favorite_gallery_position")
+            .and_then(toml::Value::as_array)
+            .is_some()
+        {
+            continue;
+        }
 
         let Some(table) = entry.as_table_mut() else {
             continue;
