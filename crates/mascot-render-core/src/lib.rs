@@ -42,8 +42,8 @@ pub use mascot::{
     MascotImageData, MascotTarget,
 };
 pub use mascot_motion::{
-    AlwaysBendConfig, BounceAlgorithm, BounceAnimationConfig, HeadHitbox, IdleAlgorithm,
-    IdleSinkAnimationConfig, MotionState, MotionTransform, SquashAlgorithm,
+    AlwaysBendConfig, BendConfig, BounceAlgorithm, BounceAnimationConfig, HeadHitbox,
+    IdleAlgorithm, IdleSinkAnimationConfig, MotionState, MotionTransform, SquashAlgorithm,
     SquashBounceAnimationConfig, IDLE_SINK_LIFT_SCALE_X_RATIO,
 };
 pub use model::{LayerKind, LayerNode, PsdEntry, ZipEntry};

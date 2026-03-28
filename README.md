@@ -48,8 +48,8 @@ psd-viewer-tui
     - always_idle_sink
         - If set to true, a small IdleSink breathing-like motion will constantly play for UX verification.
     - always_bend
-        - Controls the constant side-to-side bend used for UX verification.
-        - Set `enabled = true` to turn it on.
+        - If set to true, the constant side-to-side bend used for UX verification will play.
+    - bend
         - `amplitude_ratio` controls bend width as a ratio of the mascot image width. The default is `0.015`.
     - idle_sink
         - This is an IdleSink breathing setting specifically for `always_idle_sink`.

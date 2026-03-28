@@ -108,7 +108,8 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!static_toml.contains("updated_at ="));
     assert!(!static_toml.contains("favorite_ensemble_scale ="));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
-    assert!(static_toml.contains("[always_bend]"));
+    assert!(static_toml.contains("always_bend = false"));
+    assert!(static_toml.contains("[bend]"));
     assert!(static_toml.contains("[idle_sink]"));
     assert!(
         runtime_state_path.exists(),
@@ -130,10 +131,8 @@ fn load_mascot_config_defaults_flash_blue_background_when_key_is_missing() {
         &config_path,
         r#"
 always_idle_sink = true
+always_bend = true
 transparent_background_click_through = false
-
-[always_bend]
-enabled = true
 "#,
     )
     .expect("should seed mascot config without flash setting");
@@ -180,11 +179,9 @@ fn load_mascot_config_rejects_legacy_debug_flash_key() {
         &config_path,
         r#"
 always_idle_sink = true
+always_bend = true
 transparent_background_click_through = true
 debug_flash_blue_background_on_transparent_input = true
-
-[always_bend]
-enabled = true
 
 [head_hitbox]
 x = 0.3
@@ -275,7 +272,7 @@ stretch_amount = 0.05
 }
 
 #[test]
-fn load_mascot_config_rejects_legacy_always_bend_key() {
+fn load_mascot_config_rejects_legacy_always_bend_section() {
     let config_path =
         workspace_cache_root().join("test-mascot-legacy-always-bend/mascot-render-server.toml");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
@@ -287,10 +284,11 @@ fn load_mascot_config_rejects_legacy_always_bend_key() {
     fs::write(
         &config_path,
         r#"
-always_bend = true
+[always_bend]
+enabled = true
 "#,
     )
-    .expect("should seed legacy always_bend config");
+    .expect("should seed legacy always_bend section");
     fs::write(
         &runtime_state_path,
         r#"{
@@ -303,7 +301,7 @@ always_bend = true
     )
     .expect("should seed runtime state");
 
-    let error = load_mascot_config(&config_path).expect_err("legacy key should be rejected");
+    let error = load_mascot_config(&config_path).expect_err("legacy section should be rejected");
     assert!(
         format!("{error:#}").contains("always_bend"),
         "unexpected error: {error:#}"
@@ -400,12 +398,12 @@ fn writing_mascot_config_preserves_current_static_sections() {
         &config_path,
         r#"
 always_idle_sink = true
+always_bend = true
 favorite_ensemble_enabled = true
 transparent_background_click_through = true
 flash_blue_background_on_transparent_input = true
 
-[always_bend]
-enabled = true
+[bend]
 amplitude_ratio = 0.02
 
 [head_hitbox]
@@ -476,8 +474,8 @@ stretch_amount = 0.08
     assert!(!static_toml.contains("version ="));
     assert!(!static_toml.contains("updated_at ="));
     assert!(static_toml.contains("always_idle_sink = true"));
-    assert!(static_toml.contains("[always_bend]"));
-    assert!(static_toml.contains("enabled = true"));
+    assert!(static_toml.contains("always_bend = true"));
+    assert!(static_toml.contains("[bend]"));
     assert!(static_toml.contains("amplitude_ratio = 0.02"));
     assert!(static_toml.contains("favorite_ensemble_enabled = true"));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));

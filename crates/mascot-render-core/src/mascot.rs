@@ -105,7 +105,10 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
         psd_path_in_zip: runtime_target.psd_path_in_zip,
         display_diff_path: runtime_target.display_diff_path,
         always_idle_sink_enabled: static_config.always_idle_sink_enabled,
-        always_bend: static_config.always_bend,
+        always_bend: AlwaysBendConfig {
+            enabled: static_config.always_bend,
+            amplitude_ratio: static_config.bend.amplitude_ratio,
+        },
         favorite_ensemble_enabled,
         transparent_background_click_through: static_config.transparent_background_click_through,
         flash_blue_background_on_transparent_input: static_config

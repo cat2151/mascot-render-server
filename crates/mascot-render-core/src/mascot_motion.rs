@@ -170,6 +170,20 @@ impl Default for AlwaysBendConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct BendConfig {
+    pub amplitude_ratio: f32,
+}
+
+impl Default for BendConfig {
+    fn default() -> Self {
+        Self {
+            amplitude_ratio: AlwaysBendConfig::default().amplitude_ratio,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct MotionTransform {
     pub offset_x: f32,
