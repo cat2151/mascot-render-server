@@ -9,6 +9,7 @@ mod mascot;
 mod mascot_motion;
 mod mascot_paths;
 mod model;
+mod mouth_flap;
 mod psd;
 mod render;
 mod variation;
@@ -45,6 +46,11 @@ pub use mascot_motion::{
     IDLE_SINK_LIFT_SCALE_X_RATIO,
 };
 pub use model::{LayerKind, LayerNode, PsdEntry, ZipEntry};
+pub use mouth_flap::{
+    default_mouth_flap_targets, find_mouth_flap_target, resolve_mouth_flap_rows, MouthFlapRows,
+    MouthFlapTarget, DEFAULT_MOUTH_FLAP_TARGETS, MOUTH_CLOSED_LAYER, MOUTH_CLOSED_LAYER_ALT_1,
+    MOUTH_CLOSED_LAYER_ALT_2, MOUTH_GROUP_LAYER, MOUTH_OPEN_LAYER,
+};
 pub use variation::{
     load_variation_spec, save_variation_spec, variation_hash, variation_png_path,
     variation_render_meta_path, variation_spec_path,

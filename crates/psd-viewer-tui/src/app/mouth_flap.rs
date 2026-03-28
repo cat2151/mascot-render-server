@@ -1,18 +1,18 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use mascot_render_core::{variation_spec_path, DisplayDiff, PsdDocument, PsdEntry, RenderRequest};
+use mascot_render_core::{
+    display_path, find_mouth_flap_target, resolve_mouth_flap_rows, variation_spec_path,
+    DisplayDiff, PsdDocument, PsdEntry, RenderRequest,
+};
 
 use super::support::current_preview_status;
 use super::App;
-use crate::display_diff_state::{
-    find_named_exclusive_pair, resolve_layer_rows, toggle_layer_override,
-};
+use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override};
+use crate::tui_config::tui_config_path;
 
 const MOUTH_FLAP_DURATION: Duration = Duration::from_secs(5);
 const MOUTH_FLAP_INTERVAL: Duration = Duration::from_millis(250);
-const FIRST_FRAME_NAME: &str = "ほあー";
-const SECOND_FRAME_NAME: &str = "むふ";
 
 #[derive(Debug)]
 pub(crate) struct MouthFlapAnimation {
@@ -26,7 +26,7 @@ pub(crate) struct MouthFlapAnimation {
 
 #[derive(Debug, Clone)]
 struct MouthFlapFrame {
-    label: &'static str,
+    label: String,
     preview_png_path: PathBuf,
     variation_spec_path: Option<PathBuf>,
 }
@@ -51,7 +51,8 @@ impl App {
                 self.current_variation_spec_path = frame.variation_spec_path.clone();
                 self.status = format!(
                     "Mouth flap preview: {} / {} (5s, 250ms)",
-                    FIRST_FRAME_NAME, SECOND_FRAME_NAME
+                    animation.frames[0].label.as_str(),
+                    animation.frames[1].label.as_str()
                 );
                 self.mouth_flap = Some(animation);
                 true
@@ -138,15 +139,15 @@ impl App {
             .get(&selected_psd_path)
             .cloned()
             .unwrap_or_default();
-        let (first_row_index, second_row_index) =
-            find_named_exclusive_pair(document, FIRST_FRAME_NAME, SECOND_FRAME_NAME).ok_or_else(
-                || {
-                    format!(
-                        "selected PSD does not contain sibling '*{}' and '*{}' layers",
-                        FIRST_FRAME_NAME, SECOND_FRAME_NAME
-                    )
-                },
-            )?;
+        let target = find_mouth_flap_target(&self.mouth_flap_targets, &psd_entry.file_name)
+            .ok_or_else(|| {
+                format!(
+                    "selected PSD '{}' is not configured for mouth flap in {}",
+                    psd_entry.file_name,
+                    display_path(&tui_config_path())
+                )
+            })?;
+        let resolved = resolve_mouth_flap_rows(document, &base_variation, target)?;
         let frame_context = MouthFlapFrameContext {
             zip_path: &zip_path,
             psd_path_in_zip: &psd_path_in_zip,
@@ -155,8 +156,16 @@ impl App {
             base_variation: &base_variation,
         };
         let frames = [
-            self.build_mouth_flap_frame(frame_context, first_row_index, FIRST_FRAME_NAME)?,
-            self.build_mouth_flap_frame(frame_context, second_row_index, SECOND_FRAME_NAME)?,
+            self.build_mouth_flap_frame(
+                frame_context,
+                resolved.open_row_index,
+                &resolved.open_label,
+            )?,
+            self.build_mouth_flap_frame(
+                frame_context,
+                resolved.closed_row_index,
+                &resolved.closed_label,
+            )?,
         ];
 
         Ok(MouthFlapAnimation::new(
@@ -170,7 +179,7 @@ impl App {
         &self,
         context: MouthFlapFrameContext<'_>,
         row_index: usize,
-        label: &'static str,
+        label: &str,
     ) -> Result<MouthFlapFrame, String> {
         let variation =
             ensure_named_row_visible(context.base_variation, context.document, row_index, label)?;
@@ -178,7 +187,7 @@ impl App {
             self.render_preview_for_spec(context, &variation)?;
 
         Ok(MouthFlapFrame {
-            label,
+            label: label.to_string(),
             preview_png_path,
             variation_spec_path,
         })
@@ -217,7 +226,7 @@ fn ensure_named_row_visible(
     base_variation: &DisplayDiff,
     document: &PsdDocument,
     row_index: usize,
-    label: &'static str,
+    label: &str,
 ) -> Result<DisplayDiff, String> {
     let mut variation = base_variation.clone();
     let rows = resolve_layer_rows(document, &variation);
@@ -296,17 +305,25 @@ impl MouthFlapAnimation {
 #[cfg(test)]
 impl MouthFlapAnimation {
     pub(crate) fn new_for_test(frames: [PathBuf; 2], now: Instant) -> Self {
+        Self::new_with_labels_for_test(frames, ["ほあー".to_string(), "むふ".to_string()], now)
+    }
+
+    pub(crate) fn new_with_labels_for_test(
+        frames: [PathBuf; 2],
+        labels: [String; 2],
+        now: Instant,
+    ) -> Self {
         Self {
             base_preview_png_path: None,
             base_variation_spec_path: None,
             frames: [
                 MouthFlapFrame {
-                    label: FIRST_FRAME_NAME,
+                    label: labels[0].clone(),
                     preview_png_path: frames[0].clone(),
                     variation_spec_path: None,
                 },
                 MouthFlapFrame {
-                    label: SECOND_FRAME_NAME,
+                    label: labels[1].clone(),
                     preview_png_path: frames[1].clone(),
                     variation_spec_path: None,
                 },
@@ -321,8 +338,8 @@ impl MouthFlapAnimation {
         self.advance(now)
     }
 
-    pub(crate) fn current_frame_label_for_test(&self) -> &'static str {
-        self.current_frame().label
+    pub(crate) fn current_frame_label_for_test(&self) -> &str {
+        &self.current_frame().label
     }
 
     pub(crate) fn is_finished_for_test(&self, now: Instant) -> bool {

@@ -5,6 +5,7 @@ mod eye_blink;
 mod logging;
 mod mascot;
 mod mascot_motion;
+mod mouth_flap;
 mod psd;
 mod render;
 mod variation;
