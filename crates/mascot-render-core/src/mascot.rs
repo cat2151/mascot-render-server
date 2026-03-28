@@ -8,7 +8,9 @@ use image::ImageReader;
 use crate::mascot_motion::{
     BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
 };
-pub use crate::mascot_paths::{mascot_config_path, mascot_runtime_state_path};
+pub use crate::mascot_paths::{
+    mascot_config_path, mascot_runtime_state_path, psd_viewer_tui_activity_path,
+};
 #[path = "mascot/config_files.rs"]
 mod config_files;
 

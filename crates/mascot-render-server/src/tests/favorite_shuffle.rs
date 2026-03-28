@@ -1,15 +1,16 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use crate::favorite_shuffle::{
     build_playlist, favorites_path_for, load_favorites, suppress_rotation_for_active_display_diff,
-    FavoriteEntry, FavoriteShufflePlaylist, FAVORITE_SHUFFLE_INTERVAL,
+    suppress_rotation_for_psd_viewer_tui_activity_path, FavoriteEntry, FavoriteShufflePlaylist,
+    FAVORITE_SHUFFLE_INTERVAL,
 };
 use mascot_render_core::{
-    workspace_cache_root, BounceAnimationConfig, Core, CoreConfig, HeadHitbox,
-    IdleSinkAnimationConfig, MascotConfig, SquashBounceAnimationConfig,
+    psd_viewer_tui_activity_path, workspace_cache_root, BounceAnimationConfig, Core, CoreConfig,
+    HeadHitbox, IdleSinkAnimationConfig, MascotConfig, SquashBounceAnimationConfig,
 };
 
 #[test]
@@ -189,6 +190,77 @@ fn favorite_shuffle_still_reads_favorites_without_an_active_edit() {
 }
 
 #[test]
+fn favorite_shuffle_is_suppressed_while_psd_viewer_tui_is_active() {
+    let config_path = workspace_cache_root().join("test-favorite-shuffle-active-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let _ = fs::remove_file(&activity_path);
+    fs::create_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .expect("should create activity directory");
+    fs::write(&activity_path, "100").expect("should write activity heartbeat");
+
+    assert!(
+        suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 104)
+            .expect("recent heartbeat should pause favorite shuffle")
+    );
+}
+
+#[test]
+fn favorite_shuffle_ignores_stale_psd_viewer_tui_activity() {
+    let config_path = workspace_cache_root().join("test-favorite-shuffle-stale-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let _ = fs::remove_file(&activity_path);
+    fs::create_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .expect("should create activity directory");
+    fs::write(&activity_path, "100").expect("should write activity heartbeat");
+
+    assert!(
+        !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
+            .expect("stale heartbeat should not pause favorite shuffle")
+    );
+}
+
+#[test]
+fn favorite_shuffle_skips_loading_favorites_while_psd_viewer_tui_is_active() {
+    let root = workspace_cache_root().join("test-favorite-shuffle-active-tui-read");
+    let favorites_path = favorites_path_for(&root);
+    let config_path = root.join("mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let _ = fs::remove_dir_all(&root);
+    create_invalid_favorites_path(&favorites_path);
+    fs::create_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .expect("should create activity directory");
+    fs::write(&activity_path, current_unix_timestamp().to_string())
+        .expect("should write activity heartbeat");
+
+    let now = Instant::now();
+    let mut playlist = FavoriteShufflePlaylist::new_with_path(favorites_path, now);
+    let config = mascot_config("/workspace/a.zip", "a/body.psd");
+
+    let rotated = playlist
+        .update(
+            &Core::new(CoreConfig::default()),
+            &config_path,
+            &config,
+            now + FAVORITE_SHUFFLE_INTERVAL,
+        )
+        .expect("active psd-viewer-tui should pause favorite shuffle before reading favorites");
+
+    assert!(!rotated);
+}
+
+#[test]
 fn favorite_shuffle_loads_saved_mascot_scale_per_favorite() {
     let root = workspace_cache_root().join("test-favorite-shuffle-load-scale");
     let path = favorites_path_for(&root);
@@ -365,4 +437,11 @@ fn create_invalid_favorites_path(favorites_path: &std::path::Path) {
     fs::create_dir(favorites_path).expect(
         "should create directory at favorites file path to simulate invalid favorites file",
     );
+}
+
+fn current_unix_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
