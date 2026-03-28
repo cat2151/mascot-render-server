@@ -119,6 +119,18 @@ fn favorite_shuffle_playlist_starts_with_a_different_favorite() {
 }
 
 #[test]
+fn favorite_entry_equality_detects_saved_scale_changes() {
+    let mut left = favorite("/workspace/a.zip", "a/body.psd", "body.psd");
+    let mut right = favorite("/workspace/a.zip", "a/body.psd", "body.psd");
+    right.mascot_scale = Some(1.25);
+
+    assert_ne!(left, right);
+
+    left.mascot_scale = Some(1.25);
+    assert_eq!(left, right);
+}
+
+#[test]
 fn favorite_shuffle_is_suppressed_while_previewing_an_edited_variation() {
     let mut config = mascot_config("/workspace/a.zip", "a/body.psd");
     config.display_diff_path = Some(PathBuf::from("/workspace/edited-variation.json"));

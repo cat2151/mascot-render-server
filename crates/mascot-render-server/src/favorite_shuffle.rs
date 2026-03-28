@@ -85,7 +85,9 @@ impl FavoriteEntry {
 
 impl PartialEq for FavoriteEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.zip_path == other.zip_path && self.psd_path_in_zip == other.psd_path_in_zip
+        self.zip_path == other.zip_path
+            && self.psd_path_in_zip == other.psd_path_in_zip
+            && self.mascot_scale == other.mascot_scale
     }
 }
 
@@ -211,7 +213,7 @@ impl FavoriteShufflePlaylist {
             "shuffleモード : + - 操作があったので、zip {} psd {} の拡大率を{}にして保存しました",
             current_key.zip_path.display(),
             current_key.psd_path_in_zip.display(),
-            format_scale(Some(scale))
+            format_scale(sanitized_scale)
         );
         Ok(true)
     }
