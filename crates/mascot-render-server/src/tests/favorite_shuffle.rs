@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 
 use crate::favorite_shuffle::{
     build_playlist, favorites_path_for, load_favorites, suppress_rotation_for_active_display_diff,
@@ -228,11 +228,31 @@ fn favorite_shuffle_ignores_stale_psd_viewer_tui_activity() {
 }
 
 #[test]
+fn favorite_shuffle_ignores_future_psd_viewer_tui_activity() {
+    let config_path = workspace_cache_root().join("test-favorite-shuffle-future-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let _ = fs::remove_file(&activity_path);
+    fs::create_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .expect("should create activity directory");
+    fs::write(&activity_path, "107").expect("should write activity heartbeat");
+
+    assert!(
+        !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
+            .expect("future heartbeat should not pause favorite shuffle")
+    );
+}
+
+#[test]
 fn favorite_shuffle_skips_loading_favorites_while_psd_viewer_tui_is_active() {
     let root = workspace_cache_root().join("test-favorite-shuffle-active-tui-read");
     let favorites_path = favorites_path_for(&root);
     let config_path = root.join("mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let now_unix_timestamp = 100;
     let _ = fs::remove_dir_all(&root);
     create_invalid_favorites_path(&favorites_path);
     fs::create_dir_all(
@@ -241,7 +261,7 @@ fn favorite_shuffle_skips_loading_favorites_while_psd_viewer_tui_is_active() {
             .expect("activity path should have a parent directory"),
     )
     .expect("should create activity directory");
-    fs::write(&activity_path, current_unix_timestamp().to_string())
+    fs::write(&activity_path, now_unix_timestamp.to_string())
         .expect("should write activity heartbeat");
 
     let now = Instant::now();
@@ -249,11 +269,12 @@ fn favorite_shuffle_skips_loading_favorites_while_psd_viewer_tui_is_active() {
     let config = mascot_config("/workspace/a.zip", "a/body.psd");
 
     let rotated = playlist
-        .update(
+        .update_with_unix_timestamp_for_test(
             &Core::new(CoreConfig::default()),
             &config_path,
             &config,
             now + FAVORITE_SHUFFLE_INTERVAL,
+            now_unix_timestamp,
         )
         .expect("active psd-viewer-tui should pause favorite shuffle before reading favorites");
 
@@ -437,11 +458,4 @@ fn create_invalid_favorites_path(favorites_path: &std::path::Path) {
     fs::create_dir(favorites_path).expect(
         "should create directory at favorites file path to simulate invalid favorites file",
     );
-}
-
-fn current_unix_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
 }

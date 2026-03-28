@@ -9,7 +9,7 @@ use crate::mascot_motion::{
     BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
 };
 pub use crate::mascot_paths::{
-    mascot_config_path, mascot_runtime_state_path, psd_viewer_tui_activity_path,
+    mascot_config_path, mascot_runtime_state_path, psd_viewer_tui_activity_path, unix_timestamp,
 };
 #[path = "mascot/config_files.rs"]
 mod config_files;

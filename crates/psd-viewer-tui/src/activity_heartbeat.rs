@@ -1,10 +1,10 @@
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use mascot_render_core::psd_viewer_tui_activity_path;
+use mascot_render_core::{psd_viewer_tui_activity_path, unix_timestamp};
 
 const HEARTBEAT_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -22,9 +22,9 @@ impl ActivityHeartbeat {
     fn start_with_path(path: PathBuf, now: Instant) -> Result<Self> {
         let mut heartbeat = Self {
             path,
-            last_refreshed_at: now.checked_sub(HEARTBEAT_REFRESH_INTERVAL).unwrap_or(now),
+            last_refreshed_at: now,
         };
-        heartbeat.refresh_if_due(now)?;
+        heartbeat.write_heartbeat(now)?;
         Ok(heartbeat)
     }
 
@@ -33,6 +33,10 @@ impl ActivityHeartbeat {
             return Ok(());
         }
 
+        self.write_heartbeat(now)
+    }
+
+    fn write_heartbeat(&mut self, now: Instant) -> Result<()> {
         if let Some(parent) = self
             .path
             .parent()
@@ -60,13 +64,6 @@ impl Drop for ActivityHeartbeat {
             }
         }
     }
-}
-
-fn unix_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_secs())
-        .unwrap_or_default()
 }
 
 #[cfg(test)]
