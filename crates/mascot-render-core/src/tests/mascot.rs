@@ -84,6 +84,8 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
         fs::read_to_string(&config_path).expect("should write mascot static config TOML");
     assert!(!static_toml.contains("png_path ="));
     assert!(!static_toml.contains("zip_path ="));
+    assert!(!static_toml.contains("version ="));
+    assert!(!static_toml.contains("updated_at ="));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
     assert!(static_toml.contains("[always_idle_sink]"));
     assert!(
@@ -105,7 +107,6 @@ fn load_mascot_config_defaults_flash_blue_background_when_key_is_missing() {
     fs::write(
         &config_path,
         r#"
-version = 4
 always_bouncing = true
 transparent_background_click_through = false
 "#,
@@ -147,7 +148,6 @@ fn load_mascot_config_rejects_legacy_debug_flash_key() {
     fs::write(
         &config_path,
         r#"
-version = 4
 always_bouncing = true
 transparent_background_click_through = true
 debug_flash_blue_background_on_transparent_input = true
@@ -210,8 +210,6 @@ fn load_mascot_config_rejects_legacy_always_squash_bounce_section() {
     fs::write(
         &config_path,
         r#"
-version = 4
-
 [always_squash_bounce]
 duration_ms = 1200
 amplitude_px = 9.0
@@ -254,11 +252,9 @@ fn writing_mascot_config_preserves_current_static_sections() {
     fs::write(
         &config_path,
         r#"
-version = 4
 always_bouncing = true
 transparent_background_click_through = true
 flash_blue_background_on_transparent_input = true
-updated_at = 1
 
 [head_hitbox]
 x = 0.3
@@ -312,6 +308,8 @@ stretch_amount = 0.08
     let static_toml = fs::read_to_string(&config_path).expect("should keep mascot static config");
     assert!(!static_toml.contains("png_path ="));
     assert!(!static_toml.contains("psd_path_in_zip ="));
+    assert!(!static_toml.contains("version ="));
+    assert!(!static_toml.contains("updated_at ="));
     assert!(static_toml.contains("always_bouncing = true"));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
     let runtime_json =
