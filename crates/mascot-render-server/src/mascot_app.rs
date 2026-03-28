@@ -83,7 +83,7 @@ pub(crate) struct MascotApp {
 }
 
 pub(crate) fn allows_precise_pointer_interaction(config: &MascotConfig) -> bool {
-    !config.always_bend
+    !config.always_bend.enabled
 }
 
 pub(crate) fn transparent_hit_test_enabled(config: &MascotConfig) -> bool {

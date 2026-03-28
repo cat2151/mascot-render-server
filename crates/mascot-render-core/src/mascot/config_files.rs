@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::mascot_motion::{
-    BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
+    BendConfig, BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig,
+    SquashBounceAnimationConfig,
 };
 use crate::mascot_paths::unix_timestamp;
 
@@ -15,6 +16,7 @@ pub(super) struct MascotStaticConfigFile {
     #[serde(rename = "always_idle_sink")]
     pub(super) always_idle_sink_enabled: bool,
     pub(super) always_bend: bool,
+    pub(super) bend: BendConfig,
     pub(super) favorite_ensemble_enabled: bool,
     pub(super) transparent_background_click_through: bool,
     pub(super) flash_blue_background_on_transparent_input: bool,
@@ -30,6 +32,7 @@ impl Default for MascotStaticConfigFile {
         Self {
             always_idle_sink_enabled: false,
             always_bend: false,
+            bend: BendConfig::default(),
             favorite_ensemble_enabled: false,
             transparent_background_click_through: false,
             flash_blue_background_on_transparent_input: true,

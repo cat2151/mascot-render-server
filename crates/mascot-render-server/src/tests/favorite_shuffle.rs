@@ -9,8 +9,9 @@ use crate::favorite_shuffle::{
     FAVORITE_SHUFFLE_INTERVAL,
 };
 use mascot_render_core::{
-    psd_viewer_tui_activity_path, workspace_cache_root, BounceAnimationConfig, Core, CoreConfig,
-    HeadHitbox, IdleSinkAnimationConfig, MascotConfig, SquashBounceAnimationConfig,
+    psd_viewer_tui_activity_path, workspace_cache_root, AlwaysBendConfig, BounceAnimationConfig,
+    Core, CoreConfig, HeadHitbox, IdleSinkAnimationConfig, MascotConfig,
+    SquashBounceAnimationConfig,
 };
 
 #[test]
@@ -472,7 +473,7 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         display_diff_path: None,
         always_idle_sink_enabled: false,
-        always_bend: false,
+        always_bend: AlwaysBendConfig::default(),
         favorite_ensemble_enabled: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,

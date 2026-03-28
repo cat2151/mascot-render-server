@@ -4,8 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use eframe::egui::Modifiers;
 use mascot_render_core::{
-    load_mascot_config, mascot_runtime_state_path, workspace_cache_root, IdleSinkAnimationConfig,
-    MascotConfig,
+    load_mascot_config, mascot_runtime_state_path, workspace_cache_root, AlwaysBendConfig,
+    IdleSinkAnimationConfig, MascotConfig,
 };
 
 use crate::mascot_scale::{
@@ -32,7 +32,7 @@ fn sample_config() -> MascotConfig {
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: Some(PathBuf::from("cache/demo/variation.json")),
         always_idle_sink_enabled: false,
-        always_bend: false,
+        always_bend: AlwaysBendConfig::default(),
         favorite_ensemble_enabled: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,

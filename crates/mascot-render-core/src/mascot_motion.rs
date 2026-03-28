@@ -7,6 +7,7 @@ mod sampling;
 
 const ANIMATION_FRAME_INTERVAL: Duration = Duration::from_millis(16);
 pub const IDLE_SINK_LIFT_SCALE_X_RATIO: f32 = 0.35;
+const DEFAULT_ALWAYS_BEND_AMPLITUDE_RATIO: f32 = 0.015;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -154,6 +155,36 @@ impl IdleSinkAnimationConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AlwaysBendConfig {
+    pub enabled: bool,
+    pub amplitude_ratio: f32,
+}
+
+impl Default for AlwaysBendConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            amplitude_ratio: DEFAULT_ALWAYS_BEND_AMPLITUDE_RATIO,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct BendConfig {
+    pub amplitude_ratio: f32,
+}
+
+impl Default for BendConfig {
+    fn default() -> Self {
+        Self {
+            amplitude_ratio: DEFAULT_ALWAYS_BEND_AMPLITUDE_RATIO,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct MotionTransform {
     pub offset_x: f32,
@@ -278,7 +309,7 @@ impl MotionState {
         let mouth_flap = self.active_mouth_flap(now)?;
         let elapsed = now.duration_since(mouth_flap.started_at);
         let frame = elapsed.as_nanos() / mouth_flap.frame_interval.as_nanos().max(1);
-        Some(frame % 2 == 0)
+        Some(frame.is_multiple_of(2))
     }
 
     pub fn sample(

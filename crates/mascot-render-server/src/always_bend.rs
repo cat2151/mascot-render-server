@@ -1,20 +1,23 @@
 use std::time::Duration;
 
 use eframe::egui::{epaint::Vertex, Color32, Mesh, Pos2, Rect, TextureId};
-use mascot_render_core::MotionTransform;
+use mascot_render_core::{AlwaysBendConfig, MotionTransform};
 
 const ALWAYS_BEND_CYCLE: Duration = Duration::from_millis(4_200);
 const ALWAYS_BEND_FRAME_INTERVAL: Duration = Duration::from_millis(16);
-const ALWAYS_BEND_AMPLITUDE_RATIO: f32 = 0.03;
 const ALWAYS_BEND_ROWS: usize = 12;
 const ALWAYS_BEND_COLUMNS: usize = 4;
 
-pub(crate) fn sample_always_bend(elapsed: Duration, image_rect: Rect) -> MotionTransform {
+pub(crate) fn sample_always_bend(
+    elapsed: Duration,
+    image_rect: Rect,
+    config: AlwaysBendConfig,
+) -> MotionTransform {
     let cycle_nanos = ALWAYS_BEND_CYCLE.as_nanos();
     let elapsed_in_cycle = elapsed.as_nanos() % cycle_nanos;
     let phase = elapsed_in_cycle as f64 * std::f64::consts::TAU / cycle_nanos as f64;
     MotionTransform {
-        offset_x: image_rect.width() * ALWAYS_BEND_AMPLITUDE_RATIO * phase.sin() as f32,
+        offset_x: image_rect.width() * config.amplitude_ratio * phase.sin() as f32,
         ..MotionTransform::identity()
     }
 }
