@@ -87,7 +87,7 @@ fn sample_config() -> MascotConfig {
         zip_path: PathBuf::from("assets/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: None,
-        always_bouncing: false,
+        always_idle_sink_enabled: false,
         always_bend: false,
         favorite_ensemble_enabled: false,
         transparent_background_click_through: false,

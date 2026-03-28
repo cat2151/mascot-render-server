@@ -25,13 +25,13 @@ impl FavoriteEnsembleScene {
     pub(super) fn from_loaded(
         ctx: &egui::Context,
         ensemble: FavoriteEnsemble,
-        always_bouncing: bool,
+        always_idle_sink_enabled: bool,
         now: Instant,
     ) -> Self {
         let mut members = ensemble
             .members
             .into_iter()
-            .map(|member| member_scene_from_loaded(ctx, member, always_bouncing, now))
+            .map(|member| member_scene_from_loaded(ctx, member, always_idle_sink_enabled, now))
             .collect::<Vec<_>>();
         members.shrink_to_fit();
 
@@ -59,9 +59,9 @@ impl FavoriteEnsembleScene {
         AlphaBounds::full(self.image_size())
     }
 
-    pub(super) fn set_always_bouncing(&mut self, enabled: bool, now: Instant) {
+    pub(super) fn set_always_idle_sink_enabled(&mut self, enabled: bool, now: Instant) {
         for member in &mut self.members {
-            member.motion.set_always_bouncing(enabled, now);
+            member.motion.set_always_idle_sink_enabled(enabled, now);
         }
     }
 
@@ -86,11 +86,11 @@ impl FavoriteEnsembleScene {
 fn member_scene_from_loaded(
     ctx: &egui::Context,
     member: FavoriteEnsembleMember,
-    always_bouncing: bool,
+    always_idle_sink_enabled: bool,
     now: Instant,
 ) -> FavoriteEnsembleMemberScene {
     let mut motion = MotionState::new();
-    motion.set_always_bouncing(always_bouncing, now);
+    motion.set_always_idle_sink_enabled(always_idle_sink_enabled, now);
     FavoriteEnsembleMemberScene {
         origin: Pos2::new(member.canvas_position[0], member.canvas_position[1]),
         base_size: Vec2::new(member.base_size[0], member.base_size[1]),

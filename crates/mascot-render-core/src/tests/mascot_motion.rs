@@ -147,7 +147,7 @@ fn always_bouncing_idle_uses_always_idle_sink_duration() {
         ..IdleSinkAnimationConfig::default_for_always_bouncing()
     };
 
-    motion.set_always_bouncing(true, now);
+    motion.set_always_idle_sink_enabled(true, now);
 
     let running = motion.sample(
         now + Duration::from_millis(60),
@@ -188,7 +188,7 @@ fn always_bouncing_triggered_animation_ignores_always_idle_sink() {
         ..IdleSinkAnimationConfig::default_for_always_bouncing()
     };
 
-    motion.set_always_bouncing(true, now);
+    motion.set_always_idle_sink_enabled(true, now);
     motion.trigger(now + Duration::from_millis(1));
     motion.trigger(now + Duration::from_millis(2));
 
@@ -207,10 +207,10 @@ fn disabling_always_bouncing_stops_idle_animation() {
     let mut motion = MotionState::new();
     let now = Instant::now();
 
-    motion.set_always_bouncing(true, now);
+    motion.set_always_idle_sink_enabled(true, now);
     assert!(motion.is_active());
 
-    motion.set_always_bouncing(false, now + Duration::from_millis(10));
+    motion.set_always_idle_sink_enabled(false, now + Duration::from_millis(10));
 
     let transform = motion.sample(
         now + Duration::from_millis(20),
@@ -233,10 +233,10 @@ fn disabling_always_bouncing_keeps_triggered_squash_bounce_running() {
         ..SquashBounceAnimationConfig::default()
     };
 
-    motion.set_always_bouncing(true, now);
+    motion.set_always_idle_sink_enabled(true, now);
     motion.trigger(now + Duration::from_millis(1));
     motion.trigger(now + Duration::from_millis(2));
-    motion.set_always_bouncing(false, now + Duration::from_millis(10));
+    motion.set_always_idle_sink_enabled(false, now + Duration::from_millis(10));
 
     let transform = motion.sample(
         now + Duration::from_millis(20),
@@ -259,7 +259,7 @@ fn idle_sink_starts_at_rest_and_then_lifts_after_sinking() {
         ..IdleSinkAnimationConfig::default_for_always_bouncing()
     };
 
-    motion.set_always_bouncing(true, now);
+    motion.set_always_idle_sink_enabled(true, now);
 
     let resting = motion.sample(
         now,

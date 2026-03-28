@@ -83,7 +83,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert_eq!(loaded.zip_path, target.zip_path);
     assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, target.display_diff_path);
-    assert!(!loaded.always_bouncing);
+    assert!(!loaded.always_idle_sink_enabled);
     assert!(!loaded.always_bend);
     assert!(!loaded.favorite_ensemble_enabled);
     assert!(!loaded.transparent_background_click_through);
@@ -107,7 +107,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!static_toml.contains("updated_at ="));
     assert!(!static_toml.contains("favorite_ensemble_scale ="));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
-    assert!(static_toml.contains("[always_idle_sink]"));
+    assert!(static_toml.contains("[idle_sink]"));
     assert!(
         runtime_state_path.exists(),
         "runtime state should be written"
@@ -127,7 +127,7 @@ fn load_mascot_config_defaults_flash_blue_background_when_key_is_missing() {
     fs::write(
         &config_path,
         r#"
-always_bouncing = true
+always_idle_sink = true
 always_bend = true
 transparent_background_click_through = false
 "#,
@@ -147,7 +147,7 @@ transparent_background_click_through = false
 
     let loaded = load_mascot_config(&config_path).expect("config should load");
 
-    assert!(loaded.always_bouncing);
+    assert!(loaded.always_idle_sink_enabled);
     assert!(loaded.always_bend);
     assert!(!loaded.favorite_ensemble_enabled);
     assert!(loaded.flash_blue_background_on_transparent_input);
@@ -171,7 +171,7 @@ fn load_mascot_config_rejects_legacy_debug_flash_key() {
     fs::write(
         &config_path,
         r#"
-always_bouncing = true
+always_idle_sink = true
 always_bend = true
 transparent_background_click_through = true
 debug_flash_blue_background_on_transparent_input = true
@@ -265,6 +265,82 @@ stretch_amount = 0.05
 }
 
 #[test]
+fn load_mascot_config_rejects_legacy_always_bouncing_key() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-legacy-always-bouncing/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-legacy-always-bouncing"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-legacy-always-bouncing"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+always_bouncing = true
+"#,
+    )
+    .expect("should seed legacy always_bouncing config");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/legacy/render.png",
+  "zip_path": "assets/zip/legacy.zip",
+  "psd_path_in_zip": "legacy/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
+
+    let error = load_mascot_config(&config_path).expect_err("legacy key should be rejected");
+    assert!(
+        format!("{error:#}").contains("always_bouncing"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
+fn load_mascot_config_rejects_legacy_always_idle_sink_section() {
+    let config_path = workspace_cache_root()
+        .join("test-mascot-legacy-always-idle-sink/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-legacy-always-idle-sink"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-legacy-always-idle-sink"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+[always_idle_sink]
+duration_ms = 1200
+amplitude_px = 9.0
+sink_amount = 0.08
+lift_amount = 0.05
+"#,
+    )
+    .expect("should seed legacy always_idle_sink section");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/legacy/render.png",
+  "zip_path": "assets/zip/legacy.zip",
+  "psd_path_in_zip": "legacy/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
+
+    let error = load_mascot_config(&config_path).expect_err("legacy section should be rejected");
+    assert!(
+        format!("{error:#}").contains("always_idle_sink"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
 fn writing_mascot_config_preserves_current_static_sections() {
     let config_path =
         workspace_cache_root().join("test-mascot-preserve-current/mascot-render-server.toml");
@@ -277,7 +353,7 @@ fn writing_mascot_config_preserves_current_static_sections() {
     fs::write(
         &config_path,
         r#"
-always_bouncing = true
+always_idle_sink = true
 always_bend = true
 favorite_ensemble_enabled = true
 transparent_background_click_through = true
@@ -326,7 +402,7 @@ stretch_amount = 0.08
         loaded.favorite_ensemble_scale,
         target.favorite_ensemble_scale
     );
-    assert!(loaded.always_bouncing);
+    assert!(loaded.always_idle_sink_enabled);
     assert!(loaded.always_bend);
     assert!(loaded.favorite_ensemble_enabled);
     assert!(loaded.transparent_background_click_through);
@@ -344,7 +420,7 @@ stretch_amount = 0.08
     assert!(!static_toml.contains("psd_path_in_zip ="));
     assert!(!static_toml.contains("version ="));
     assert!(!static_toml.contains("updated_at ="));
-    assert!(static_toml.contains("always_bouncing = true"));
+    assert!(static_toml.contains("always_idle_sink = true"));
     assert!(static_toml.contains("always_bend = true"));
     assert!(static_toml.contains("favorite_ensemble_enabled = true"));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
