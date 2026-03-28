@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Instant, SystemTime};
 
 use anyhow::{Context, Result};
 use eframe::egui::{self, Pos2, Vec2};
@@ -11,13 +11,11 @@ use mascot_render_core::{
     MascotConfig, MascotImageData, MotionState, MotionTransform,
 };
 use mascot_render_server::window_history::{
-    current_viewport_info, load_window_position, outer_position_for_anchor, window_history_path,
-    WindowHistoryTracker,
+    current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
 };
 use mascot_render_server::{
-    anchored_inner_origin, apply_motion_timeline_request, AlphaBounds, FavoriteShufflePlaylist,
-    MascotControlCommand, MascotSkinCache, MascotWindowLayout, TransparentHitTestUpdate,
-    TransparentHitTestWindow,
+    apply_motion_timeline_request, AlphaBounds, FavoriteShufflePlaylist, MascotControlCommand,
+    MascotSkinCache, MascotWindowLayout, TransparentHitTestUpdate, TransparentHitTestWindow,
 };
 
 use crate::app_support::{
@@ -25,15 +23,16 @@ use crate::app_support::{
 };
 use crate::eye_blink::{render_closed_eye_png, EyeBlinkLoop};
 use crate::favorite_ensemble::{favorites_path as favorite_ensemble_path, load_favorite_ensemble};
-use crate::mascot_scale::{
-    adjust_scale, effective_scale, keyboard_scale_steps, persist_favorite_ensemble_scale,
-    persist_scale, scroll_scale_steps, SCALE_PERSIST_DEBOUNCE,
-};
+use crate::mascot_scale::{effective_scale, keyboard_scale_steps, scroll_scale_steps};
 use crate::SKIN_CACHE_CAPACITY;
 #[path = "mascot_app/ensemble.rs"]
 mod ensemble;
+#[path = "mascot_app/layout.rs"]
+mod layout;
 #[path = "mascot_app/runtime.rs"]
 mod runtime;
+#[path = "mascot_app/scale.rs"]
+mod scale;
 use ensemble::FavoriteEnsembleScene;
 
 pub(crate) struct MascotApp {
@@ -324,7 +323,7 @@ impl MascotApp {
         }
         self.refresh_window_layout(ctx, previous_layout);
         if let Some(position) = restored_window_position {
-            self.restore_anchor_position(ctx, position);
+            layout::restore_anchor_position(self, ctx, position);
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(window_title(
             &self.config,
@@ -394,160 +393,12 @@ impl MascotApp {
         Ok(())
     }
 
-    fn apply_scale_steps(&mut self, ctx: &egui::Context, now: Instant, steps: i32) -> Result<()> {
-        let Some(next_scale) = adjust_scale(self.scale, steps) else {
-            return Ok(());
-        };
-
-        let previous_layout = self.window_layout;
-        if self.config.favorite_ensemble_enabled {
-            self.config.favorite_ensemble_scale = Some(next_scale);
-        } else {
-            self.config.scale = Some(next_scale);
-        }
-        self.scale = next_scale;
-        self.pending_persisted_scale = Some(next_scale);
-        self.last_scale_change_at = Some(now);
-        self.base_size = size_vec(
-            self.open_skin.image_size[0],
-            self.open_skin.image_size[1],
-            Some(self.scale),
-        );
-        self.refresh_window_layout(ctx, previous_layout);
-        ctx.request_repaint();
-        Ok(())
-    }
-
-    fn pending_scale_persist_remaining(&self, now: Instant) -> Option<Duration> {
-        match (self.pending_persisted_scale, self.last_scale_change_at) {
-            (Some(_), Some(changed_at)) => {
-                let elapsed = now.saturating_duration_since(changed_at);
-                Some(SCALE_PERSIST_DEBOUNCE.saturating_sub(elapsed))
-            }
-            (None, None) => None,
-            _ => {
-                debug_assert!(
-                    matches!(
-                        (self.pending_persisted_scale, self.last_scale_change_at),
-                        (Some(_), Some(_)) | (None, None)
-                    ),
-                    "pending scale debounce state should be set and cleared together"
-                );
-                None
-            }
-        }
-    }
-
-    fn persist_pending_scale_if_due(&mut self, now: Instant) -> Result<()> {
-        let Some(pending_scale) = self.pending_persisted_scale else {
-            return Ok(());
-        };
-        let pending_remaining = self.pending_scale_persist_remaining(now);
-        if let Some(remaining) = pending_remaining {
-            if !remaining.is_zero() {
-                return Ok(());
-            }
-        }
-        self.persist_pending_scale(pending_scale)
-    }
-
-    fn persist_pending_scale(&mut self, scale: f32) -> Result<()> {
-        if self.config.favorite_ensemble_enabled {
-            persist_favorite_ensemble_scale(&self.config_path, &self.config, scale)?;
-        } else {
-            persist_scale(&self.config_path, &self.config, scale)?;
-            if let Err(error) = self
-                .favorite_shuffle
-                .persist_scale_for_current_config(&self.config, scale)
-            {
-                eprintln!("{error:#}");
-            }
-        }
-        self.pending_persisted_scale = None;
-        self.last_scale_change_at = None;
-        self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
-        Ok(())
-    }
-
     /// Applies the startup restore once viewport frame metrics become available.
     ///
     /// This is called every frame until `current_viewport_info` returns data so the restored
     /// anchor can be corrected by the platform-specific inner→outer offset.
     pub(crate) fn apply_pending_restored_anchor_position(&mut self, ctx: &egui::Context) {
-        let Some(anchor_position) = self.pending_restored_anchor_position else {
-            return;
-        };
-        if current_viewport_info(ctx).is_none() {
-            return;
-        }
-        self.restore_anchor_position(ctx, anchor_position);
-        self.pending_restored_anchor_position = None;
-    }
-
-    fn restore_anchor_position(&mut self, ctx: &egui::Context, anchor_position: Pos2) {
-        let outer_position = current_viewport_info(ctx)
-            .map(|viewport_info| {
-                outer_position_for_anchor(
-                    anchor_position,
-                    self.window_layout.anchor_offset(),
-                    viewport_info.inner_to_outer_offset,
-                )
-            })
-            // Before viewport info is available we can only place the window using the anchor
-            // offset. `apply_pending_restored_anchor_position()` re-applies the restore on a later
-            // frame once the measured frame offset becomes available.
-            .unwrap_or(anchor_position - self.window_layout.anchor_offset());
-        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(outer_position));
-    }
-
-    fn refresh_window_layout(&mut self, ctx: &egui::Context, previous_layout: MascotWindowLayout) {
-        let viewport_info = current_viewport_info(ctx);
-        self.window_layout = if let Some(favorite_ensemble) = &self.favorite_ensemble {
-            self.base_size = favorite_ensemble.scaled_canvas_size(self.scale);
-            ensemble_window_layout(self.base_size, favorite_ensemble.image_size(), &self.config)
-        } else {
-            let content_bounds = self.window_content_bounds();
-            MascotWindowLayout::new(
-                self.base_size,
-                self.open_skin.image_size,
-                content_bounds,
-                self.config.bounce,
-                self.config.squash_bounce,
-                self.config.always_idle_sink,
-            )
-        };
-        if let Some(viewport_info) = viewport_info {
-            let inner_origin = anchored_inner_origin(
-                viewport_info.inner_origin,
-                previous_layout,
-                self.window_layout,
-            );
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(
-                inner_origin - viewport_info.inner_to_outer_offset,
-            ));
-        }
-        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
-            self.window_layout.window_size(),
-        ));
-    }
-
-    fn window_content_bounds(&self) -> AlphaBounds {
-        if let Some(favorite_ensemble) = &self.favorite_ensemble {
-            return favorite_ensemble.content_bounds();
-        }
-        let mut bounds = self.open_skin.content_bounds;
-        if let Some(closed_skin) = &self.closed_skin {
-            if closed_skin.image_size == self.open_skin.image_size {
-                bounds = bounds.union(closed_skin.content_bounds);
-            } else {
-                eprintln!(
-                    "closed-eye skin size {:?} does not match open skin size {:?}; using open skin bounds for the window layout",
-                    closed_skin.image_size,
-                    self.open_skin.image_size
-                );
-            }
-        }
-        bounds
+        layout::apply_pending_restored_anchor_position(self, ctx);
     }
 }
 

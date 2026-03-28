@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
+use crate::app::saved_window_positions_match_for_test;
 use crate::favorites::{favorite_selection_lookup, FavoriteEntry};
 use mascot_render_core::{LayerVisibilityOverride, ZipEntry};
+use mascot_render_server::SavedWindowPosition;
 
 use super::sample_psd;
 
@@ -98,4 +100,24 @@ fn favorite_selection_matches_zip_path_and_psd_path_in_zip() {
         .copied();
 
     assert_eq!(selection, Some((1, 0)));
+}
+
+#[test]
+fn saved_window_positions_match_within_tolerance() {
+    assert!(saved_window_positions_match_for_test(
+        SavedWindowPosition { x: 10.0, y: 20.0 },
+        SavedWindowPosition { x: 10.4, y: 20.4 }
+    ));
+}
+
+#[test]
+fn saved_window_positions_match_rejects_boundary_and_larger_deltas() {
+    assert!(!saved_window_positions_match_for_test(
+        SavedWindowPosition { x: 10.0, y: 20.0 },
+        SavedWindowPosition { x: 10.5, y: 20.0 }
+    ));
+    assert!(!saved_window_positions_match_for_test(
+        SavedWindowPosition { x: 10.0, y: 20.0 },
+        SavedWindowPosition { x: 10.0, y: 20.6 }
+    ));
 }
