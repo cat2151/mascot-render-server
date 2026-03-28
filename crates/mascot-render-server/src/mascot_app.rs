@@ -246,7 +246,10 @@ impl MascotApp {
         self.motion
             .set_always_bouncing(self.config.always_bouncing, Instant::now());
 
-        if gallery_mode_changed || favorite_gallery_changed || (!self.config.favorite_gallery_enabled && png_changed) {
+        if gallery_mode_changed
+            || favorite_gallery_changed
+            || (!self.config.favorite_gallery_enabled && png_changed)
+        {
             self.open_skin = self.load_active_skin(ctx)?;
         }
         if gallery_mode_changed || favorite_gallery_changed || png_changed || scale_changed {

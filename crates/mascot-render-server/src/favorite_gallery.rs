@@ -135,7 +135,10 @@ fn compose_gallery_image(rendered: &[RenderedFavorite]) -> MascotImageData {
     let mut max_y = f32::NEG_INFINITY;
 
     for favorite in rendered {
-        let [x, y] = favorite.entry.favorite_gallery_position.unwrap_or([0.0, 0.0]);
+        let [x, y] = favorite
+            .entry
+            .favorite_gallery_position
+            .unwrap_or([0.0, 0.0]);
         let [width, height] = favorite.base_size;
         min_x = min_x.min(x);
         min_y = min_y.min(y);
@@ -148,7 +151,10 @@ fn compose_gallery_image(rendered: &[RenderedFavorite]) -> MascotImageData {
     let mut rgba = vec![0; canvas_width as usize * canvas_height as usize * 4];
 
     for favorite in rendered {
-        let [x, y] = favorite.entry.favorite_gallery_position.unwrap_or([0.0, 0.0]);
+        let [x, y] = favorite
+            .entry
+            .favorite_gallery_position
+            .unwrap_or([0.0, 0.0]);
         let [width, height] = favorite.base_size;
         let dest_x = (x - min_x).round() as i32;
         let dest_y = (y - min_y).round() as i32;
@@ -227,9 +233,9 @@ fn blend_pixel(source: &[u8], dest: &mut [u8]) {
     for channel in 0..3 {
         let source_value = source[channel] as f32 / 255.0;
         let dest_value = dest[channel] as f32 / 255.0;
-        let out_value =
-            (source_value * source_alpha + dest_value * dest_alpha * (1.0 - source_alpha))
-                / out_alpha;
+        let out_value = (source_value * source_alpha
+            + dest_value * dest_alpha * (1.0 - source_alpha))
+            / out_alpha;
         dest[channel] = (out_value * 255.0).round().clamp(0.0, 255.0) as u8;
     }
     dest[3] = (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
@@ -263,14 +269,19 @@ fn save_favorites(path: &Path, favorites: &[FavoriteGalleryEntry]) -> Result<()>
         favorites: favorites.to_vec(),
     })
     .context("failed to serialize favorite gallery entries")?;
-    fs::write(path, toml)
-        .with_context(|| format!("failed to write favorite gallery entries {}", path.display()))
+    fs::write(path, toml).with_context(|| {
+        format!(
+            "failed to write favorite gallery entries {}",
+            path.display()
+        )
+    })
 }
 
 fn sanitize_favorites(favorites: Vec<FavoriteGalleryEntry>) -> Vec<FavoriteGalleryEntry> {
     let mut sanitized = Vec::new();
     for mut favorite in favorites {
-        if favorite.zip_path.as_os_str().is_empty() || favorite.psd_path_in_zip.as_os_str().is_empty()
+        if favorite.zip_path.as_os_str().is_empty()
+            || favorite.psd_path_in_zip.as_os_str().is_empty()
         {
             continue;
         }
@@ -282,12 +293,10 @@ fn sanitize_favorites(favorites: Vec<FavoriteGalleryEntry>) -> Vec<FavoriteGalle
                 .unwrap_or_else(|| favorite.psd_path_in_zip.display().to_string());
         }
         favorite.mascot_scale = sanitize_scale(favorite.mascot_scale);
-        favorite.favorite_gallery_position =
-            sanitize_position(favorite.favorite_gallery_position);
-        if let Some(index) = sanitized
-            .iter()
-            .position(|saved: &FavoriteGalleryEntry| favorite_identity(saved) == favorite_identity(&favorite))
-        {
+        favorite.favorite_gallery_position = sanitize_position(favorite.favorite_gallery_position);
+        if let Some(index) = sanitized.iter().position(|saved: &FavoriteGalleryEntry| {
+            favorite_identity(saved) == favorite_identity(&favorite)
+        }) {
             sanitized[index] = favorite;
         } else {
             sanitized.push(favorite);
