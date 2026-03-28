@@ -107,8 +107,10 @@ fn load_mascot_config_defaults_flash_blue_background_when_key_is_missing() {
     fs::write(
         &config_path,
         r#"
+version = 4
 always_bouncing = true
 transparent_background_click_through = false
+updated_at = 1
 "#,
     )
     .expect("should seed mascot config without flash setting");
@@ -252,9 +254,11 @@ fn writing_mascot_config_preserves_current_static_sections() {
     fs::write(
         &config_path,
         r#"
+version = 4
 always_bouncing = true
 transparent_background_click_through = true
 flash_blue_background_on_transparent_input = true
+updated_at = 1
 
 [head_hitbox]
 x = 0.3

@@ -178,8 +178,15 @@ fn normalize_mascot_static_config(config_path: &Path) -> Result<()> {
 
     let bytes = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
-    toml::from_str::<MascotStaticConfigFile>(&bytes)
+    let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
+    if config.version.is_some() || config.updated_at.is_some() {
+        eprintln!(
+            "normalizing mascot config '{}' to remove legacy version/updated_at keys",
+            config_path.display()
+        );
+        return write_mascot_static_config_file(config_path, &config);
+    }
     Ok(())
 }
 
