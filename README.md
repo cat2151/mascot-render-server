@@ -45,13 +45,13 @@ psd-viewer-tui
 
 ## Configuration
 - mascot-render-server.toml
-    - always_bouncing
-        - If set to `true`, a small squash/stretch breathing-like motion is continuously played for UX verification.
+    - always_idle_sink
+        - If set to `true`, a small IdleSink breathing-like motion is continuously played for UX verification.
     - always_bend
         - If set to `true`, the single mascot image is rendered with a gentle mesh bend so the upper side sways left and right more than the lower side.
         - While this mode is active, transparent click-through and head-hitbox click detection are disabled so pointer interaction does not drift away from the bent mesh.
-    - always_idle_sink
-        - IdleSink breathing setting exclusively for `always_bouncing`.
+    - idle_sink
+        - IdleSink breathing setting exclusively for `always_idle_sink`.
         - By default, it sinks and rises more gently than regular `squash_bounce`, and the tempo subtly changes in sync with the median fluctuation of the blink interval.
         - `sink_amount` and `lift_amount` allow individual adjustment of the exhalation and inhalation poses.
     - transparent_background_click_through
