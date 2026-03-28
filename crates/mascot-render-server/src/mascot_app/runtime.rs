@@ -83,7 +83,7 @@ impl App for MascotApp {
         });
         self.transparent_hit_test.update(TransparentHitTestUpdate {
             now,
-            enabled: self.config.transparent_background_click_through,
+            enabled: self.transparent_hit_test_enabled(),
             debug_flash_enabled: self.config.flash_blue_background_on_transparent_input,
             alpha_mask: Arc::clone(&active_alpha_mask),
             image_size: active_image_size,
@@ -123,7 +123,8 @@ impl App for MascotApp {
                     );
                 }
 
-                if response.clicked()
+                if self.allows_precise_pointer_interaction()
+                    && response.clicked()
                     && response
                         .interact_pointer_pos()
                         .is_some_and(|pos| self.config.head_hitbox.contains(image_rect, pos))
@@ -131,7 +132,8 @@ impl App for MascotApp {
                     self.motion.trigger(now);
                 }
 
-                if self.config.flash_blue_background_on_transparent_input
+                if self.allows_precise_pointer_interaction()
+                    && self.config.flash_blue_background_on_transparent_input
                     && !self.config.transparent_background_click_through
                     && response.is_pointer_button_down_on()
                     && response.interact_pointer_pos().is_some_and(|pos| {

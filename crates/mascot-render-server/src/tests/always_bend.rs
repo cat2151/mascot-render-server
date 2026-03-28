@@ -1,8 +1,17 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use eframe::egui::{pos2, Rect, TextureId};
+use mascot_render_core::{
+    BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, MascotConfig,
+    SquashBounceAnimationConfig,
+};
 
 use crate::always_bend;
+use crate::mascot_app::{allows_precise_pointer_interaction, transparent_hit_test_enabled};
+
+const LONG_RUNNING_PHASE_STABILITY_MS: u64 = 4_200 * 10_000; // About 11.7 hours of complete bend cycles.
+const FLOAT_TOLERANCE: f32 = 1e-6;
 
 #[test]
 fn sample_always_bend_swings_left_and_right() {
@@ -34,4 +43,56 @@ fn always_bend_mesh_moves_upper_center_more_than_lower_center() {
     assert!(middle_center > bottom_center);
     assert_eq!(bottom_center, image_rect.center().x);
     assert_eq!(edge_x, image_rect.left());
+}
+
+#[test]
+fn sample_always_bend_preserves_phase_after_many_cycles() {
+    let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(240.0, 480.0));
+    let short = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect);
+    let long = always_bend::sample_always_bend(
+        Duration::from_millis(LONG_RUNNING_PHASE_STABILITY_MS) + Duration::from_millis(1_050),
+        image_rect,
+    );
+
+    assert!((short.offset_x - long.offset_x).abs() <= FLOAT_TOLERANCE);
+    assert_eq!(short.offset_y, long.offset_y);
+    assert_eq!(short.scale_x, long.scale_x);
+    assert_eq!(short.scale_y, long.scale_y);
+    assert_eq!(short.offset_y, 0.0);
+    assert_eq!(short.scale_x, 1.0);
+    assert_eq!(short.scale_y, 1.0);
+}
+
+#[test]
+fn always_bend_disables_precise_pointer_hit_testing() {
+    let mut config = sample_config();
+    config.transparent_background_click_through = true;
+
+    assert!(transparent_hit_test_enabled(&config));
+    assert!(allows_precise_pointer_interaction(&config));
+
+    let bent_config = MascotConfig {
+        always_bend: true,
+        ..config
+    };
+    assert!(!transparent_hit_test_enabled(&bent_config));
+    assert!(!allows_precise_pointer_interaction(&bent_config));
+}
+
+fn sample_config() -> MascotConfig {
+    MascotConfig {
+        png_path: PathBuf::from("cache/demo/render.png"),
+        scale: Some(1.0),
+        zip_path: PathBuf::from("assets/demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo/basic.psd"),
+        display_diff_path: None,
+        always_bouncing: false,
+        always_bend: false,
+        transparent_background_click_through: false,
+        flash_blue_background_on_transparent_input: true,
+        head_hitbox: HeadHitbox::default(),
+        bounce: BounceAnimationConfig::default(),
+        squash_bounce: SquashBounceAnimationConfig::default(),
+        always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
+    }
 }

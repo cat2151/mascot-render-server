@@ -1,4 +1,3 @@
-use std::f32::consts::TAU;
 use std::time::Duration;
 
 use eframe::egui::{epaint::Vertex, Color32, Mesh, Pos2, Rect, TextureId};
@@ -11,9 +10,11 @@ const ALWAYS_BEND_ROWS: usize = 12;
 const ALWAYS_BEND_COLUMNS: usize = 4;
 
 pub(crate) fn sample_always_bend(elapsed: Duration, image_rect: Rect) -> MotionTransform {
-    let phase = elapsed.as_secs_f32() * TAU / ALWAYS_BEND_CYCLE.as_secs_f32();
+    let cycle_nanos = ALWAYS_BEND_CYCLE.as_nanos();
+    let elapsed_in_cycle = elapsed.as_nanos() % cycle_nanos;
+    let phase = elapsed_in_cycle as f64 * std::f64::consts::TAU / cycle_nanos as f64;
     MotionTransform {
-        offset_x: image_rect.width() * ALWAYS_BEND_AMPLITUDE_RATIO * phase.sin(),
+        offset_x: image_rect.width() * ALWAYS_BEND_AMPLITUDE_RATIO * phase.sin() as f32,
         ..MotionTransform::identity()
     }
 }

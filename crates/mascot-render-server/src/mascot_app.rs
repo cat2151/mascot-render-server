@@ -58,7 +58,23 @@ pub(crate) struct MascotApp {
     pending_restored_anchor_position: Option<Pos2>,
 }
 
+pub(crate) fn allows_precise_pointer_interaction(config: &MascotConfig) -> bool {
+    !config.always_bend
+}
+
+pub(crate) fn transparent_hit_test_enabled(config: &MascotConfig) -> bool {
+    config.transparent_background_click_through && allows_precise_pointer_interaction(config)
+}
+
 impl MascotApp {
+    pub(crate) fn transparent_hit_test_enabled(&self) -> bool {
+        transparent_hit_test_enabled(&self.config)
+    }
+
+    pub(crate) fn allows_precise_pointer_interaction(&self) -> bool {
+        allows_precise_pointer_interaction(&self.config)
+    }
+
     pub(crate) fn new(
         cc: &CreationContext<'_>,
         config_path: PathBuf,
@@ -125,7 +141,7 @@ impl MascotApp {
         app.refresh_window_layout(&cc.egui_ctx, app.window_layout);
         app.transparent_hit_test.update(TransparentHitTestUpdate {
             now: Instant::now(),
-            enabled: app.config.transparent_background_click_through,
+            enabled: app.transparent_hit_test_enabled(),
             debug_flash_enabled: app.config.flash_blue_background_on_transparent_input,
             alpha_mask: Arc::clone(&app.open_skin.alpha_mask),
             image_size: app.open_skin.image_size,
