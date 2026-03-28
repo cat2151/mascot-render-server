@@ -28,17 +28,19 @@ fn default_server_address_uses_expected_port() {
 
 #[test]
 fn motion_timeline_request_round_trips_as_json() {
-    let request = MotionTimelineRequest {
-        steps: vec![MotionTimelineStep {
-            kind: MotionTimelineKind::MouthFlap,
-            duration_ms: 5_000,
-            fps: 20,
-        }],
-    };
+    for kind in [MotionTimelineKind::Shake, MotionTimelineKind::MouthFlap] {
+        let request = MotionTimelineRequest {
+            steps: vec![MotionTimelineStep {
+                kind,
+                duration_ms: 5_000,
+                fps: 20,
+            }],
+        };
 
-    let json = serde_json::to_string(&request).expect("request should serialize");
-    let decoded: MotionTimelineRequest =
-        serde_json::from_str(&json).expect("request should deserialize");
+        let json = serde_json::to_string(&request).expect("request should serialize");
+        let decoded: MotionTimelineRequest =
+            serde_json::from_str(&json).expect("request should deserialize");
 
-    assert_eq!(decoded, request);
+        assert_eq!(decoded, request);
+    }
 }

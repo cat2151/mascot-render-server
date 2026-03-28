@@ -62,7 +62,11 @@ impl App for MascotApp {
             eprintln!("{error:#}");
         }
         let blink_closed = self.closed_skin.is_some() && self.eye_blink.is_closed(now);
-        let mouth_flap_open = self.motion.mouth_flap_is_open(now);
+        let mouth_flap_open = mouth_flap_skin_state(
+            self.mouth_open_skin.is_some() || self.mouth_closed_skin.is_some(),
+            &mut self.motion,
+            now,
+        );
         let always_idle_sink = always_idle_sink_for_blink_median(
             self.config.always_idle_sink,
             self.eye_blink.current_median_ms(),
@@ -337,4 +341,14 @@ impl App for MascotApp {
             eprintln!("{error:#}");
         }
     }
+}
+
+fn mouth_flap_skin_state(
+    has_mouth_flap_skin: bool,
+    motion: &mut super::MotionState,
+    now: Instant,
+) -> Option<bool> {
+    has_mouth_flap_skin
+        .then(|| motion.mouth_flap_is_open(now))
+        .flatten()
 }
