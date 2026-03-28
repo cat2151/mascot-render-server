@@ -88,6 +88,7 @@ pub(crate) fn toggle_layer_override(
     true
 }
 
+#[cfg(test)]
 pub(crate) fn find_named_exclusive_pair(
     document: &PsdDocument,
     first_name: &str,
@@ -174,10 +175,12 @@ fn is_exclusive_descriptor(descriptor: &LayerDescriptor) -> bool {
     is_exclusive_kind(descriptor.kind) && is_exclusive_name(&descriptor.name)
 }
 
+#[cfg(test)]
 fn is_named_exclusive_descriptor(descriptor: &LayerDescriptor, name: &str) -> bool {
     is_exclusive_descriptor(descriptor) && normalized_layer_name(&descriptor.name) == name
 }
 
+#[cfg(test)]
 fn normalized_layer_name(name: &str) -> &str {
     name.trim_start_matches(['*', '!'])
 }

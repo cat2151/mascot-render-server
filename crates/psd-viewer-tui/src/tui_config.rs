@@ -4,7 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use mascot_render_core::{
-    default_eye_blink_targets, local_data_root, workspace_cache_root, EyeBlinkTarget,
+    default_eye_blink_targets, default_mouth_flap_targets, local_data_root, workspace_cache_root,
+    EyeBlinkTarget, MouthFlapTarget,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +18,7 @@ pub(crate) const DEFAULT_LAYER_SCROLL_MARGIN_RATIO: f32 = 0.25;
 pub(crate) struct TuiConfig {
     pub(crate) layer_scroll_margin_ratio: f32,
     pub(crate) eye_blink_targets: Vec<EyeBlinkTarget>,
+    pub(crate) mouth_flap_targets: Vec<MouthFlapTarget>,
 }
 
 impl Default for TuiConfig {
@@ -24,6 +26,7 @@ impl Default for TuiConfig {
         Self {
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
             eye_blink_targets: default_eye_blink_targets(),
+            mouth_flap_targets: default_mouth_flap_targets(),
         }
     }
 }
@@ -83,6 +86,8 @@ struct TuiConfigFile {
     layer_scroll_margin_ratio: f32,
     #[serde(default = "default_eye_blink_targets")]
     eye_blink_targets: Vec<EyeBlinkTarget>,
+    #[serde(default = "default_mouth_flap_targets")]
+    mouth_flap_targets: Vec<MouthFlapTarget>,
 }
 
 impl Default for TuiConfigFile {
@@ -91,6 +96,7 @@ impl Default for TuiConfigFile {
             version: TUI_CONFIG_VERSION,
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
             eye_blink_targets: default_eye_blink_targets(),
+            mouth_flap_targets: default_mouth_flap_targets(),
         }
     }
 }
@@ -137,6 +143,7 @@ pub(crate) fn load_tui_config(path: &Path) -> Result<TuiConfig> {
                 file.layer_scroll_margin_ratio,
             ),
             eye_blink_targets: sanitize_eye_blink_targets(file.eye_blink_targets),
+            mouth_flap_targets: sanitize_mouth_flap_targets(file.mouth_flap_targets),
         }),
         Ok(_) => Ok(TuiConfig::default()),
         Err(_) => Ok(TuiConfig::default()),
@@ -164,6 +171,7 @@ pub(crate) fn save_tui_config(path: &Path, config: &TuiConfig) -> Result<()> {
             config.layer_scroll_margin_ratio,
         ),
         eye_blink_targets: sanitize_eye_blink_targets(config.eye_blink_targets.clone()),
+        mouth_flap_targets: sanitize_mouth_flap_targets(config.mouth_flap_targets.clone()),
     };
     let toml = toml::to_string_pretty(&file).context("failed to serialize TUI config")?;
     fs::write(path, toml).with_context(|| format!("failed to write TUI config {}", path.display()))
@@ -247,6 +255,13 @@ fn sanitize_eye_blink_targets(targets: Vec<EyeBlinkTarget>) -> Vec<EyeBlinkTarge
         .collect()
 }
 
+fn sanitize_mouth_flap_targets(targets: Vec<MouthFlapTarget>) -> Vec<MouthFlapTarget> {
+    targets
+        .into_iter()
+        .filter_map(sanitize_mouth_flap_target)
+        .collect()
+}
+
 fn sanitize_eye_blink_target(target: EyeBlinkTarget) -> Option<EyeBlinkTarget> {
     let psd_file_name = sanitize_psd_file_name(&target.psd_file_name);
     let first_layer_name = target.first_layer_name.trim().to_string();
@@ -260,6 +275,29 @@ fn sanitize_eye_blink_target(target: EyeBlinkTarget) -> Option<EyeBlinkTarget> {
         first_layer_name,
         second_layer_name,
     })
+}
+
+fn sanitize_mouth_flap_target(target: MouthFlapTarget) -> Option<MouthFlapTarget> {
+    let psd_file_name = sanitize_psd_file_name(&target.psd_file_name);
+    let open_layer_names = sanitize_layer_name_list(target.open_layer_names);
+    let closed_layer_names = sanitize_layer_name_list(target.closed_layer_names);
+    if psd_file_name.is_empty() || open_layer_names.is_empty() || closed_layer_names.is_empty() {
+        return None;
+    }
+
+    Some(MouthFlapTarget {
+        psd_file_name,
+        open_layer_names,
+        closed_layer_names,
+    })
+}
+
+fn sanitize_layer_name_list(layer_names: Vec<String>) -> Vec<String> {
+    layer_names
+        .into_iter()
+        .map(|name| name.trim().to_string())
+        .filter(|name| !name.is_empty())
+        .collect()
 }
 
 fn sanitize_psd_file_name(psd_file_name: &str) -> String {
