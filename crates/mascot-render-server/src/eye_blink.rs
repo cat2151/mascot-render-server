@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, Context, Result};
 use mascot_render_core::{
     build_closed_eye_display_diff, default_eye_blink_targets, find_eye_blink_target,
-    load_variation_spec, Core, DisplayDiff, MascotConfig, RenderRequest,
+    load_variation_spec, variation_spec_path, Core, DisplayDiff, MascotConfig, RenderRequest,
 };
 
 use crate::eye_blink_timing::EyeBlinkIntervalGenerator;
@@ -126,11 +126,19 @@ pub(crate) fn render_closed_eye_png(core: &Core, config: &MascotConfig) -> Resul
 }
 
 fn load_current_display_diff(config: &MascotConfig) -> DisplayDiff {
-    config
-        .display_diff_path
-        .as_deref()
-        .and_then(|path| load_variation_spec(path, &config.zip_path, &config.psd_path_in_zip))
-        .unwrap_or_default()
+    let active_variation_path = variation_spec_path(&config.png_path);
+    load_variation_spec(
+        &active_variation_path,
+        &config.zip_path,
+        &config.psd_path_in_zip,
+    )
+    .or_else(|| {
+        config
+            .display_diff_path
+            .as_deref()
+            .and_then(|path| load_variation_spec(path, &config.zip_path, &config.psd_path_in_zip))
+    })
+    .unwrap_or_default()
 }
 
 #[cfg(test)]

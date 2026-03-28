@@ -6,6 +6,7 @@ mod eye_blink_timing;
 mod favorite_ensemble;
 mod mascot_app;
 mod mascot_scale;
+mod mouth_flap;
 
 #[cfg(test)]
 #[path = "tests/always_bend.rs"]
@@ -22,6 +23,9 @@ mod mascot_app_reload_tests;
 #[cfg(test)]
 #[path = "tests/mascot_scale.rs"]
 mod mascot_scale_tests;
+#[cfg(test)]
+#[path = "tests/runtime.rs"]
+mod runtime_tests;
 #[cfg(test)]
 #[path = "tests/window_history.rs"]
 mod window_history_tests;

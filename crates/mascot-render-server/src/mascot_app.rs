@@ -7,8 +7,8 @@ use anyhow::{Context, Result};
 use eframe::egui::{self, Pos2, Vec2};
 use eframe::CreationContext;
 use mascot_render_core::{
-    load_mascot_config, load_mascot_image, mascot_runtime_state_path, psd_viewer_tui_activity_path,
-    Core, CoreConfig, MascotConfig, MascotImageData, MotionState, MotionTransform,
+    load_mascot_config, mascot_runtime_state_path, psd_viewer_tui_activity_path, Core, CoreConfig,
+    MascotConfig, MascotImageData, MotionState, MotionTransform,
 };
 use mascot_render_server::window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
@@ -21,8 +21,8 @@ use mascot_render_server::{
 use crate::app_support::{
     cached_skin_from_image, path_modified_at, size_vec, window_title, CachedSkin,
 };
-use crate::eye_blink::{render_closed_eye_png, EyeBlinkLoop};
-use crate::favorite_ensemble::{favorites_path as favorite_ensemble_path, load_favorite_ensemble};
+use crate::eye_blink::EyeBlinkLoop;
+use crate::favorite_ensemble::favorites_path as favorite_ensemble_path;
 use crate::mascot_scale::{effective_scale, keyboard_scale_steps, scroll_scale_steps};
 use crate::SKIN_CACHE_CAPACITY;
 #[path = "mascot_app/ensemble.rs"]
@@ -33,7 +33,11 @@ mod layout;
 mod runtime;
 #[path = "mascot_app/scale.rs"]
 mod scale;
+#[path = "mascot_app/skins.rs"]
+mod skins;
 use ensemble::FavoriteEnsembleScene;
+#[cfg(test)]
+pub(crate) use runtime::mouth_flap_skin_state_for_test;
 
 const EFFECTIVE_CONFIG_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -59,6 +63,8 @@ pub(crate) struct MascotApp {
     core: Core,
     open_skin: CachedSkin,
     closed_skin: Option<CachedSkin>,
+    mouth_open_skin: Option<CachedSkin>,
+    mouth_closed_skin: Option<CachedSkin>,
     favorite_ensemble: Option<FavoriteEnsembleScene>,
     scale: f32,
     pending_persisted_scale: Option<f32>,
@@ -161,6 +167,8 @@ impl MascotApp {
             core: Core::new(CoreConfig::default()),
             open_skin,
             closed_skin: None,
+            mouth_open_skin: None,
+            mouth_closed_skin: None,
             favorite_ensemble,
             scale,
             pending_persisted_scale: None,
@@ -184,6 +192,9 @@ impl MascotApp {
                 .set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);
         }
         if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
+            eprintln!("{error:#}");
+        }
+        if let Err(error) = app.refresh_mouth_flap_skins(&cc.egui_ctx) {
             eprintln!("{error:#}");
         }
         app.refresh_window_layout(&cc.egui_ctx, app.window_layout);
@@ -245,8 +256,9 @@ impl MascotApp {
             Some(self.scale),
         );
         self.config.png_path = png_path.to_path_buf();
-        self.closed_skin = None;
         self.eye_blink.reset(Instant::now());
+        self.refresh_closed_eye_skin(ctx)?;
+        self.refresh_mouth_flap_skins(ctx)?;
         self.refresh_window_layout(ctx, previous_layout);
         Ok(())
     }
@@ -339,6 +351,7 @@ impl MascotApp {
         if ensemble_mode_changed || favorite_ensemble_changed || png_changed || blink_source_changed
         {
             self.refresh_closed_eye_skin(ctx)?;
+            self.refresh_mouth_flap_skins(ctx)?;
         }
         if history_path_changed
             || self.window_history_modified_at != next_window_history_modified_at
@@ -373,57 +386,6 @@ impl MascotApp {
         )));
         Ok(())
     }
-
-    fn load_skin(&mut self, ctx: &egui::Context, png_path: &Path) -> Result<CachedSkin> {
-        if let Some(cached_skin) = self.skin_cache.get(png_path) {
-            return Ok(cached_skin.clone());
-        }
-
-        let image = load_mascot_image(png_path)
-            .with_context(|| format!("failed to load mascot skin {}", png_path.display()))?;
-        let skin = cached_skin_from_image(ctx, &image);
-        self.skin_cache.insert(png_path.to_path_buf(), skin.clone());
-        Ok(skin)
-    }
-
-    fn load_active_skin(&mut self, ctx: &egui::Context) -> Result<CachedSkin> {
-        let png_path = self.config.png_path.clone();
-        self.load_skin(ctx, &png_path)
-    }
-
-    fn load_active_ensemble_scene(
-        &mut self,
-        ctx: &egui::Context,
-    ) -> Result<Option<FavoriteEnsembleScene>> {
-        Ok(load_favorite_ensemble(&self.core)?.map(|ensemble| {
-            FavoriteEnsembleScene::from_loaded(
-                ctx,
-                ensemble,
-                self.config.always_idle_sink_enabled,
-                Instant::now(),
-            )
-        }))
-    }
-
-    fn refresh_closed_eye_skin(&mut self, ctx: &egui::Context) -> Result<()> {
-        if self.config.favorite_ensemble_enabled {
-            self.closed_skin = None;
-            return Ok(());
-        }
-        self.eye_blink.reset(Instant::now());
-        let Some(closed_png_path) = render_closed_eye_png(&self.core, &self.config)? else {
-            self.closed_skin = None;
-            return Ok(());
-        };
-        if closed_png_path == self.config.png_path {
-            self.closed_skin = None;
-            return Ok(());
-        }
-
-        self.closed_skin = Some(self.load_skin(ctx, &closed_png_path)?);
-        Ok(())
-    }
-
     fn sync_window_history(&mut self, ctx: &egui::Context, now: Instant) -> Result<()> {
         if let Some(viewport_info) = current_viewport_info(ctx) {
             self.window_history.observe(

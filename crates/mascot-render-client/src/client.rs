@@ -21,6 +21,7 @@ pub struct ChangeSkinRequest {
 #[serde(rename_all = "snake_case")]
 pub enum MotionTimelineKind {
     Shake,
+    MouthFlap,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

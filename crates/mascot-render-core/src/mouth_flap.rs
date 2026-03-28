@@ -10,6 +10,11 @@ use crate::layer_name_format::{
 };
 use crate::model::LayerKind;
 
+#[path = "mouth_flap/visibility.rs"]
+mod visibility;
+
+use visibility::{ensure_named_row_visible, resolve_row_states, row_label, RowVisibilityState};
+
 pub const MOUTH_GROUP_LAYER: &str = "口";
 pub const MOUTH_OPEN_LAYER: &str = "ほあー";
 pub const MOUTH_CLOSED_LAYER: &str = "むふ";
@@ -29,6 +34,12 @@ pub struct MouthFlapRows {
     pub closed_row_index: usize,
     pub open_label: String,
     pub closed_label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MouthFlapDisplayDiffs {
+    pub open: DisplayDiff,
+    pub closed: DisplayDiff,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,6 +190,28 @@ pub fn resolve_mouth_flap_rows(
     })
 }
 
+pub fn build_mouth_flap_display_diffs(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+    target: &MouthFlapTarget,
+) -> Result<MouthFlapDisplayDiffs, String> {
+    let resolved = resolve_mouth_flap_rows(document, base_variation, target)?;
+    Ok(MouthFlapDisplayDiffs {
+        open: ensure_named_row_visible(
+            base_variation,
+            document,
+            resolved.open_row_index,
+            &resolved.open_label,
+        )?,
+        closed: ensure_named_row_visible(
+            base_variation,
+            document,
+            resolved.closed_row_index,
+            &resolved.closed_label,
+        )?,
+    })
+}
+
 fn find_named_pair_in_visible_group(
     document: &PsdDocument,
     states: &[RowVisibilityState],
@@ -293,55 +326,6 @@ fn find_open_row_in_scope(
     best_match
 }
 
-fn row_label(document: &PsdDocument, row_index: usize) -> String {
-    document
-        .layers
-        .get(row_index)
-        .map(|descriptor| normalized_layer_name(&descriptor.name).to_string())
-        .unwrap_or_default()
-}
-
-fn resolve_row_states(
-    document: &PsdDocument,
-    display_diff: &DisplayDiff,
-) -> Vec<RowVisibilityState> {
-    let mut rows = Vec::with_capacity(document.layers.len());
-    let mut group_visibility = Vec::new();
-
-    for descriptor in &document.layers {
-        let raw_visible = resolved_raw_visibility(display_diff, descriptor);
-        let parent_visible = group_visibility.iter().all(|is_visible| *is_visible);
-        let visible = raw_visible && parent_visible;
-        rows.push(RowVisibilityState {
-            visible,
-            parent_visible,
-        });
-
-        match descriptor.kind {
-            LayerKind::GroupOpen => group_visibility.push(visible),
-            LayerKind::GroupClose => {
-                group_visibility.pop();
-            }
-            LayerKind::Layer => {}
-        }
-    }
-
-    rows
-}
-
-fn resolved_raw_visibility(display_diff: &DisplayDiff, descriptor: &LayerDescriptor) -> bool {
-    if is_mandatory_descriptor(descriptor) {
-        return true;
-    }
-
-    display_diff
-        .visibility_overrides
-        .iter()
-        .find(|entry| entry.layer_index == descriptor.layer_index)
-        .map(|entry| entry.visible)
-        .unwrap_or(descriptor.default_visible)
-}
-
 fn is_mandatory_descriptor(descriptor: &LayerDescriptor) -> bool {
     is_mandatory_kind(descriptor.kind) && is_mandatory_name(&descriptor.name)
 }
@@ -402,10 +386,4 @@ fn matching_group_close_index(document: &PsdDocument, group_open_index: usize) -
     }
 
     None
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct RowVisibilityState {
-    visible: bool,
-    parent_visible: bool,
 }

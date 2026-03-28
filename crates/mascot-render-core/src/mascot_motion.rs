@@ -192,11 +192,19 @@ struct ActiveAnimation {
     shake_frame_interval: Duration,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct MouthFlapAnimation {
+    started_at: Instant,
+    duration: Duration,
+    frame_interval: Duration,
+}
+
 #[derive(Debug)]
 pub struct MotionState {
     next_kind: Option<AnimationKind>,
     idle_kind: Option<AnimationKind>,
     active: Option<ActiveAnimation>,
+    mouth_flap: Option<MouthFlapAnimation>,
     random_state: u64,
 }
 
@@ -206,6 +214,7 @@ impl MotionState {
             next_kind: Some(AnimationKind::Bounce),
             idle_kind: None,
             active: None,
+            mouth_flap: None,
             random_state: sampling::seed_from_system_time(),
         }
     }
@@ -239,6 +248,14 @@ impl MotionState {
         });
     }
 
+    pub fn trigger_mouth_flap(&mut self, now: Instant, duration: Duration, fps: u16) {
+        self.mouth_flap = Some(MouthFlapAnimation {
+            started_at: now,
+            duration: duration.max(Duration::from_millis(1)),
+            frame_interval: sampling::frame_interval_from_fps(fps),
+        });
+    }
+
     pub fn set_always_idle_sink_enabled(&mut self, enabled: bool, now: Instant) {
         let was_idle_animation = self
             .active
@@ -254,7 +271,14 @@ impl MotionState {
     }
 
     pub fn is_active(&self) -> bool {
-        self.active.is_some()
+        self.active.is_some() || self.mouth_flap.is_some()
+    }
+
+    pub fn mouth_flap_is_open(&mut self, now: Instant) -> Option<bool> {
+        let mouth_flap = self.active_mouth_flap(now)?;
+        let elapsed = now.duration_since(mouth_flap.started_at);
+        let frame = elapsed.as_nanos() / mouth_flap.frame_interval.as_nanos().max(1);
+        Some(frame % 2 == 0)
     }
 
     pub fn sample(
@@ -312,8 +336,10 @@ impl MotionState {
     ) -> Option<Duration> {
         let active = match self.active {
             Some(active) => active,
-            None if self.idle_kind.is_some() => return Some(ANIMATION_FRAME_INTERVAL),
-            None => return None,
+            None => {
+                let idle_repaint = self.idle_kind.map(|_| ANIMATION_FRAME_INTERVAL);
+                return Self::min_repaint_after(idle_repaint, self.mouth_flap_repaint_after(now));
+            }
         };
         let duration = match active.kind {
             AnimationKind::Bounce => Duration::from_millis(bounce.duration_ms.max(1)),
@@ -323,10 +349,13 @@ impl MotionState {
         };
         let remaining = duration.saturating_sub(now.duration_since(active.started_at));
         if remaining.is_zero() {
-            return Some(Duration::ZERO);
+            return Self::min_repaint_after(
+                Some(Duration::ZERO),
+                self.mouth_flap_repaint_after(now),
+            );
         }
 
-        Some(match active.kind {
+        let transform_repaint_after = Some(match active.kind {
             AnimationKind::Bounce | AnimationKind::SquashBounce | AnimationKind::IdleSink => {
                 remaining.min(ANIMATION_FRAME_INTERVAL)
             }
@@ -335,7 +364,8 @@ impl MotionState {
                 active.started_at,
                 active.shake_frame_interval,
             )),
-        })
+        });
+        Self::min_repaint_after(transform_repaint_after, self.mouth_flap_repaint_after(now))
     }
 
     fn next_random_u64(&mut self) -> u64 {
@@ -348,6 +378,41 @@ impl MotionState {
             self.active = self
                 .idle_kind
                 .map(|kind| Self::start_animation(kind, now, true));
+        }
+    }
+
+    fn active_mouth_flap(&mut self, now: Instant) -> Option<MouthFlapAnimation> {
+        let mouth_flap = self.mouth_flap?;
+        if now.duration_since(mouth_flap.started_at) >= mouth_flap.duration {
+            self.mouth_flap = None;
+            return None;
+        }
+        Some(mouth_flap)
+    }
+
+    fn mouth_flap_repaint_after(&self, now: Instant) -> Option<Duration> {
+        let mouth_flap = self.mouth_flap?;
+        let elapsed = now.duration_since(mouth_flap.started_at);
+        let remaining = mouth_flap.duration.saturating_sub(elapsed);
+        if remaining.is_zero() {
+            return Some(Duration::ZERO);
+        }
+
+        let next_frame = mouth_flap
+            .frame_interval
+            .checked_sub(Duration::from_nanos(
+                (elapsed.as_nanos() % mouth_flap.frame_interval.as_nanos().max(1)) as u64,
+            ))
+            .unwrap_or(Duration::ZERO);
+        Some(remaining.min(next_frame))
+    }
+
+    fn min_repaint_after(left: Option<Duration>, right: Option<Duration>) -> Option<Duration> {
+        match (left, right) {
+            (Some(left), Some(right)) => Some(left.min(right)),
+            (Some(left), None) => Some(left),
+            (None, Some(right)) => Some(right),
+            (None, None) => None,
         }
     }
 
@@ -371,6 +436,7 @@ impl MotionState {
             next_kind: Some(AnimationKind::Bounce),
             idle_kind: None,
             active: None,
+            mouth_flap: None,
             random_state: seed,
         }
     }

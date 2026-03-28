@@ -88,6 +88,24 @@ impl MascotApp {
                 );
             }
         }
+        for (label, skin) in [
+            ("mouth-open", self.mouth_open_skin.as_ref()),
+            ("mouth-closed", self.mouth_closed_skin.as_ref()),
+        ] {
+            let Some(skin) = skin else {
+                continue;
+            };
+            if skin.image_size == self.open_skin.image_size {
+                bounds = bounds.union(skin.content_bounds);
+            } else {
+                eprintln!(
+                    "{} skin size {:?} does not match open skin size {:?}; using open skin bounds for the window layout",
+                    label,
+                    skin.image_size,
+                    self.open_skin.image_size
+                );
+            }
+        }
         bounds
     }
 }

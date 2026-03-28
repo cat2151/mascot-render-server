@@ -54,6 +54,21 @@ fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
         MascotControlCommand::PlayTimeline(timeline)
     );
 
+    let mouth_flap_timeline = MotionTimelineRequest {
+        steps: vec![MotionTimelineStep {
+            kind: MotionTimelineKind::MouthFlap,
+            duration_ms: 5_000,
+            fps: 20,
+        }],
+    };
+    play_timeline_mascot_render_server_at(address, &mouth_flap_timeline)
+        .expect("mouth flap timeline request should succeed");
+    assert_eq!(
+        rx.recv_timeout(Duration::from_secs(1))
+            .expect("mouth flap timeline command should arrive"),
+        MascotControlCommand::PlayTimeline(mouth_flap_timeline)
+    );
+
     hide_mascot_render_server_at(address).expect("hide request should succeed");
     assert_eq!(
         rx.recv_timeout(Duration::from_secs(1))

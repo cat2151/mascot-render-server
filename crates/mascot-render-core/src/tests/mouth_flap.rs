@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::{
-    default_mouth_flap_targets, resolve_mouth_flap_rows, DisplayDiff, LayerDescriptor, LayerKind,
-    LayerVisibilityOverride, MouthFlapTarget, PsdDocument,
+    build_mouth_flap_display_diffs, default_mouth_flap_targets, resolve_mouth_flap_rows,
+    DisplayDiff, LayerDescriptor, LayerKind, LayerVisibilityOverride, MouthFlapTarget, PsdDocument,
 };
 
 #[test]
@@ -69,6 +69,49 @@ fn resolve_mouth_flap_rows_prefers_visible_mouth_group() {
     assert_eq!(resolved.closed_row_index, 9);
     assert_eq!(resolved.open_label, "ほあー");
     assert_eq!(resolved.closed_label, "むん");
+}
+
+#[test]
+fn build_mouth_flap_display_diffs_activates_open_and_closed_layers() {
+    let document = PsdDocument {
+        zip_path: PathBuf::from("demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo.psd"),
+        file_name: "demo.psd".to_string(),
+        metadata: String::new(),
+        layers: vec![
+            descriptor(4, "!口", LayerKind::GroupOpen, true, 0),
+            descriptor(3, "*ほあー", LayerKind::Layer, false, 1),
+            descriptor(2, "*むふ", LayerKind::Layer, true, 1),
+            descriptor(1, "(unnamed)", LayerKind::GroupClose, true, 0),
+        ],
+        error: None,
+        log_path: None,
+        default_rendered_png_path: None,
+        render_warnings: Vec::new(),
+    };
+    let target = MouthFlapTarget {
+        psd_file_name: "demo.psd".to_string(),
+        open_layer_names: vec!["ほあー".to_string()],
+        closed_layer_names: vec!["むふ".to_string()],
+    };
+
+    let display_diffs = build_mouth_flap_display_diffs(&document, &DisplayDiff::new(), &target)
+        .expect("mouth flap display diffs should build");
+
+    assert_eq!(
+        display_diffs.open.visibility_overrides,
+        vec![
+            LayerVisibilityOverride {
+                layer_index: 2,
+                visible: false,
+            },
+            LayerVisibilityOverride {
+                layer_index: 3,
+                visible: true,
+            },
+        ]
+    );
+    assert_eq!(display_diffs.closed, DisplayDiff::new());
 }
 
 fn descriptor(

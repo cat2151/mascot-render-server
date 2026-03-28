@@ -134,6 +134,44 @@ fn shake_motion_finishes_after_requested_duration() {
 }
 
 #[test]
+fn mouth_flap_motion_starts_open_and_switches_each_frame() {
+    let mut motion = MotionState::new();
+    let now = Instant::now();
+    motion.trigger_mouth_flap(now, Duration::from_secs(5), 4);
+
+    assert_eq!(motion.mouth_flap_is_open(now), Some(true));
+    assert_eq!(
+        motion.mouth_flap_is_open(now + Duration::from_millis(249)),
+        Some(true)
+    );
+    assert_eq!(
+        motion.mouth_flap_is_open(now + Duration::from_millis(250)),
+        Some(false)
+    );
+    assert_eq!(
+        motion.mouth_flap_is_open(now + Duration::from_millis(500)),
+        Some(true)
+    );
+}
+
+#[test]
+fn mouth_flap_motion_finishes_after_requested_duration() {
+    let mut motion = MotionState::new();
+    let now = Instant::now();
+    motion.trigger_mouth_flap(now, Duration::from_secs(5), 20);
+
+    assert_eq!(
+        motion.mouth_flap_is_open(now + Duration::from_millis(4_999)),
+        Some(false)
+    );
+    assert_eq!(
+        motion.mouth_flap_is_open(now + Duration::from_millis(5_000)),
+        None
+    );
+    assert!(!motion.is_active());
+}
+
+#[test]
 fn always_bouncing_idle_uses_always_idle_sink_duration() {
     let mut motion = MotionState::new();
     let now = Instant::now();
