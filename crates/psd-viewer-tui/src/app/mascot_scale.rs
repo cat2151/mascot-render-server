@@ -42,6 +42,7 @@ impl App {
         let target = MascotTarget {
             png_path,
             scale: self.mascot_scale,
+            favorite_gallery_scale: None,
             zip_path,
             psd_path_in_zip,
             display_diff_path: self.current_variation_spec_path.clone(),

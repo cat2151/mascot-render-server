@@ -30,11 +30,13 @@ pub struct MascotImageData {
 pub struct MascotConfig {
     pub png_path: PathBuf,
     pub scale: Option<f32>,
+    pub favorite_gallery_scale: Option<f32>,
     pub zip_path: PathBuf,
     pub psd_path_in_zip: PathBuf,
     pub display_diff_path: Option<PathBuf>,
     pub always_bouncing: bool,
     pub always_bend: bool,
+    pub favorite_gallery_enabled: bool,
     pub transparent_background_click_through: bool,
     pub flash_blue_background_on_transparent_input: bool,
     pub head_hitbox: HeadHitbox,
@@ -47,6 +49,7 @@ pub struct MascotConfig {
 pub struct MascotTarget {
     pub png_path: PathBuf,
     pub scale: Option<f32>,
+    pub favorite_gallery_scale: Option<f32>,
     pub zip_path: PathBuf,
     pub psd_path_in_zip: PathBuf,
     pub display_diff_path: Option<PathBuf>,
@@ -86,17 +89,19 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
     let runtime_target = load_mascot_runtime_target(config_path)?;
     validate_mascot_target(&runtime_target, &runtime_state_path)?;
 
-    Ok(MascotConfig {
-        png_path: runtime_target.png_path,
-        scale: runtime_target.scale,
-        zip_path: runtime_target.zip_path,
-        psd_path_in_zip: runtime_target.psd_path_in_zip,
-        display_diff_path: runtime_target.display_diff_path,
-        always_bouncing: static_config.always_bouncing,
-        always_bend: static_config.always_bend,
-        transparent_background_click_through: static_config.transparent_background_click_through,
-        flash_blue_background_on_transparent_input: static_config
-            .flash_blue_background_on_transparent_input,
+        Ok(MascotConfig {
+            png_path: runtime_target.png_path,
+            scale: runtime_target.scale,
+            favorite_gallery_scale: runtime_target.favorite_gallery_scale,
+            zip_path: runtime_target.zip_path,
+            psd_path_in_zip: runtime_target.psd_path_in_zip,
+            display_diff_path: runtime_target.display_diff_path,
+            always_bouncing: static_config.always_bouncing,
+            always_bend: static_config.always_bend,
+            favorite_gallery_enabled: static_config.favorite_gallery_enabled,
+            transparent_background_click_through: static_config.transparent_background_click_through,
+            flash_blue_background_on_transparent_input: static_config
+                .flash_blue_background_on_transparent_input,
         head_hitbox: static_config.head_hitbox,
         bounce: static_config.bounce,
         squash_bounce: static_config.squash_bounce,
@@ -219,6 +224,7 @@ fn validate_mascot_target(target: &MascotTarget, state_path: &Path) -> Result<()
         );
     }
     validate_scale(target.scale, state_path)?;
+    validate_scale(target.favorite_gallery_scale, state_path)?;
 
     if target.zip_path.as_os_str().is_empty() {
         bail!(

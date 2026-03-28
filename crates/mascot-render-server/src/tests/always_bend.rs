@@ -83,11 +83,13 @@ fn sample_config() -> MascotConfig {
     MascotConfig {
         png_path: PathBuf::from("cache/demo/render.png"),
         scale: Some(1.0),
+        favorite_gallery_scale: None,
         zip_path: PathBuf::from("assets/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: None,
         always_bouncing: false,
         always_bend: false,
+        favorite_gallery_enabled: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,
         head_hitbox: HeadHitbox::default(),

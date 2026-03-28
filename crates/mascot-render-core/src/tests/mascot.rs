@@ -53,6 +53,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     let target = MascotTarget {
         png_path: workspace_cache_root().join("demo/render.png"),
         scale: Some(0.35),
+        favorite_gallery_scale: Some(0.8),
         zip_path: workspace_path("assets/zip/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: Some(workspace_cache_root().join("demo/display-diffs/basic.json")),
@@ -63,11 +64,13 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
 
     assert_eq!(loaded.png_path, target.png_path);
     assert_eq!(loaded.scale, target.scale);
+    assert_eq!(loaded.favorite_gallery_scale, target.favorite_gallery_scale);
     assert_eq!(loaded.zip_path, target.zip_path);
     assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, target.display_diff_path);
     assert!(!loaded.always_bouncing);
     assert!(!loaded.always_bend);
+    assert!(!loaded.favorite_gallery_enabled);
     assert!(!loaded.transparent_background_click_through);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.head_hitbox, HeadHitbox::default());
@@ -87,6 +90,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!static_toml.contains("zip_path ="));
     assert!(!static_toml.contains("version ="));
     assert!(!static_toml.contains("updated_at ="));
+    assert!(!static_toml.contains("favorite_gallery_scale ="));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
     assert!(static_toml.contains("[always_idle_sink]"));
     assert!(
@@ -130,6 +134,7 @@ transparent_background_click_through = false
 
     assert!(loaded.always_bouncing);
     assert!(loaded.always_bend);
+    assert!(!loaded.favorite_gallery_enabled);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(
         loaded.always_idle_sink,
@@ -186,6 +191,7 @@ stretch_amount = 0.08
   "version": 1,
   "png_path": "cache/legacy/render.png",
   "scale": 0.42,
+  "favorite_gallery_scale": 0.9,
   "zip_path": "assets/zip/legacy.zip",
   "psd_path_in_zip": "legacy/basic.psd",
   "display_diff_path": "cache/legacy/basic.json",
@@ -258,6 +264,7 @@ fn writing_mascot_config_preserves_current_static_sections() {
         r#"
 always_bouncing = true
 always_bend = true
+favorite_gallery_enabled = true
 transparent_background_click_through = true
 flash_blue_background_on_transparent_input = true
 
@@ -289,6 +296,7 @@ stretch_amount = 0.08
     let target = MascotTarget {
         png_path: workspace_cache_root().join("demo/render.png"),
         scale: Some(0.45),
+        favorite_gallery_scale: Some(0.95),
         zip_path: workspace_path("assets/zip/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: None,
@@ -299,8 +307,10 @@ stretch_amount = 0.08
         load_mascot_config(&config_path).expect("should read split mascot config/state files");
     assert_eq!(loaded.png_path, target.png_path);
     assert_eq!(loaded.scale, target.scale);
+    assert_eq!(loaded.favorite_gallery_scale, target.favorite_gallery_scale);
     assert!(loaded.always_bouncing);
     assert!(loaded.always_bend);
+    assert!(loaded.favorite_gallery_enabled);
     assert!(loaded.transparent_background_click_through);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.head_hitbox.x, 0.3);
@@ -318,10 +328,12 @@ stretch_amount = 0.08
     assert!(!static_toml.contains("updated_at ="));
     assert!(static_toml.contains("always_bouncing = true"));
     assert!(static_toml.contains("always_bend = true"));
+    assert!(static_toml.contains("favorite_gallery_enabled = true"));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
     let runtime_json =
         fs::read_to_string(&runtime_state_path).expect("should write mascot runtime JSON");
     assert!(runtime_json.contains("\"png_path\""));
+    assert!(runtime_json.contains("\"favorite_gallery_scale\": 0.95"));
     assert!(runtime_json.contains("\"demo/basic.psd\""));
 }
 

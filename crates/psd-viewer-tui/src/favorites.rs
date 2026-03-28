@@ -20,6 +20,8 @@ pub(crate) struct FavoriteEntry {
     pub(crate) mascot_scale: Option<f32>,
     #[serde(default)]
     pub(crate) window_position: Option<[f32; 2]>,
+    #[serde(default)]
+    pub(crate) favorite_gallery_position: Option<[f32; 2]>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -137,6 +139,8 @@ fn sanitize_favorites(favorites: Vec<FavoriteEntry>) -> Vec<FavoriteEntry> {
         }
         favorite.mascot_scale = sanitize_mascot_scale(favorite.mascot_scale);
         favorite.window_position = sanitize_window_position(favorite.window_position);
+        favorite.favorite_gallery_position =
+            sanitize_window_position(favorite.favorite_gallery_position);
         let identity = favorite.favorite_identity_key();
         if let Some(index) = sanitized
             .iter()

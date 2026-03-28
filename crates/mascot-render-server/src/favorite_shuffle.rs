@@ -57,6 +57,8 @@ struct FavoriteEntryFile {
     mascot_scale: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     window_position: Option<[f32; 2]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    favorite_gallery_position: Option<[f32; 2]>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
@@ -139,6 +141,11 @@ impl FavoriteShufflePlaylist {
         current_config: &MascotConfig,
         now: Instant,
     ) -> Result<bool> {
+        if current_config.favorite_gallery_enabled {
+            self.state
+                .finish_rotation(now, current_config_key(current_config));
+            return Ok(false);
+        }
         if !self.state.is_due(now) {
             return Ok(false);
         }
@@ -288,6 +295,7 @@ fn favorite_target(core: &Core, favorite: FavoriteEntry) -> Result<MascotTarget>
     Ok(MascotTarget {
         png_path: rendered.output_path,
         scale: favorite.mascot_scale,
+        favorite_gallery_scale: None,
         zip_path: favorite.zip_path,
         psd_path_in_zip: favorite.psd_path_in_zip,
         display_diff_path: None,

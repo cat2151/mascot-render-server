@@ -336,6 +336,7 @@ impl App {
             visibility_overrides,
             mascot_scale: self.mascot_scale,
             window_position,
+            favorite_gallery_position: None,
         })
     }
 }

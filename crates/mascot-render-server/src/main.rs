@@ -3,6 +3,7 @@ mod app_support;
 mod cli;
 mod eye_blink;
 mod eye_blink_timing;
+mod favorite_gallery;
 mod mascot_app;
 mod mascot_scale;
 
@@ -12,6 +13,9 @@ mod always_bend_tests;
 #[cfg(test)]
 #[path = "tests/cli.rs"]
 mod cli_tests;
+#[cfg(test)]
+#[path = "tests/favorite_gallery.rs"]
+mod favorite_gallery_tests;
 #[cfg(test)]
 #[path = "tests/mascot_scale.rs"]
 mod mascot_scale_tests;
@@ -26,14 +30,13 @@ use anyhow::{anyhow, Result};
 use cli::{parse_cli, CliAction};
 use eframe::egui;
 use eframe::NativeOptions;
+use favorite_gallery::load_gallery_image;
 use mascot_app::MascotApp;
-use mascot_render_server::window_history::{
-    load_window_position, outer_position_for_anchor, window_history_path,
-};
+use mascot_render_core::{load_mascot_config, load_mascot_image, run_workspace_update, Core, CoreConfig};
+use mascot_render_server::window_history::{load_window_position, outer_position_for_anchor, window_history_path};
 use mascot_render_server::{start_mascot_control_server_with_notify, MascotWindowLayout};
 
 use app_support::{alpha_mask, content_bounds, size_vec, window_title};
-use mascot_render_core::{load_mascot_config, load_mascot_image, run_workspace_update};
 
 const SKIN_CACHE_CAPACITY: usize = 16;
 
@@ -50,8 +53,18 @@ fn main() -> Result<()> {
         }
     };
     let config = load_mascot_config(&config_path)?;
-    let image = load_mascot_image(&config.png_path)?;
-    let base_size = size_vec(image.width, image.height, config.scale);
+    let core = Core::new(CoreConfig::default());
+    let image = if config.favorite_gallery_enabled {
+        load_gallery_image(&core)?.unwrap_or(load_mascot_image(&config.png_path)?)
+    } else {
+        load_mascot_image(&config.png_path)?
+    };
+    let initial_scale = if config.favorite_gallery_enabled {
+        Some(config.favorite_gallery_scale.unwrap_or(1.0))
+    } else {
+        config.scale
+    };
+    let base_size = size_vec(image.width, image.height, initial_scale);
     let initial_alpha_mask = alpha_mask(&image.rgba);
     let initial_content_bounds =
         content_bounds([image.width, image.height], initial_alpha_mask.as_ref());
