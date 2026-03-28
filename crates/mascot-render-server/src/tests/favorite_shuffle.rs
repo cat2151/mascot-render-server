@@ -228,6 +228,18 @@ fn favorite_shuffle_ignores_stale_psd_viewer_tui_activity() {
 }
 
 #[test]
+fn favorite_shuffle_ignores_missing_psd_viewer_tui_activity() {
+    let config_path = workspace_cache_root().join("test-favorite-shuffle-missing-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let _ = fs::remove_file(&activity_path);
+
+    assert!(
+        !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
+            .expect("missing heartbeat should not pause favorite shuffle")
+    );
+}
+
+#[test]
 fn favorite_shuffle_ignores_future_psd_viewer_tui_activity() {
     let config_path = workspace_cache_root().join("test-favorite-shuffle-future-tui/mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
@@ -243,6 +255,26 @@ fn favorite_shuffle_ignores_future_psd_viewer_tui_activity() {
     assert!(
         !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
             .expect("future heartbeat should not pause favorite shuffle")
+    );
+}
+
+#[test]
+fn favorite_shuffle_ignores_unreadable_psd_viewer_tui_activity() {
+    let config_path =
+        workspace_cache_root().join("test-favorite-shuffle-unreadable-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    fs::remove_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .ok();
+    fs::create_dir_all(&activity_path)
+        .expect("should create directory at activity path to simulate unreadable heartbeat file");
+
+    assert!(
+        !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
+            .expect("unreadable heartbeat should not pause favorite shuffle")
     );
 }
 

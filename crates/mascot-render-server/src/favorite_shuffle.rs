@@ -1,6 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::fs;
 use std::hash::{Hash, Hasher};
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -265,16 +266,17 @@ pub(crate) fn suppress_rotation_for_psd_viewer_tui_activity_path(
     activity_path: &Path,
     now_unix_timestamp: u64,
 ) -> Result<bool> {
-    if !activity_path.exists() {
-        return Ok(false);
-    }
-
-    let bytes = fs::read_to_string(activity_path).with_context(|| {
-        format!(
-            "failed to read psd-viewer-tui activity {}",
-            activity_path.display()
-        )
-    })?;
+    let bytes = match fs::read_to_string(activity_path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(error) => {
+            eprintln!(
+                "warning: favorite shuffle ignored unreadable psd-viewer-tui activity {}: {error:#}",
+                activity_path.display()
+            );
+            return Ok(false);
+        }
+    };
     let heartbeat = bytes.trim();
     if heartbeat.is_empty() {
         eprintln!(
