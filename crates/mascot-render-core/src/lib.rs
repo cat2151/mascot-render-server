@@ -42,9 +42,9 @@ pub use mascot::{
     MascotImageData, MascotTarget,
 };
 pub use mascot_motion::{
-    BounceAlgorithm, BounceAnimationConfig, HeadHitbox, IdleAlgorithm, IdleSinkAnimationConfig,
-    MotionState, MotionTransform, SquashAlgorithm, SquashBounceAnimationConfig,
-    IDLE_SINK_LIFT_SCALE_X_RATIO,
+    AlwaysBendConfig, BounceAlgorithm, BounceAnimationConfig, HeadHitbox, IdleAlgorithm,
+    IdleSinkAnimationConfig, MotionState, MotionTransform, SquashAlgorithm,
+    SquashBounceAnimationConfig, IDLE_SINK_LIFT_SCALE_X_RATIO,
 };
 pub use model::{LayerKind, LayerNode, PsdEntry, ZipEntry};
 pub use mouth_flap::{

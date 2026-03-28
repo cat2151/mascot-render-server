@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use eframe::egui::{pos2, Rect, TextureId};
 use mascot_render_core::{
-    BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, MascotConfig,
+    AlwaysBendConfig, BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, MascotConfig,
     SquashBounceAnimationConfig,
 };
 
@@ -16,21 +16,38 @@ const FLOAT_TOLERANCE: f32 = 1e-6;
 #[test]
 fn sample_always_bend_swings_left_and_right() {
     let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(240.0, 480.0));
+    let config = AlwaysBendConfig::default();
 
-    let resting = always_bend::sample_always_bend(Duration::ZERO, image_rect);
-    let right = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect);
-    let left = always_bend::sample_always_bend(Duration::from_millis(3_150), image_rect);
+    let resting = always_bend::sample_always_bend(Duration::ZERO, image_rect, config);
+    let right = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect, config);
+    let left = always_bend::sample_always_bend(Duration::from_millis(3_150), image_rect, config);
 
     assert_eq!(resting.offset_x, 0.0);
     assert!(right.offset_x > 0.0);
     assert!(left.offset_x < 0.0);
-    assert!(right.offset_x.abs() <= image_rect.width() * 0.03);
+    assert!(right.offset_x.abs() <= image_rect.width() * config.amplitude_ratio);
+}
+
+#[test]
+fn sample_always_bend_uses_configured_amplitude_ratio() {
+    let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(240.0, 480.0));
+    let config = AlwaysBendConfig {
+        enabled: true,
+        amplitude_ratio: 0.05,
+    };
+    let bend = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect, config);
+
+    assert_eq!(bend.offset_x, image_rect.width() * config.amplitude_ratio);
 }
 
 #[test]
 fn always_bend_mesh_moves_upper_center_more_than_lower_center() {
     let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(120.0, 240.0));
-    let bend = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect);
+    let bend = always_bend::sample_always_bend(
+        Duration::from_millis(1_050),
+        image_rect,
+        AlwaysBendConfig::default(),
+    );
     let mesh = always_bend::mesh(TextureId::Managed(7), image_rect, bend);
 
     let stride = 5;
@@ -48,10 +65,12 @@ fn always_bend_mesh_moves_upper_center_more_than_lower_center() {
 #[test]
 fn sample_always_bend_preserves_phase_after_many_cycles() {
     let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(240.0, 480.0));
-    let short = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect);
+    let config = AlwaysBendConfig::default();
+    let short = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect, config);
     let long = always_bend::sample_always_bend(
         Duration::from_millis(LONG_RUNNING_PHASE_STABILITY_MS) + Duration::from_millis(1_050),
         image_rect,
+        config,
     );
 
     assert!((short.offset_x - long.offset_x).abs() <= FLOAT_TOLERANCE);
@@ -72,7 +91,10 @@ fn always_bend_disables_precise_pointer_hit_testing() {
     assert!(allows_precise_pointer_interaction(&config));
 
     let bent_config = MascotConfig {
-        always_bend: true,
+        always_bend: AlwaysBendConfig {
+            enabled: true,
+            ..config.always_bend
+        },
         ..config
     };
     assert!(!transparent_hit_test_enabled(&bent_config));
@@ -88,7 +110,7 @@ fn sample_config() -> MascotConfig {
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: None,
         always_idle_sink_enabled: false,
-        always_bend: false,
+        always_bend: AlwaysBendConfig::default(),
         favorite_ensemble_enabled: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,

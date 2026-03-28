@@ -154,6 +154,22 @@ impl IdleSinkAnimationConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AlwaysBendConfig {
+    pub enabled: bool,
+    pub amplitude_ratio: f32,
+}
+
+impl Default for AlwaysBendConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            amplitude_ratio: 0.015,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct MotionTransform {
     pub offset_x: f32,

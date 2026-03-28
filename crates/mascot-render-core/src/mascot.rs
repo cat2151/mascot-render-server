@@ -8,7 +8,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use image::ImageReader;
 
 use crate::mascot_motion::{
-    BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
+    AlwaysBendConfig, BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig,
+    SquashBounceAnimationConfig,
 };
 pub use crate::mascot_paths::{
     mascot_config_path, mascot_runtime_state_path, psd_viewer_tui_activity_path, unix_timestamp,
@@ -40,7 +41,7 @@ pub struct MascotConfig {
     pub psd_path_in_zip: PathBuf,
     pub display_diff_path: Option<PathBuf>,
     pub always_idle_sink_enabled: bool,
-    pub always_bend: bool,
+    pub always_bend: AlwaysBendConfig,
     pub favorite_ensemble_enabled: bool,
     pub transparent_background_click_through: bool,
     pub flash_blue_background_on_transparent_input: bool,

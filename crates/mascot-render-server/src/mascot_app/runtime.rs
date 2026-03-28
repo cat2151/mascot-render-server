@@ -120,12 +120,15 @@ impl App for MascotApp {
                                 transformed_image_rect(member_base_size, member_transform)
                                     .translate(member_origin);
 
-                            if let Some(bend_transform) = self.config.always_bend.then(|| {
-                                always_bend::sample_always_bend(
-                                    now - self.always_bend_started_at,
-                                    image_rect,
-                                )
-                            }) {
+                            if let Some(bend_transform) =
+                                self.config.always_bend.enabled.then(|| {
+                                    always_bend::sample_always_bend(
+                                        now - self.always_bend_started_at,
+                                        image_rect,
+                                        self.config.always_bend,
+                                    )
+                                })
+                            {
                                 painter.add(egui::Shape::mesh(always_bend::mesh(
                                     member.skin.texture.id(),
                                     image_rect,
@@ -187,7 +190,7 @@ impl App for MascotApp {
                 .pending_scale_persist_remaining(now)
                 .map(|remaining| repaint_after.min(remaining))
                 .unwrap_or(repaint_after);
-            let repaint_after = if self.config.always_bend {
+            let repaint_after = if self.config.always_bend.enabled {
                 repaint_after.min(always_bend::repaint_after())
             } else {
                 repaint_after
@@ -216,8 +219,12 @@ impl App for MascotApp {
         let texture_id = active_skin.texture.id();
         let active_image_size = active_skin.image_size;
         let active_alpha_mask = Arc::clone(&active_skin.alpha_mask);
-        let bend_transform = self.config.always_bend.then(|| {
-            always_bend::sample_always_bend(now - self.always_bend_started_at, image_rect)
+        let bend_transform = self.config.always_bend.enabled.then(|| {
+            always_bend::sample_always_bend(
+                now - self.always_bend_started_at,
+                image_rect,
+                self.config.always_bend,
+            )
         });
         self.transparent_hit_test.update(TransparentHitTestUpdate {
             now,
@@ -323,7 +330,7 @@ impl App for MascotApp {
             .pending_scale_persist_remaining(now)
             .map(|remaining| repaint_after.min(remaining))
             .unwrap_or(repaint_after);
-        let repaint_after = if self.config.always_bend {
+        let repaint_after = if self.config.always_bend.enabled {
             repaint_after.min(always_bend::repaint_after())
         } else {
             repaint_after
