@@ -352,3 +352,12 @@ fn mouth_flap_skin_state(
         .then(|| motion.mouth_flap_is_open(now))
         .flatten()
 }
+
+#[cfg(test)]
+pub(crate) fn mouth_flap_skin_state_for_test(
+    has_mouth_flap_skin: bool,
+    motion: &mut super::MotionState,
+    now: Instant,
+) -> Option<bool> {
+    mouth_flap_skin_state(has_mouth_flap_skin, motion, now)
+}

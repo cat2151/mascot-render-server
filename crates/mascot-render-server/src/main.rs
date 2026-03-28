@@ -24,6 +24,9 @@ mod mascot_app_reload_tests;
 #[path = "tests/mascot_scale.rs"]
 mod mascot_scale_tests;
 #[cfg(test)]
+#[path = "tests/runtime.rs"]
+mod runtime_tests;
+#[cfg(test)]
 #[path = "tests/window_history.rs"]
 mod window_history_tests;
 

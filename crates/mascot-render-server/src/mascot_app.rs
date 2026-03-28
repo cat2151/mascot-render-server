@@ -36,6 +36,8 @@ mod scale;
 #[path = "mascot_app/skins.rs"]
 mod skins;
 use ensemble::FavoriteEnsembleScene;
+#[cfg(test)]
+pub(crate) use runtime::mouth_flap_skin_state_for_test;
 
 const EFFECTIVE_CONFIG_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
