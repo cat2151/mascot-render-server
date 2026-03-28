@@ -39,6 +39,7 @@ psd_file_name = "body-renamed.psd"
     let loaded = load_favorites(&path).expect("should load favorites");
     assert_eq!(loaded.len(), 1);
     assert_eq!(loaded[0].psd_file_name, "body.psd");
+    assert_eq!(loaded[0].mascot_scale, None);
 }
 
 #[test]
@@ -118,6 +119,18 @@ fn favorite_shuffle_playlist_starts_with_a_different_favorite() {
 }
 
 #[test]
+fn favorite_entry_equality_detects_saved_scale_changes() {
+    let mut left = favorite("/workspace/a.zip", "a/body.psd", "body.psd");
+    let mut right = favorite("/workspace/a.zip", "a/body.psd", "body.psd");
+    right.mascot_scale = Some(1.25);
+
+    assert_ne!(left, right);
+
+    left.mascot_scale = Some(1.25);
+    assert_eq!(left, right);
+}
+
+#[test]
 fn favorite_shuffle_is_suppressed_while_previewing_an_edited_variation() {
     let mut config = mascot_config("/workspace/a.zip", "a/body.psd");
     config.display_diff_path = Some(PathBuf::from("/workspace/edited-variation.json"));
@@ -175,11 +188,146 @@ fn favorite_shuffle_still_reads_favorites_without_an_active_edit() {
     );
 }
 
+#[test]
+fn favorite_shuffle_loads_saved_mascot_scale_per_favorite() {
+    let root = workspace_cache_root().join("test-favorite-shuffle-load-scale");
+    let path = favorites_path_for(&root);
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
+        .expect("should create favorites directory");
+
+    fs::write(
+        &path,
+        r#"
+[[favorites]]
+zip_path = "/workspace/a.zip"
+psd_path_in_zip = "a/body.psd"
+psd_file_name = "body.psd"
+mascot_scale = 1.75
+"#,
+    )
+    .expect("should seed favorites cache");
+
+    let loaded = load_favorites(&path).expect("should load favorites");
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0].mascot_scale, Some(1.75));
+}
+
+#[test]
+fn favorite_shuffle_discards_invalid_saved_mascot_scales() {
+    let root = workspace_cache_root().join("test-favorite-shuffle-invalid-scale");
+    let path = favorites_path_for(&root);
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
+        .expect("should create favorites directory");
+
+    fs::write(
+        &path,
+        r#"
+[[favorites]]
+zip_path = "/workspace/a.zip"
+psd_path_in_zip = "a/body.psd"
+psd_file_name = "body.psd"
+mascot_scale = -1.0
+
+[[favorites]]
+zip_path = "/workspace/b.zip"
+psd_path_in_zip = "b/face.psd"
+psd_file_name = "face.psd"
+mascot_scale = 0.0
+
+[[favorites]]
+zip_path = "/workspace/c.zip"
+psd_path_in_zip = "c/pose.psd"
+psd_file_name = "pose.psd"
+mascot_scale = inf
+
+[[favorites]]
+zip_path = "/workspace/d.zip"
+psd_path_in_zip = "d/wink.psd"
+psd_file_name = "wink.psd"
+mascot_scale = nan
+"#,
+    )
+    .expect("should seed favorites cache");
+
+    let loaded = load_favorites(&path).expect("should load favorites");
+    assert_eq!(loaded.len(), 4);
+    assert!(loaded
+        .iter()
+        .all(|favorite| favorite.mascot_scale.is_none()));
+}
+
+#[test]
+fn favorite_shuffle_persists_scale_for_matching_favorite_without_losing_other_fields() {
+    let root = workspace_cache_root().join("test-favorite-shuffle-persist-scale");
+    let favorites_path = favorites_path_for(&root);
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(
+        favorites_path
+            .parent()
+            .expect("favorites path should have a parent directory"),
+    )
+    .expect("should create favorites directory");
+
+    fs::write(
+        &favorites_path,
+        r#"
+[[favorites]]
+zip_path = "/workspace/a.zip"
+psd_path_in_zip = "a/body.psd"
+psd_file_name = "body.psd"
+visibility_overrides = [{ layer_index = 3, visible = false }]
+window_position = [120.0, 48.0]
+
+[[favorites]]
+zip_path = "/workspace/b.zip"
+psd_path_in_zip = "b/face.psd"
+psd_file_name = "face.psd"
+mascot_scale = 0.8
+"#,
+    )
+    .expect("should seed favorites cache");
+
+    let playlist = FavoriteShufflePlaylist::new_with_path(favorites_path.clone(), Instant::now());
+    let updated = playlist
+        .persist_scale_for_current_config(&mascot_config("/workspace/a.zip", "a/body.psd"), 1.25)
+        .expect("should persist the saved mascot scale");
+    assert!(updated, "matching favorite should be updated");
+
+    let reloaded = load_favorites(&favorites_path).expect("should reload favorites");
+    assert_eq!(reloaded.len(), 2);
+    assert_eq!(reloaded[0].mascot_scale, Some(1.25));
+    assert_eq!(reloaded[1].mascot_scale, Some(0.8));
+
+    let raw = fs::read_to_string(&favorites_path).expect("should read rewritten favorites");
+    let parsed: toml::Value = toml::from_str(&raw).expect("rewritten favorites should stay valid");
+    let favorites = parsed["favorites"]
+        .as_array()
+        .expect("favorites should remain an array");
+    assert_eq!(
+        favorites[0]["window_position"].as_array(),
+        Some(&vec![toml::Value::from(120.0), toml::Value::from(48.0)]),
+        "window position should be preserved: {raw}"
+    );
+    assert_eq!(
+        favorites[0]["visibility_overrides"][0]["layer_index"].as_integer(),
+        Some(3),
+        "visibility override should be preserved: {raw}"
+    );
+    assert_eq!(
+        favorites[0]["visibility_overrides"][0]["visible"].as_bool(),
+        Some(false),
+        "visibility override should be preserved: {raw}"
+    );
+}
+
 fn favorite(zip_path: &str, psd_path_in_zip: &str, psd_file_name: &str) -> FavoriteEntry {
     FavoriteEntry {
         zip_path: PathBuf::from(zip_path),
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         psd_file_name: psd_file_name.to_string(),
+        mascot_scale: None,
     }
 }
 
