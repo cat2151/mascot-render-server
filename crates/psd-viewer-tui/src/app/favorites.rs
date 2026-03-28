@@ -388,6 +388,14 @@ fn saved_window_positions_match(left: SavedWindowPosition, right: SavedWindowPos
 }
 
 #[cfg(test)]
+pub(crate) fn saved_window_positions_match_for_test(
+    left: SavedWindowPosition,
+    right: SavedWindowPosition,
+) -> bool {
+    saved_window_positions_match(left, right)
+}
+
+#[cfg(test)]
 impl App {
     pub(crate) fn set_current_preview_png_path_for_test(
         &mut self,
@@ -430,30 +438,5 @@ impl App {
             self.upsert_favorite(favorite),
             FavoriteUpsertResult::Added { .. } | FavoriteUpsertResult::Updated { .. }
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{saved_window_positions_match, SavedWindowPosition};
-
-    #[test]
-    fn saved_window_positions_match_within_tolerance() {
-        assert!(saved_window_positions_match(
-            SavedWindowPosition { x: 10.0, y: 20.0 },
-            SavedWindowPosition { x: 10.4, y: 20.4 }
-        ));
-    }
-
-    #[test]
-    fn saved_window_positions_match_rejects_boundary_and_larger_deltas() {
-        assert!(!saved_window_positions_match(
-            SavedWindowPosition { x: 10.0, y: 20.0 },
-            SavedWindowPosition { x: 10.5, y: 20.0 }
-        ));
-        assert!(!saved_window_positions_match(
-            SavedWindowPosition { x: 10.0, y: 20.0 },
-            SavedWindowPosition { x: 10.0, y: 20.6 }
-        ));
     }
 }
