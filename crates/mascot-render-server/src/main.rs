@@ -17,6 +17,9 @@ mod cli_tests;
 #[path = "tests/favorite_ensemble.rs"]
 mod favorite_ensemble_tests;
 #[cfg(test)]
+#[path = "tests/mascot_app_reload.rs"]
+mod mascot_app_reload_tests;
+#[cfg(test)]
 #[path = "tests/mascot_scale.rs"]
 mod mascot_scale_tests;
 #[cfg(test)]
