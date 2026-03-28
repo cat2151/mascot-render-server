@@ -211,7 +211,7 @@ impl FavoriteShufflePlaylist {
             "shuffleモード : + - 操作があったので、zip {} psd {} の拡大率を{}にして保存しました",
             current_key.zip_path.display(),
             current_key.psd_path_in_zip.display(),
-            format_scale(sanitized_scale)
+            format_scale(Some(scale))
         );
         Ok(true)
     }
@@ -397,6 +397,7 @@ fn save_favorites_file(path: &Path, favorites_file: &FavoritesFile) -> Result<()
     fs::write(path, toml).with_context(|| format!("failed to write favorites {}", path.display()))
 }
 
+/// Keeps only finite, positive mascot scales so invalid values do not leak into shuffle restores.
 fn sanitize_mascot_scale(scale: Option<f32>) -> Option<f32> {
     scale.filter(|value| value.is_finite() && *value > 0.0)
 }
@@ -404,7 +405,7 @@ fn sanitize_mascot_scale(scale: Option<f32>) -> Option<f32> {
 fn format_scale(scale: Option<f32>) -> String {
     scale
         .map(|value| format!("{value:.2}"))
-        .unwrap_or_else(|| "未設定".to_string())
+        .unwrap_or("未設定".to_string())
 }
 
 fn seed_from_system_time(system_time: SystemTime) -> u64 {

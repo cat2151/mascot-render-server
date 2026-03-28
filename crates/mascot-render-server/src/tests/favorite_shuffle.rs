@@ -202,6 +202,51 @@ mascot_scale = 1.75
 }
 
 #[test]
+fn favorite_shuffle_discards_invalid_saved_mascot_scales() {
+    let root = workspace_cache_root().join("test-favorite-shuffle-invalid-scale");
+    let path = favorites_path_for(&root);
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
+        .expect("should create favorites directory");
+
+    fs::write(
+        &path,
+        r#"
+[[favorites]]
+zip_path = "/workspace/a.zip"
+psd_path_in_zip = "a/body.psd"
+psd_file_name = "body.psd"
+mascot_scale = -1.0
+
+[[favorites]]
+zip_path = "/workspace/b.zip"
+psd_path_in_zip = "b/face.psd"
+psd_file_name = "face.psd"
+mascot_scale = 0.0
+
+[[favorites]]
+zip_path = "/workspace/c.zip"
+psd_path_in_zip = "c/pose.psd"
+psd_file_name = "pose.psd"
+mascot_scale = inf
+
+[[favorites]]
+zip_path = "/workspace/d.zip"
+psd_path_in_zip = "d/wink.psd"
+psd_file_name = "wink.psd"
+mascot_scale = nan
+"#,
+    )
+    .expect("should seed favorites cache");
+
+    let loaded = load_favorites(&path).expect("should load favorites");
+    assert_eq!(loaded.len(), 4);
+    assert!(loaded
+        .iter()
+        .all(|favorite| favorite.mascot_scale.is_none()));
+}
+
+#[test]
 fn favorite_shuffle_persists_scale_for_matching_favorite_without_losing_other_fields() {
     let root = workspace_cache_root().join("test-favorite-shuffle-persist-scale");
     let favorites_path = favorites_path_for(&root);
