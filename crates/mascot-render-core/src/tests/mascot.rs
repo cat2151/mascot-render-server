@@ -4,9 +4,9 @@ use std::path::PathBuf;
 
 use crate::{
     default_mascot_scale_for_screen_height, load_mascot_config, mascot_config_path,
-    mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path, workspace_cache_root,
-    workspace_path, write_mascot_config, BounceAlgorithm, HeadHitbox, IdleSinkAnimationConfig,
-    MascotTarget, SquashAlgorithm,
+    mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path,
+    psd_viewer_tui_activity_path, workspace_cache_root, workspace_path, write_mascot_config,
+    BounceAlgorithm, HeadHitbox, IdleSinkAnimationConfig, MascotTarget, SquashAlgorithm,
 };
 
 #[test]
@@ -33,14 +33,26 @@ fn mascot_cli_accepts_config_flag() {
 fn mascot_runtime_state_path_is_derived_from_config_path() {
     let default_state = mascot_runtime_state_path(&PathBuf::from("mascot-render-server.toml"));
     let custom_state = mascot_runtime_state_path(&PathBuf::from("configs/demo.toml"));
+    let default_activity =
+        psd_viewer_tui_activity_path(&PathBuf::from("mascot-render-server.toml"));
+    let custom_activity = psd_viewer_tui_activity_path(&PathBuf::from("configs/demo.toml"));
 
     assert!(default_state.starts_with(workspace_cache_root()));
     assert!(custom_state.starts_with(workspace_cache_root()));
     assert_ne!(default_state, custom_state);
+    assert!(default_activity.starts_with(workspace_cache_root()));
+    assert!(custom_activity.starts_with(workspace_cache_root()));
+    assert_ne!(default_activity, custom_activity);
     assert!(custom_state
         .file_name()
         .and_then(|value| value.to_str())
         .is_some_and(|value| value.starts_with("demo-") && value.ends_with(".state.json")));
+    assert!(custom_activity
+        .file_name()
+        .and_then(|value| value.to_str())
+        .is_some_and(
+            |value| value.starts_with("demo-") && value.ends_with(".psd-viewer-tui-active")
+        ));
 }
 
 #[test]

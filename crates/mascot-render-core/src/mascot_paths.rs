@@ -13,14 +13,15 @@ pub fn mascot_config_path() -> PathBuf {
 }
 
 pub fn mascot_runtime_state_path(config_path: &Path) -> PathBuf {
-    let state_stem = config_path
-        .file_stem()
-        .filter(|value| !value.is_empty())
-        .or_else(|| config_path.file_name())
-        .map(|value| value.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "mascot-render-server".to_string());
+    let state_stem = state_stem(config_path);
     let config_hash = hash_config_path(config_path);
     default_cache_root().join(format!("{state_stem}-{config_hash}.state.json"))
+}
+
+pub fn psd_viewer_tui_activity_path(config_path: &Path) -> PathBuf {
+    let state_stem = state_stem(config_path);
+    let config_hash = hash_config_path(config_path);
+    default_cache_root().join(format!("{state_stem}-{config_hash}.psd-viewer-tui-active"))
 }
 
 pub fn unix_timestamp() -> u64 {
@@ -28,6 +29,15 @@ pub fn unix_timestamp() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_secs())
         .unwrap_or_default()
+}
+
+fn state_stem(config_path: &Path) -> String {
+    config_path
+        .file_stem()
+        .filter(|value| !value.is_empty())
+        .or_else(|| config_path.file_name())
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "mascot-render-server".to_string())
 }
 
 fn hash_config_path(config_path: &Path) -> String {

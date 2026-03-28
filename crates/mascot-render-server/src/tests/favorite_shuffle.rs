@@ -5,11 +5,12 @@ use std::time::Instant;
 
 use crate::favorite_shuffle::{
     build_playlist, favorites_path_for, load_favorites, suppress_rotation_for_active_display_diff,
-    FavoriteEntry, FavoriteShufflePlaylist, FAVORITE_SHUFFLE_INTERVAL,
+    suppress_rotation_for_psd_viewer_tui_activity_path, FavoriteEntry, FavoriteShufflePlaylist,
+    FAVORITE_SHUFFLE_INTERVAL,
 };
 use mascot_render_core::{
-    workspace_cache_root, BounceAnimationConfig, Core, CoreConfig, HeadHitbox,
-    IdleSinkAnimationConfig, MascotConfig, SquashBounceAnimationConfig,
+    psd_viewer_tui_activity_path, workspace_cache_root, BounceAnimationConfig, Core, CoreConfig,
+    HeadHitbox, IdleSinkAnimationConfig, MascotConfig, SquashBounceAnimationConfig,
 };
 
 #[test]
@@ -189,6 +190,131 @@ fn favorite_shuffle_still_reads_favorites_without_an_active_edit() {
 }
 
 #[test]
+fn favorite_shuffle_is_suppressed_while_psd_viewer_tui_is_active() {
+    let config_path = workspace_cache_root().join("test-favorite-shuffle-active-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    fs::remove_file(&activity_path).ok();
+    fs::create_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .expect("should create activity directory");
+    fs::write(&activity_path, "100").expect("should write activity heartbeat");
+
+    assert!(
+        suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 104)
+            .expect("recent heartbeat should pause favorite shuffle")
+    );
+}
+
+#[test]
+fn favorite_shuffle_ignores_stale_psd_viewer_tui_activity() {
+    let config_path = workspace_cache_root().join("test-favorite-shuffle-stale-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    fs::remove_file(&activity_path).ok();
+    fs::create_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .expect("should create activity directory");
+    fs::write(&activity_path, "100").expect("should write activity heartbeat");
+
+    assert!(
+        !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
+            .expect("stale heartbeat should not pause favorite shuffle")
+    );
+}
+
+#[test]
+fn favorite_shuffle_ignores_missing_psd_viewer_tui_activity() {
+    let config_path = workspace_cache_root().join("test-favorite-shuffle-missing-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    fs::remove_file(&activity_path).ok();
+
+    assert!(
+        !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
+            .expect("missing heartbeat should not pause favorite shuffle")
+    );
+}
+
+#[test]
+fn favorite_shuffle_ignores_future_psd_viewer_tui_activity() {
+    let config_path = workspace_cache_root().join("test-favorite-shuffle-future-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    fs::remove_file(&activity_path).ok();
+    fs::create_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .expect("should create activity directory");
+    fs::write(&activity_path, "107").expect("should write activity heartbeat");
+
+    assert!(
+        !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
+            .expect("future heartbeat should not pause favorite shuffle")
+    );
+}
+
+#[test]
+fn favorite_shuffle_ignores_unreadable_psd_viewer_tui_activity() {
+    let config_path =
+        workspace_cache_root().join("test-favorite-shuffle-unreadable-tui/mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let _cleanup = TestFixtureCleanup(activity_path.clone());
+    fs::remove_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .ok();
+    fs::create_dir_all(&activity_path)
+        .expect("should create directory at activity path to simulate unreadable heartbeat file");
+
+    assert!(
+        !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
+            .expect("unreadable heartbeat should not pause favorite shuffle")
+    );
+}
+
+#[test]
+fn favorite_shuffle_skips_loading_favorites_while_psd_viewer_tui_is_active() {
+    let root = workspace_cache_root().join("test-favorite-shuffle-active-tui-read");
+    let favorites_path = favorites_path_for(&root);
+    let config_path = root.join("mascot.toml");
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let now_unix_timestamp = 100;
+    let _ = fs::remove_dir_all(&root);
+    create_invalid_favorites_path(&favorites_path);
+    fs::create_dir_all(
+        activity_path
+            .parent()
+            .expect("activity path should have a parent directory"),
+    )
+    .expect("should create activity directory");
+    fs::write(&activity_path, now_unix_timestamp.to_string())
+        .expect("should write activity heartbeat");
+
+    let now = Instant::now();
+    let mut playlist = FavoriteShufflePlaylist::new_with_path(favorites_path, now);
+    let config = mascot_config("/workspace/a.zip", "a/body.psd");
+
+    let rotated = playlist
+        .update_with_unix_timestamp_for_test(
+            &Core::new(CoreConfig::default()),
+            &config_path,
+            &config,
+            now + FAVORITE_SHUFFLE_INTERVAL,
+            now_unix_timestamp,
+        )
+        .expect("active psd-viewer-tui should pause favorite shuffle before reading favorites");
+
+    assert!(!rotated);
+}
+
+#[test]
 fn favorite_shuffle_loads_saved_mascot_scale_per_favorite() {
     let root = workspace_cache_root().join("test-favorite-shuffle-load-scale");
     let path = favorites_path_for(&root);
@@ -365,4 +491,13 @@ fn create_invalid_favorites_path(favorites_path: &std::path::Path) {
     fs::create_dir(favorites_path).expect(
         "should create directory at favorites file path to simulate invalid favorites file",
     );
+}
+
+/// RAII guard that removes a temporary test fixture path on drop.
+struct TestFixtureCleanup(PathBuf);
+
+impl Drop for TestFixtureCleanup {
+    fn drop(&mut self) {
+        fs::remove_dir_all(&self.0).ok();
+    }
 }

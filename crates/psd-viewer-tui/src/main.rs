@@ -1,3 +1,4 @@
+mod activity_heartbeat;
 mod activity_indicator;
 mod app;
 mod cli;
@@ -11,6 +12,9 @@ mod tui_history;
 mod ui;
 mod workspace_state;
 
+#[cfg(test)]
+#[path = "tests/activity_heartbeat.rs"]
+mod activity_heartbeat_tests;
 #[cfg(test)]
 #[path = "tests/cli.rs"]
 mod cli_tests;
@@ -52,10 +56,11 @@ use anyhow::Result;
 use cli::{parse_cli, CliAction};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use mascot_render_client::hide_mascot_render_server;
-use mascot_render_core::run_workspace_update;
+use mascot_render_core::{mascot_config_path, run_workspace_update};
 use ratatui::Terminal;
 use tui_sixel_preview::{build_picker, PreviewState};
 
+use activity_heartbeat::ActivityHeartbeat;
 use app::{spawn_startup_loader, App, StartupEvent};
 use server_motion_sync::{shake_requested_status_message, ServerMotionSync};
 use server_preview_sync::ServerPreviewSync;
@@ -120,9 +125,12 @@ fn run_app(
     mut startup_rx: Option<Receiver<StartupEvent>>,
     preview: &mut PreviewState,
 ) -> Result<()> {
+    let mut activity_heartbeat =
+        ActivityHeartbeat::start(&mascot_config_path(), std::time::Instant::now())?;
     let mut server_motion_sync = ServerMotionSync::new();
     let mut server_preview_sync = ServerPreviewSync::new();
     while !app.should_quit {
+        activity_heartbeat.refresh_if_due(std::time::Instant::now())?;
         process_startup_events(&mut app, &mut startup_rx, preview, &mut server_preview_sync);
         if let Some(error) = server_motion_sync.drain_completions() {
             app.set_status_message(format!("mascot-render-server motion failed: {error:#}"));

@@ -38,7 +38,8 @@ pub use logging::log_file_name;
 pub use mascot::{
     default_mascot_scale_for_screen_height, load_mascot_config, load_mascot_image,
     mascot_config_path, mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path,
-    write_mascot_config, MascotConfig, MascotImageData, MascotTarget,
+    psd_viewer_tui_activity_path, unix_timestamp, write_mascot_config, MascotConfig,
+    MascotImageData, MascotTarget,
 };
 pub use mascot_motion::{
     BounceAlgorithm, BounceAnimationConfig, HeadHitbox, IdleAlgorithm, IdleSinkAnimationConfig,

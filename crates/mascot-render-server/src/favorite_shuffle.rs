@@ -1,13 +1,14 @@
 use std::collections::{HashSet, VecDeque};
 use std::fs;
 use std::hash::{Hash, Hasher};
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use mascot_render_core::{
-    local_data_root, write_mascot_config, Core, DisplayDiff, LayerVisibilityOverride, MascotConfig,
-    MascotTarget, RenderRequest,
+    local_data_root, psd_viewer_tui_activity_path, unix_timestamp, write_mascot_config, Core,
+    DisplayDiff, LayerVisibilityOverride, MascotConfig, MascotTarget, RenderRequest,
 };
 use serde::{Deserialize, Serialize};
 
@@ -15,6 +16,7 @@ const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";
 
 pub const FAVORITE_SHUFFLE_INTERVAL: Duration = Duration::from_secs(60);
+const PSD_VIEWER_TUI_ACTIVITY_TTL: Duration = Duration::from_secs(5);
 
 #[derive(Debug)]
 pub struct FavoriteShufflePlaylist {
@@ -141,6 +143,17 @@ impl FavoriteShufflePlaylist {
         current_config: &MascotConfig,
         now: Instant,
     ) -> Result<bool> {
+        self.update_with_unix_timestamp(core, config_path, current_config, now, unix_timestamp())
+    }
+
+    fn update_with_unix_timestamp(
+        &mut self,
+        core: &Core,
+        config_path: &Path,
+        current_config: &MascotConfig,
+        now: Instant,
+        now_unix_timestamp: u64,
+    ) -> Result<bool> {
         if current_config.favorite_ensemble_enabled {
             self.state
                 .finish_rotation(now, current_config_key(current_config));
@@ -157,6 +170,15 @@ impl FavoriteShufflePlaylist {
             eprintln!(
                 "favorite shuffle paused while psd-viewer-tui preview is showing a non-default variation (active display diff): {}",
                 display_diff_path.display()
+            );
+            return Ok(false);
+        }
+        if suppress_rotation_for_active_psd_viewer_tui(config_path, now_unix_timestamp)? {
+            self.state
+                .finish_rotation(now, current_config_key(current_config));
+            eprintln!(
+                "favorite shuffle paused while psd-viewer-tui is active: {}",
+                psd_viewer_tui_activity_path(config_path).display()
             );
             return Ok(false);
         }
@@ -230,6 +252,64 @@ pub(crate) fn suppress_rotation_for_active_display_diff(current_config: &MascotC
     current_config.display_diff_path.is_some()
 }
 
+pub(crate) fn suppress_rotation_for_active_psd_viewer_tui(
+    config_path: &Path,
+    now_unix_timestamp: u64,
+) -> Result<bool> {
+    suppress_rotation_for_psd_viewer_tui_activity_path(
+        &psd_viewer_tui_activity_path(config_path),
+        now_unix_timestamp,
+    )
+}
+
+pub(crate) fn suppress_rotation_for_psd_viewer_tui_activity_path(
+    activity_path: &Path,
+    now_unix_timestamp: u64,
+) -> Result<bool> {
+    let bytes = match fs::read_to_string(activity_path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
+        Err(error) => {
+            eprintln!(
+                "warning: favorite shuffle ignored unreadable psd-viewer-tui activity {}: {error:#}",
+                activity_path.display()
+            );
+            return Ok(false);
+        }
+    };
+    let heartbeat = bytes.trim();
+    if heartbeat.is_empty() {
+        eprintln!(
+            "favorite shuffle ignored empty psd-viewer-tui activity heartbeat {}",
+            activity_path.display()
+        );
+        return Ok(false);
+    }
+
+    let active_at = match heartbeat.parse::<u64>() {
+        Ok(active_at) => active_at,
+        Err(error) => {
+            eprintln!(
+                "favorite shuffle ignored invalid psd-viewer-tui activity heartbeat {}: {:?} ({error})",
+                activity_path.display(),
+                heartbeat
+            );
+            return Ok(false);
+        }
+    };
+
+    if active_at > now_unix_timestamp {
+        eprintln!(
+            "favorite shuffle ignored future psd-viewer-tui activity heartbeat {}: active_at={} now={}",
+            activity_path.display(),
+            active_at,
+            now_unix_timestamp
+        );
+        return Ok(false);
+    }
+
+    Ok(now_unix_timestamp.saturating_sub(active_at) <= PSD_VIEWER_TUI_ACTIVITY_TTL.as_secs())
+}
 impl FavoriteShuffleState {
     fn new(now: Instant) -> Self {
         Self {
@@ -283,6 +363,20 @@ impl FavoriteShuffleState {
     fn finish_rotation(&mut self, now: Instant, selected_key: Option<FavoriteKey>) {
         self.next_rotation_at = now + FAVORITE_SHUFFLE_INTERVAL;
         self.last_selected_key = selected_key;
+    }
+}
+
+#[cfg(test)]
+impl FavoriteShufflePlaylist {
+    pub(crate) fn update_with_unix_timestamp_for_test(
+        &mut self,
+        core: &Core,
+        config_path: &Path,
+        current_config: &MascotConfig,
+        now: Instant,
+        now_unix_timestamp: u64,
+    ) -> Result<bool> {
+        self.update_with_unix_timestamp(core, config_path, current_config, now, now_unix_timestamp)
     }
 }
 
