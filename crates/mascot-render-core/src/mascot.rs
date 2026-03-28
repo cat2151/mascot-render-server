@@ -8,7 +8,6 @@ use image::ImageReader;
 use crate::mascot_motion::{
     BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
 };
-use crate::mascot_paths::unix_timestamp;
 pub use crate::mascot_paths::{mascot_config_path, mascot_runtime_state_path};
 #[path = "mascot/config_files.rs"]
 mod config_files;
@@ -17,7 +16,6 @@ use config_files::{MascotRuntimeStateFile, MascotStaticConfigFile};
 
 const DEFAULT_MAX_EDGE: f32 = 480.0;
 const DEFAULT_SCREEN_HEIGHT_RATIO: f32 = 0.33;
-const MASCOT_CONFIG_VERSION: u32 = 4;
 const MASCOT_RUNTIME_STATE_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,15 +129,8 @@ fn load_mascot_static_config_file(config_path: &Path) -> Result<MascotStaticConf
 
     let bytes = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
-    let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
-        .with_context(|| format!("failed to parse {}", config_path.display()))?;
-    validate_version(
-        config.version,
-        MASCOT_CONFIG_VERSION,
-        config_path,
-        "mascot config",
-    )?;
-    Ok(config)
+    toml::from_str::<MascotStaticConfigFile>(&bytes)
+        .with_context(|| format!("failed to parse {}", config_path.display()))
 }
 
 fn load_mascot_runtime_target(config_path: &Path) -> Result<MascotTarget> {
@@ -187,14 +178,8 @@ fn normalize_mascot_static_config(config_path: &Path) -> Result<()> {
 
     let bytes = fs::read_to_string(config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
-    let config = toml::from_str::<MascotStaticConfigFile>(&bytes)
+    toml::from_str::<MascotStaticConfigFile>(&bytes)
         .with_context(|| format!("failed to parse {}", config_path.display()))?;
-    validate_version(
-        config.version,
-        MASCOT_CONFIG_VERSION,
-        config_path,
-        "mascot config",
-    )?;
     Ok(())
 }
 
@@ -210,11 +195,8 @@ fn write_mascot_static_config_file(
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }
 
-    let mut persisted = config.clone();
-    persisted.version = MASCOT_CONFIG_VERSION;
-    persisted.updated_at = unix_timestamp();
     let toml =
-        toml::to_string_pretty(&persisted).context("failed to serialize mascot static config")?;
+        toml::to_string_pretty(config).context("failed to serialize mascot static config")?;
     fs::write(config_path, toml)
         .with_context(|| format!("failed to write {}", config_path.display()))?;
     Ok(())
