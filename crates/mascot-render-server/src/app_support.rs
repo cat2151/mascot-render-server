@@ -17,9 +17,9 @@ pub(crate) struct CachedSkin {
 }
 
 pub(crate) fn window_title(config: &MascotConfig, config_path: &Path) -> String {
-    if config.favorite_gallery_enabled {
+    if config.favorite_ensemble_enabled {
         return format!(
-            "Mascot Render Server: favorite gallery ({})",
+            "Mascot Render Server: favorite ensemble ({})",
             config_path
                 .file_name()
                 .unwrap_or(config_path.as_os_str())

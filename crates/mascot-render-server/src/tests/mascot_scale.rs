@@ -9,7 +9,7 @@ use mascot_render_core::{
 };
 
 use crate::mascot_scale::{
-    adjust_scale, effective_scale, keyboard_scale_steps, persist_favorite_gallery_scale,
+    adjust_scale, effective_scale, keyboard_scale_steps, persist_favorite_ensemble_scale,
     persist_scale, scroll_scale_steps,
 };
 
@@ -27,13 +27,13 @@ fn sample_config() -> MascotConfig {
     MascotConfig {
         png_path: PathBuf::from("cache/demo/render.png"),
         scale: None,
-        favorite_gallery_scale: None,
+        favorite_ensemble_scale: None,
         zip_path: PathBuf::from("assets/zip/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: Some(PathBuf::from("cache/demo/variation.json")),
         always_bouncing: false,
         always_bend: false,
-        favorite_gallery_enabled: false,
+        favorite_ensemble_enabled: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,
         head_hitbox: Default::default(),
@@ -119,8 +119,8 @@ fn persist_scale_updates_runtime_state() {
 }
 
 #[test]
-fn persist_favorite_gallery_scale_updates_runtime_state() {
-    let config_path = unique_test_config_path("persist-gallery");
+fn persist_favorite_ensemble_scale_updates_runtime_state() {
+    let config_path = unique_test_config_path("persist-ensemble");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
     if let Some(parent) = config_path.parent() {
         let _ = fs::remove_dir_all(parent);
@@ -128,11 +128,11 @@ fn persist_favorite_gallery_scale_updates_runtime_state() {
     let _ = fs::remove_file(&runtime_state_path);
 
     let config = sample_config();
-    persist_favorite_gallery_scale(&config_path, &config, 0.8)
-        .expect("should persist runtime state gallery scale");
+    persist_favorite_ensemble_scale(&config_path, &config, 0.8)
+        .expect("should persist runtime state ensemble scale");
     let loaded = load_mascot_config(&config_path).expect("persisted config should load");
 
-    assert_eq!(loaded.favorite_gallery_scale, Some(0.8));
+    assert_eq!(loaded.favorite_ensemble_scale, Some(0.8));
     assert_eq!(loaded.scale, config.scale);
     assert_eq!(loaded.png_path, config.png_path);
 

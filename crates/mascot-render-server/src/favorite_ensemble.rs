@@ -12,7 +12,7 @@ const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub(crate) struct FavoriteGalleryEntry {
+pub(crate) struct FavoriteEnsembleEntry {
     pub(crate) zip_path: PathBuf,
     pub(crate) psd_path_in_zip: PathBuf,
     #[serde(default)]
@@ -22,23 +22,36 @@ pub(crate) struct FavoriteGalleryEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) mascot_scale: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) favorite_gallery_position: Option<[f32; 2]>,
+    pub(crate) favorite_ensemble_position: Option<[f32; 2]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct FavoriteGalleryLayoutEntry {
+pub(crate) struct FavoriteEnsembleLayoutEntry {
     pub(crate) size: [f32; 2],
     pub(crate) position: Option<[f32; 2]>,
+}
+
+#[derive(Debug)]
+pub(crate) struct FavoriteEnsembleMember {
+    pub(crate) image: MascotImageData,
+    pub(crate) base_size: [f32; 2],
+    pub(crate) canvas_position: [f32; 2],
+}
+
+#[derive(Debug)]
+pub(crate) struct FavoriteEnsemble {
+    pub(crate) members: Vec<FavoriteEnsembleMember>,
+    pub(crate) canvas_size: [f32; 2],
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default, deny_unknown_fields)]
 struct FavoritesFile {
-    favorites: Vec<FavoriteGalleryEntry>,
+    favorites: Vec<FavoriteEnsembleEntry>,
 }
 
 struct RenderedFavorite {
-    entry: FavoriteGalleryEntry,
+    entry: FavoriteEnsembleEntry,
     image: MascotImageData,
     base_size: [f32; 2],
 }
@@ -49,7 +62,7 @@ pub(crate) fn favorites_path() -> PathBuf {
         .join(FAVORITES_FILE_NAME)
 }
 
-pub(crate) fn load_gallery_image(core: &Core) -> Result<Option<MascotImageData>> {
+pub(crate) fn load_favorite_ensemble(core: &Core) -> Result<Option<FavoriteEnsemble>> {
     let favorites_path = favorites_path();
     let mut favorites = load_favorites(&favorites_path)?;
     if favorites.is_empty() {
@@ -66,17 +79,17 @@ pub(crate) fn load_gallery_image(core: &Core) -> Result<Option<MascotImageData>>
 
     let mut layout_entries = rendered
         .iter()
-        .map(|favorite| FavoriteGalleryLayoutEntry {
+        .map(|favorite| FavoriteEnsembleLayoutEntry {
             size: favorite.base_size,
-            position: favorite.entry.favorite_gallery_position,
+            position: favorite.entry.favorite_ensemble_position,
         })
         .collect::<Vec<_>>();
     let updated_indices = fill_missing_positions(&mut layout_entries);
     for (favorite, layout_entry) in rendered.iter_mut().zip(layout_entries) {
-        favorite.entry.favorite_gallery_position = layout_entry.position;
+        favorite.entry.favorite_ensemble_position = layout_entry.position;
     }
     if !updated_indices.is_empty() {
-        patch_favorite_gallery_positions(
+        patch_favorite_ensemble_positions(
             &favorites_path,
             &updated_indices
                 .into_iter()
@@ -85,7 +98,7 @@ pub(crate) fn load_gallery_image(core: &Core) -> Result<Option<MascotImageData>>
         )?;
     }
 
-    Ok(Some(compose_gallery_image(&rendered)))
+    Ok(Some(build_favorite_ensemble(rendered)))
 }
 
 pub(crate) fn pack_positions_from_right(sizes: &[[f32; 2]]) -> Vec<[f32; 2]> {
@@ -101,7 +114,7 @@ pub(crate) fn pack_positions_from_right(sizes: &[[f32; 2]]) -> Vec<[f32; 2]> {
 }
 
 pub(crate) fn fill_missing_positions(
-    layout_entries: &mut [FavoriteGalleryLayoutEntry],
+    layout_entries: &mut [FavoriteEnsembleLayoutEntry],
 ) -> Vec<usize> {
     let missing_indices = layout_entries
         .iter()
@@ -155,7 +168,7 @@ fn pack_positions_with_right_edge(
     positions
 }
 
-fn render_favorite(core: &Core, entry: FavoriteGalleryEntry) -> Result<RenderedFavorite> {
+fn render_favorite(core: &Core, entry: FavoriteEnsembleEntry) -> Result<RenderedFavorite> {
     let display_diff = DisplayDiff {
         version: DISPLAY_DIFF_VERSION,
         visibility_overrides: entry.visibility_overrides.clone(),
@@ -168,14 +181,14 @@ fn render_favorite(core: &Core, entry: FavoriteGalleryEntry) -> Result<RenderedF
         })
         .with_context(|| {
             format!(
-                "failed to render favorite gallery image {} :: {}",
+                "failed to render favorite ensemble image {} :: {}",
                 entry.zip_path.display(),
                 entry.psd_path_in_zip.display()
             )
         })?;
     let image = load_mascot_image(&rendered.output_path).with_context(|| {
         format!(
-            "failed to load favorite gallery PNG {} :: {} from {}",
+            "failed to load favorite ensemble PNG {} :: {} from {}",
             entry.zip_path.display(),
             entry.psd_path_in_zip.display(),
             rendered.output_path.display()
@@ -188,16 +201,16 @@ fn render_favorite(core: &Core, entry: FavoriteGalleryEntry) -> Result<RenderedF
     })
 }
 
-fn compose_gallery_image(rendered: &[RenderedFavorite]) -> MascotImageData {
+fn build_favorite_ensemble(rendered: Vec<RenderedFavorite>) -> FavoriteEnsemble {
     let mut min_x = f32::INFINITY;
     let mut min_y = f32::INFINITY;
     let mut max_x = f32::NEG_INFINITY;
     let mut max_y = f32::NEG_INFINITY;
 
-    for favorite in rendered {
+    for favorite in &rendered {
         let [x, y] = favorite
             .entry
-            .favorite_gallery_position
+            .favorite_ensemble_position
             .unwrap_or([0.0, 0.0]);
         let [width, height] = favorite.base_size;
         min_x = min_x.min(x);
@@ -205,114 +218,48 @@ fn compose_gallery_image(rendered: &[RenderedFavorite]) -> MascotImageData {
         max_x = max_x.max(x + width);
         max_y = max_y.max(y + height);
     }
-
-    let canvas_width = ((max_x - min_x).ceil() as u32).max(1);
-    let canvas_height = ((max_y - min_y).ceil() as u32).max(1);
-    let mut rgba = vec![0; canvas_width as usize * canvas_height as usize * 4];
-
-    for favorite in rendered {
-        let [x, y] = favorite
-            .entry
-            .favorite_gallery_position
-            .unwrap_or([0.0, 0.0]);
-        let [width, height] = favorite.base_size;
-        let dest_x = (x - min_x).round() as i32;
-        let dest_y = (y - min_y).round() as i32;
-        let dest_width = width.round().max(1.0) as u32;
-        let dest_height = height.round().max(1.0) as u32;
-        blit_nearest_rgba(
-            &favorite.image.rgba,
-            [favorite.image.width, favorite.image.height],
-            &mut rgba,
-            [canvas_width, canvas_height],
-            [dest_x, dest_y],
-            [dest_width, dest_height],
-        );
+    if !min_x.is_finite() || !min_y.is_finite() || !max_x.is_finite() || !max_y.is_finite() {
+        return FavoriteEnsemble {
+            members: Vec::new(),
+            canvas_size: [1.0, 1.0],
+        };
     }
 
-    MascotImageData {
-        path: local_data_root().join("favorite-gallery.png"),
-        width: canvas_width,
-        height: canvas_height,
-        rgba,
+    FavoriteEnsemble {
+        canvas_size: [(max_x - min_x).max(1.0), (max_y - min_y).max(1.0)],
+        members: rendered
+            .into_iter()
+            .map(|favorite| {
+                let [x, y] = favorite
+                    .entry
+                    .favorite_ensemble_position
+                    .unwrap_or([0.0, 0.0]);
+                FavoriteEnsembleMember {
+                    canvas_position: [x - min_x, y - min_y],
+                    base_size: favorite.base_size,
+                    image: favorite.image,
+                }
+            })
+            .collect(),
     }
 }
 
-fn blit_nearest_rgba(
-    source_rgba: &[u8],
-    source_size: [u32; 2],
-    dest_rgba: &mut [u8],
-    dest_size: [u32; 2],
-    dest_origin: [i32; 2],
-    dest_draw_size: [u32; 2],
-) {
-    let [source_width, source_height] = source_size;
-    let [dest_width, dest_height] = dest_size;
-    let [dest_x, dest_y] = dest_origin;
-    let [draw_width, draw_height] = dest_draw_size;
-    if source_width == 0 || source_height == 0 || draw_width == 0 || draw_height == 0 {
-        return;
-    }
-
-    for draw_y in 0..draw_height {
-        let canvas_y = dest_y + draw_y as i32;
-        if !(0..dest_height as i32).contains(&canvas_y) {
-            continue;
-        }
-        let source_y = ((draw_y as u64 * source_height as u64) / draw_height as u64)
-            .min(source_height.saturating_sub(1) as u64) as u32;
-        for draw_x in 0..draw_width {
-            let canvas_x = dest_x + draw_x as i32;
-            if !(0..dest_width as i32).contains(&canvas_x) {
-                continue;
-            }
-            let source_x = ((draw_x as u64 * source_width as u64) / draw_width as u64)
-                .min(source_width.saturating_sub(1) as u64) as u32;
-            let source_index = ((source_y * source_width + source_x) * 4) as usize;
-            let dest_index = (((canvas_y as u32) * dest_width + canvas_x as u32) * 4) as usize;
-            blend_pixel(
-                &source_rgba[source_index..source_index + 4],
-                &mut dest_rgba[dest_index..dest_index + 4],
-            );
-        }
-    }
-}
-
-fn blend_pixel(source: &[u8], dest: &mut [u8]) {
-    let source_alpha = source[3] as f32 / 255.0;
-    if source_alpha <= f32::EPSILON {
-        return;
-    }
-    let dest_alpha = dest[3] as f32 / 255.0;
-    let out_alpha = source_alpha + dest_alpha * (1.0 - source_alpha);
-    if out_alpha <= f32::EPSILON {
-        dest.fill(0);
-        return;
-    }
-
-    for channel in 0..3 {
-        let source_value = source[channel] as f32 / 255.0;
-        let dest_value = dest[channel] as f32 / 255.0;
-        let out_value = (source_value * source_alpha
-            + dest_value * dest_alpha * (1.0 - source_alpha))
-            / out_alpha;
-        dest[channel] = (out_value * 255.0).round().clamp(0.0, 255.0) as u8;
-    }
-    dest[3] = (out_alpha * 255.0).round().clamp(0.0, 255.0) as u8;
-}
-
-fn load_favorites(path: &Path) -> Result<Vec<FavoriteGalleryEntry>> {
+fn load_favorites(path: &Path) -> Result<Vec<FavoriteEnsembleEntry>> {
     if !path.exists() {
         return Ok(Vec::new());
     }
 
-    let bytes = fs::read_to_string(path)
-        .with_context(|| format!("failed to read favorite gallery entries {}", path.display()))?;
+    let bytes = fs::read_to_string(path).with_context(|| {
+        format!(
+            "failed to read favorite ensemble entries {}",
+            path.display()
+        )
+    })?;
     match toml::from_str::<FavoritesFile>(&bytes) {
         Ok(file) => Ok(sanitize_favorites(file.favorites)),
         Err(error) => {
             eprintln!(
-                "favorite gallery ignored invalid favorites cache {}: {error:#}",
+                "favorite ensemble ignored invalid favorites cache {}: {error:#}",
                 path.display()
             );
             Ok(Vec::new())
@@ -320,31 +267,35 @@ fn load_favorites(path: &Path) -> Result<Vec<FavoriteGalleryEntry>> {
     }
 }
 
-fn patch_favorite_gallery_positions(path: &Path, updates: &[FavoriteGalleryEntry]) -> Result<()> {
-    let raw = fs::read_to_string(path)
-        .with_context(|| format!("failed to read favorite gallery entries {}", path.display()))?;
-    let patched = patch_favorite_gallery_positions_toml(&raw, updates)?;
+fn patch_favorite_ensemble_positions(path: &Path, updates: &[FavoriteEnsembleEntry]) -> Result<()> {
+    let raw = fs::read_to_string(path).with_context(|| {
+        format!(
+            "failed to read favorite ensemble entries {}",
+            path.display()
+        )
+    })?;
+    let patched = patch_favorite_ensemble_positions_toml(&raw, updates)?;
     fs::write(path, patched).with_context(|| {
         format!(
-            "failed to write favorite gallery entries {}",
+            "failed to write favorite ensemble entries {}",
             path.display()
         )
     })
 }
 
-pub(crate) fn patch_favorite_gallery_positions_toml(
+pub(crate) fn patch_favorite_ensemble_positions_toml(
     raw: &str,
-    updates: &[FavoriteGalleryEntry],
+    updates: &[FavoriteEnsembleEntry],
 ) -> Result<String> {
     let mut value = toml::from_str::<toml::Value>(raw)
-        .context("failed to parse favorites TOML while patching gallery positions")?;
+        .context("failed to parse favorites TOML while patching ensemble positions")?;
     let favorites = value
         .get_mut("favorites")
         .and_then(toml::Value::as_array_mut)
-        .context("favorites should remain an array while patching gallery positions")?;
+        .context("favorites should remain an array while patching ensemble positions")?;
 
     for update in updates {
-        let Some(position) = update.favorite_gallery_position else {
+        let Some(position) = update.favorite_ensemble_position else {
             continue;
         };
         let Some(entry) = favorites
@@ -353,10 +304,10 @@ pub(crate) fn patch_favorite_gallery_positions_toml(
         else {
             continue;
         };
-        // Only backfill entries missing favorite_gallery_position, preserving
+        // Only backfill entries missing favorite_ensemble_position, preserving
         // user-adjusted coordinates.
         if entry
-            .get("favorite_gallery_position")
+            .get("favorite_ensemble_position")
             .and_then(toml::Value::as_array)
             .is_some()
         {
@@ -367,7 +318,7 @@ pub(crate) fn patch_favorite_gallery_positions_toml(
             continue;
         };
         table.insert(
-            "favorite_gallery_position".to_string(),
+            "favorite_ensemble_position".to_string(),
             toml::Value::Array(vec![position[0].into(), position[1].into()]),
         );
     }
@@ -375,7 +326,7 @@ pub(crate) fn patch_favorite_gallery_positions_toml(
     toml::to_string_pretty(&value).context("failed to serialize patched favorites TOML")
 }
 
-fn favorite_entry_matches_update(value: &toml::Value, update: &FavoriteGalleryEntry) -> bool {
+fn favorite_entry_matches_update(value: &toml::Value, update: &FavoriteEnsembleEntry) -> bool {
     let Some(table) = value.as_table() else {
         return false;
     };
@@ -411,7 +362,7 @@ fn table_visibility_overrides(value: Option<&toml::Value>) -> Vec<(usize, bool)>
                         Ok(layer_index) => layer_index,
                         Err(_) => {
                             eprintln!(
-                                "favorite gallery ignored invalid layer_index {} while matching visibility_overrides",
+                                "favorite ensemble ignored invalid layer_index {} while matching visibility_overrides",
                                 layer_index_value
                             );
                             return None;
@@ -425,7 +376,7 @@ fn table_visibility_overrides(value: Option<&toml::Value>) -> Vec<(usize, bool)>
         .unwrap_or_default()
 }
 
-fn sanitize_favorites(favorites: Vec<FavoriteGalleryEntry>) -> Vec<FavoriteGalleryEntry> {
+fn sanitize_favorites(favorites: Vec<FavoriteEnsembleEntry>) -> Vec<FavoriteEnsembleEntry> {
     let mut sanitized = Vec::new();
     for mut favorite in favorites {
         if favorite.zip_path.as_os_str().is_empty()
@@ -441,8 +392,9 @@ fn sanitize_favorites(favorites: Vec<FavoriteGalleryEntry>) -> Vec<FavoriteGalle
                 .unwrap_or_else(|| favorite.psd_path_in_zip.display().to_string());
         }
         favorite.mascot_scale = sanitize_scale(favorite.mascot_scale);
-        favorite.favorite_gallery_position = sanitize_position(favorite.favorite_gallery_position);
-        if let Some(index) = sanitized.iter().position(|saved: &FavoriteGalleryEntry| {
+        favorite.favorite_ensemble_position =
+            sanitize_position(favorite.favorite_ensemble_position);
+        if let Some(index) = sanitized.iter().position(|saved: &FavoriteEnsembleEntry| {
             favorite_identity(saved) == favorite_identity(&favorite)
         }) {
             sanitized[index] = favorite;
@@ -453,7 +405,7 @@ fn sanitize_favorites(favorites: Vec<FavoriteGalleryEntry>) -> Vec<FavoriteGalle
     sanitized
 }
 
-fn favorite_identity(favorite: &FavoriteGalleryEntry) -> (&Path, &Path, Vec<(usize, bool)>) {
+fn favorite_identity(favorite: &FavoriteEnsembleEntry) -> (&Path, &Path, Vec<(usize, bool)>) {
     (
         favorite.zip_path.as_path(),
         favorite.psd_path_in_zip.as_path(),

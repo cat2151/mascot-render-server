@@ -100,8 +100,8 @@ impl WindowHistoryTracker {
 }
 
 pub fn window_history_path(config: &MascotConfig) -> PathBuf {
-    if config.favorite_gallery_enabled {
-        return workspace_cache_root().join("history_server_favorite_gallery.json");
+    if config.favorite_ensemble_enabled {
+        return workspace_cache_root().join("history_server_favorite_ensemble.json");
     }
     window_history_path_for_paths(&config.zip_path, &config.psd_path_in_zip)
 }

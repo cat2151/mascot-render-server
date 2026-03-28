@@ -141,16 +141,16 @@ fn public_helpers_round_trip_saved_window_position() {
 }
 
 #[test]
-fn favorite_gallery_uses_dedicated_window_history_path() {
+fn favorite_ensemble_uses_dedicated_window_history_path() {
     let mut config = mascot_config("/workspace/a.zip", "body/front.psd");
     let per_psd_path = window_history_path(&config);
-    config.favorite_gallery_enabled = true;
+    config.favorite_ensemble_enabled = true;
 
-    let gallery_path = window_history_path(&config);
-    assert_ne!(gallery_path, per_psd_path);
+    let ensemble_path = window_history_path(&config);
+    assert_ne!(ensemble_path, per_psd_path);
     assert_eq!(
-        gallery_path.file_name().and_then(|value| value.to_str()),
-        Some("history_server_favorite_gallery.json")
+        ensemble_path.file_name().and_then(|value| value.to_str()),
+        Some("history_server_favorite_ensemble.json")
     );
 }
 
@@ -158,13 +158,13 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
     MascotConfig {
         png_path: PathBuf::from("/workspace/render.png"),
         scale: Some(1.0),
-        favorite_gallery_scale: None,
+        favorite_ensemble_scale: None,
         zip_path: PathBuf::from(zip_path),
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         display_diff_path: None,
         always_bouncing: false,
         always_bend: false,
-        favorite_gallery_enabled: false,
+        favorite_ensemble_enabled: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,
         head_hitbox: HeadHitbox::default(),

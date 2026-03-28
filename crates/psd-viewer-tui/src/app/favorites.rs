@@ -308,9 +308,9 @@ impl App {
     fn upsert_favorite(&mut self, favorite: FavoriteEntry) -> FavoriteUpsertResult {
         if let Some(index) = self.find_matching_favorite_index(&favorite) {
             let mut updated_favorite = favorite;
-            if updated_favorite.favorite_gallery_position.is_none() {
-                updated_favorite.favorite_gallery_position =
-                    self.favorites[index].favorite_gallery_position;
+            if updated_favorite.favorite_ensemble_position.is_none() {
+                updated_favorite.favorite_ensemble_position =
+                    self.favorites[index].favorite_ensemble_position;
             }
             if self.favorites[index] == updated_favorite {
                 FavoriteUpsertResult::Unchanged { index }
@@ -341,7 +341,7 @@ impl App {
             visibility_overrides,
             mascot_scale: self.mascot_scale,
             window_position,
-            favorite_gallery_position: None,
+            favorite_ensemble_position: None,
         })
     }
 }

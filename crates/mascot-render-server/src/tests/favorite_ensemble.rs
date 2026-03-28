@@ -1,12 +1,12 @@
-use crate::favorite_gallery::{
-    fill_missing_positions, pack_positions_from_right, patch_favorite_gallery_positions_toml,
-    FavoriteGalleryEntry, FavoriteGalleryLayoutEntry,
+use crate::favorite_ensemble::{
+    fill_missing_positions, pack_positions_from_right, patch_favorite_ensemble_positions_toml,
+    FavoriteEnsembleEntry, FavoriteEnsembleLayoutEntry,
 };
 use mascot_render_core::LayerVisibilityOverride;
 use std::path::PathBuf;
 
 #[test]
-fn favorite_gallery_packs_entries_from_right_edge_without_horizontal_gaps() {
+fn favorite_ensemble_packs_entries_from_right_edge_without_horizontal_gaps() {
     let positions = pack_positions_from_right(&[[80.0, 120.0], [40.0, 60.0], [30.0, 90.0]]);
 
     assert_eq!(positions.len(), 3);
@@ -28,17 +28,17 @@ fn favorite_gallery_packs_entries_from_right_edge_without_horizontal_gaps() {
 }
 
 #[test]
-fn favorite_gallery_only_places_missing_entries_to_the_left_of_existing_layout() {
+fn favorite_ensemble_only_places_missing_entries_to_the_left_of_existing_layout() {
     let mut layout = vec![
-        FavoriteGalleryLayoutEntry {
+        FavoriteEnsembleLayoutEntry {
             size: [80.0, 120.0],
             position: Some([70.0, 0.0]),
         },
-        FavoriteGalleryLayoutEntry {
+        FavoriteEnsembleLayoutEntry {
             size: [40.0, 60.0],
             position: None,
         },
-        FavoriteGalleryLayoutEntry {
+        FavoriteEnsembleLayoutEntry {
             size: [30.0, 90.0],
             position: Some([40.0, 30.0]),
         },
@@ -53,7 +53,7 @@ fn favorite_gallery_only_places_missing_entries_to_the_left_of_existing_layout()
 }
 
 #[test]
-fn favorite_gallery_patch_preserves_other_fields_and_existing_positions() {
+fn favorite_ensemble_patch_preserves_other_fields_and_existing_positions() {
     let raw = r#"
 [[favorites]]
 zip_path = "/workspace/a.zip"
@@ -61,16 +61,16 @@ psd_path_in_zip = "a/body.psd"
 psd_file_name = "body.psd"
 visibility_overrides = [{ layer_index = 3, visible = false }]
 window_position = [120.0, 48.0]
-favorite_gallery_position = [360.0, 12.0]
+favorite_ensemble_position = [360.0, 12.0]
 
 [[favorites]]
 zip_path = "/workspace/b.zip"
 psd_path_in_zip = "b/face.psd"
 psd_file_name = "face.psd"
 window_position = [10.0, 20.0]
-"#;
+    "#;
     let updates = vec![
-        FavoriteGalleryEntry {
+        FavoriteEnsembleEntry {
             zip_path: PathBuf::from("/workspace/a.zip"),
             psd_path_in_zip: PathBuf::from("a/body.psd"),
             psd_file_name: "body.psd".to_string(),
@@ -79,27 +79,27 @@ window_position = [10.0, 20.0]
                 visible: false,
             }],
             mascot_scale: None,
-            favorite_gallery_position: Some([999.0, 999.0]),
+            favorite_ensemble_position: Some([999.0, 999.0]),
         },
-        FavoriteGalleryEntry {
+        FavoriteEnsembleEntry {
             zip_path: PathBuf::from("/workspace/b.zip"),
             psd_path_in_zip: PathBuf::from("b/face.psd"),
             psd_file_name: "face.psd".to_string(),
             visibility_overrides: Vec::new(),
             mascot_scale: None,
-            favorite_gallery_position: Some([40.0, 50.0]),
+            favorite_ensemble_position: Some([40.0, 50.0]),
         },
     ];
 
     let patched =
-        patch_favorite_gallery_positions_toml(raw, &updates).expect("should patch favorites TOML");
+        patch_favorite_ensemble_positions_toml(raw, &updates).expect("should patch favorites TOML");
     let parsed: toml::Value = toml::from_str(&patched).expect("patched TOML should stay valid");
     let favorites = parsed["favorites"]
         .as_array()
         .expect("favorites should remain an array");
 
     assert_eq!(
-        favorites[0]["favorite_gallery_position"].as_array(),
+        favorites[0]["favorite_ensemble_position"].as_array(),
         Some(&vec![toml::Value::from(360.0), toml::Value::from(12.0)])
     );
     assert_eq!(
@@ -107,7 +107,7 @@ window_position = [10.0, 20.0]
         Some(&vec![toml::Value::from(120.0), toml::Value::from(48.0)])
     );
     assert_eq!(
-        favorites[1]["favorite_gallery_position"].as_array(),
+        favorites[1]["favorite_ensemble_position"].as_array(),
         Some(&vec![toml::Value::from(40.0), toml::Value::from(50.0)])
     );
     assert_eq!(

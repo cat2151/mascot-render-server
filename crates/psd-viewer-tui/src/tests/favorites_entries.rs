@@ -17,7 +17,7 @@ fn favorite_entry_equality_includes_saved_state() {
         }],
         mascot_scale: Some(0.8),
         window_position: Some([10.0, 20.0]),
-        favorite_gallery_position: None,
+        favorite_ensemble_position: None,
     };
     let right = FavoriteEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
@@ -29,7 +29,7 @@ fn favorite_entry_equality_includes_saved_state() {
         }],
         mascot_scale: Some(1.2),
         window_position: Some([40.0, 50.0]),
-        favorite_gallery_position: None,
+        favorite_ensemble_position: None,
     };
 
     assert_ne!(left, right);
@@ -47,7 +47,7 @@ fn favorite_identity_ignores_scale_and_window_position() {
         }],
         mascot_scale: Some(0.8),
         window_position: Some([10.0, 20.0]),
-        favorite_gallery_position: None,
+        favorite_ensemble_position: None,
     };
     let right = FavoriteEntry {
         zip_path: PathBuf::from("/workspace/a.zip"),
@@ -59,7 +59,7 @@ fn favorite_identity_ignores_scale_and_window_position() {
         }],
         mascot_scale: Some(1.2),
         window_position: Some([40.0, 50.0]),
-        favorite_gallery_position: None,
+        favorite_ensemble_position: None,
     };
 
     assert!(left.same_favorite_identity_as(&right));
@@ -91,7 +91,7 @@ fn favorite_selection_matches_zip_path_and_psd_path_in_zip() {
                 visibility_overrides: Vec::new(),
                 mascot_scale: None,
                 window_position: None,
-                favorite_gallery_position: None,
+                favorite_ensemble_position: None,
             }
             .key(),
         )
