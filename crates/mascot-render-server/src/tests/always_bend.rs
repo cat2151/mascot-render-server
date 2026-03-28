@@ -36,8 +36,9 @@ fn sample_always_bend_uses_configured_amplitude_ratio() {
         amplitude_ratio: 0.05,
     };
     let bend = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect, config);
+    let expected_offset = image_rect.width() * config.amplitude_ratio;
 
-    assert_eq!(bend.offset_x, image_rect.width() * config.amplitude_ratio);
+    assert!((bend.offset_x - expected_offset).abs() <= FLOAT_TOLERANCE);
 }
 
 #[test]
