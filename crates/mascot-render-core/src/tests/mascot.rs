@@ -111,12 +111,28 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(static_toml.contains("always_bend = false"));
     assert!(static_toml.contains("[bend]"));
     assert!(static_toml.contains("[idle_sink]"));
-    let idle_sink_section = idle_sink_section(&static_toml);
-    assert!(idle_sink_section.contains("algorithm = \"idle_sink\""));
-    assert!(idle_sink_section.contains("duration_ms = 2200"));
-    assert!(idle_sink_section.contains("sink_amount = 0.0015"));
-    assert!(idle_sink_section.contains("lift_amount = 0.0015"));
-    assert!(!idle_sink_section.contains("amplitude_px ="));
+    let idle_sink_table = extract_idle_sink_table(&static_toml);
+    assert_eq!(
+        idle_sink_table
+            .get("algorithm")
+            .and_then(toml::Value::as_str),
+        Some("idle_sink")
+    );
+    assert_eq!(
+        idle_sink_table
+            .get("duration_ms")
+            .and_then(toml::Value::as_integer),
+        Some(2200)
+    );
+    assert!(idle_sink_table
+        .get("sink_amount")
+        .and_then(toml::Value::as_float)
+        .is_some_and(|value| (value - 0.0015).abs() < 1e-6));
+    assert!(idle_sink_table
+        .get("lift_amount")
+        .and_then(toml::Value::as_float)
+        .is_some_and(|value| (value - 0.0015).abs() < 1e-6));
+    assert!(!idle_sink_table.contains_key("amplitude_px"));
     assert!(
         runtime_state_path.exists(),
         "runtime state should be written"
@@ -610,13 +626,13 @@ fn default_mascot_scale_targets_thirty_three_percent_of_screen_height() {
     assert!((scale - 0.288).abs() < 0.001, "unexpected scale: {scale}");
 }
 
-fn idle_sink_section(static_toml: &str) -> &str {
-    let (_, tail) = static_toml
-        .split_once("[idle_sink]\n")
-        .expect("static TOML should contain idle_sink section");
-    tail.split_once("\n[")
-        .map_or(tail, |(section, _)| section)
-        .trim()
+fn extract_idle_sink_table(static_toml: &str) -> toml::value::Table {
+    toml::from_str::<toml::Value>(static_toml)
+        .expect("static TOML should parse")
+        .get("idle_sink")
+        .and_then(toml::Value::as_table)
+        .cloned()
+        .expect("static TOML should contain idle_sink section")
 }
 
 fn seed_favorite_ensemble_config(test_name: &str) -> (PathBuf, PathBuf) {
