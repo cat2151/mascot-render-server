@@ -359,6 +359,12 @@ impl MascotApp {
 
     fn persist_pending_scale(&mut self, scale: f32) -> Result<()> {
         persist_scale(&self.config_path, &self.config, scale)?;
+        if let Err(error) = self
+            .favorite_shuffle
+            .persist_scale_for_current_config(&self.config, scale)
+        {
+            eprintln!("{error:#}");
+        }
         self.pending_persisted_scale = None;
         self.last_scale_change_at = None;
         self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
