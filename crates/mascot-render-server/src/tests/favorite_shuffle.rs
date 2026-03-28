@@ -193,7 +193,7 @@ fn favorite_shuffle_still_reads_favorites_without_an_active_edit() {
 fn favorite_shuffle_is_suppressed_while_psd_viewer_tui_is_active() {
     let config_path = workspace_cache_root().join("test-favorite-shuffle-active-tui/mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
-    let _ = fs::remove_file(&activity_path);
+    fs::remove_file(&activity_path).ok();
     fs::create_dir_all(
         activity_path
             .parent()
@@ -212,7 +212,7 @@ fn favorite_shuffle_is_suppressed_while_psd_viewer_tui_is_active() {
 fn favorite_shuffle_ignores_stale_psd_viewer_tui_activity() {
     let config_path = workspace_cache_root().join("test-favorite-shuffle-stale-tui/mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
-    let _ = fs::remove_file(&activity_path);
+    fs::remove_file(&activity_path).ok();
     fs::create_dir_all(
         activity_path
             .parent()
@@ -231,7 +231,7 @@ fn favorite_shuffle_ignores_stale_psd_viewer_tui_activity() {
 fn favorite_shuffle_ignores_missing_psd_viewer_tui_activity() {
     let config_path = workspace_cache_root().join("test-favorite-shuffle-missing-tui/mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
-    let _ = fs::remove_file(&activity_path);
+    fs::remove_file(&activity_path).ok();
 
     assert!(
         !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)
@@ -243,7 +243,7 @@ fn favorite_shuffle_ignores_missing_psd_viewer_tui_activity() {
 fn favorite_shuffle_ignores_future_psd_viewer_tui_activity() {
     let config_path = workspace_cache_root().join("test-favorite-shuffle-future-tui/mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
-    let _ = fs::remove_file(&activity_path);
+    fs::remove_file(&activity_path).ok();
     fs::create_dir_all(
         activity_path
             .parent()
@@ -263,6 +263,7 @@ fn favorite_shuffle_ignores_unreadable_psd_viewer_tui_activity() {
     let config_path =
         workspace_cache_root().join("test-favorite-shuffle-unreadable-tui/mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let _cleanup = TestFixtureCleanup(activity_path.clone());
     fs::remove_dir_all(
         activity_path
             .parent()
@@ -490,4 +491,13 @@ fn create_invalid_favorites_path(favorites_path: &std::path::Path) {
     fs::create_dir(favorites_path).expect(
         "should create directory at favorites file path to simulate invalid favorites file",
     );
+}
+
+/// RAII guard that removes a temporary test fixture path on drop.
+struct TestFixtureCleanup(PathBuf);
+
+impl Drop for TestFixtureCleanup {
+    fn drop(&mut self) {
+        fs::remove_dir_all(&self.0).ok();
+    }
 }
