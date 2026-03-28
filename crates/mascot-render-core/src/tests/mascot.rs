@@ -67,6 +67,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, target.display_diff_path);
     assert!(!loaded.always_bouncing);
+    assert!(!loaded.always_bend);
     assert!(!loaded.transparent_background_click_through);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.head_hitbox, HeadHitbox::default());
@@ -108,6 +109,7 @@ fn load_mascot_config_defaults_flash_blue_background_when_key_is_missing() {
         &config_path,
         r#"
 always_bouncing = true
+always_bend = true
 transparent_background_click_through = false
 "#,
     )
@@ -127,6 +129,7 @@ transparent_background_click_through = false
     let loaded = load_mascot_config(&config_path).expect("config should load");
 
     assert!(loaded.always_bouncing);
+    assert!(loaded.always_bend);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(
         loaded.always_idle_sink,
@@ -149,6 +152,7 @@ fn load_mascot_config_rejects_legacy_debug_flash_key() {
         &config_path,
         r#"
 always_bouncing = true
+always_bend = true
 transparent_background_click_through = true
 debug_flash_blue_background_on_transparent_input = true
 
@@ -253,6 +257,7 @@ fn writing_mascot_config_preserves_current_static_sections() {
         &config_path,
         r#"
 always_bouncing = true
+always_bend = true
 transparent_background_click_through = true
 flash_blue_background_on_transparent_input = true
 
@@ -295,6 +300,7 @@ stretch_amount = 0.08
     assert_eq!(loaded.png_path, target.png_path);
     assert_eq!(loaded.scale, target.scale);
     assert!(loaded.always_bouncing);
+    assert!(loaded.always_bend);
     assert!(loaded.transparent_background_click_through);
     assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.head_hitbox.x, 0.3);
@@ -311,6 +317,7 @@ stretch_amount = 0.08
     assert!(!static_toml.contains("version ="));
     assert!(!static_toml.contains("updated_at ="));
     assert!(static_toml.contains("always_bouncing = true"));
+    assert!(static_toml.contains("always_bend = true"));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
     let runtime_json =
         fs::read_to_string(&runtime_state_path).expect("should write mascot runtime JSON");

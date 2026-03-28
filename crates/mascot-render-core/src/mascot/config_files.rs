@@ -13,6 +13,7 @@ use super::{MascotTarget, MASCOT_RUNTIME_STATE_VERSION};
 #[serde(default, deny_unknown_fields)]
 pub(super) struct MascotStaticConfigFile {
     pub(super) always_bouncing: bool,
+    pub(super) always_bend: bool,
     pub(super) transparent_background_click_through: bool,
     pub(super) flash_blue_background_on_transparent_input: bool,
     pub(super) head_hitbox: HeadHitbox,
@@ -25,6 +26,7 @@ impl Default for MascotStaticConfigFile {
     fn default() -> Self {
         Self {
             always_bouncing: false,
+            always_bend: false,
             transparent_background_click_through: false,
             flash_blue_background_on_transparent_input: true,
             head_hitbox: HeadHitbox::default(),

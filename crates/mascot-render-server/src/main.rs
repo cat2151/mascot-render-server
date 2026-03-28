@@ -1,3 +1,4 @@
+mod always_bend;
 mod app_support;
 mod cli;
 mod eye_blink;
@@ -5,6 +6,9 @@ mod eye_blink_timing;
 mod mascot_app;
 mod mascot_scale;
 
+#[cfg(test)]
+#[path = "tests/always_bend.rs"]
+mod always_bend_tests;
 #[cfg(test)]
 #[path = "tests/cli.rs"]
 mod cli_tests;

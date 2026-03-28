@@ -34,6 +34,7 @@ pub struct MascotConfig {
     pub psd_path_in_zip: PathBuf,
     pub display_diff_path: Option<PathBuf>,
     pub always_bouncing: bool,
+    pub always_bend: bool,
     pub transparent_background_click_through: bool,
     pub flash_blue_background_on_transparent_input: bool,
     pub head_hitbox: HeadHitbox,
@@ -92,6 +93,7 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
         psd_path_in_zip: runtime_target.psd_path_in_zip,
         display_diff_path: runtime_target.display_diff_path,
         always_bouncing: static_config.always_bouncing,
+        always_bend: static_config.always_bend,
         transparent_background_click_through: static_config.transparent_background_click_through,
         flash_blue_background_on_transparent_input: static_config
             .flash_blue_background_on_transparent_input,
