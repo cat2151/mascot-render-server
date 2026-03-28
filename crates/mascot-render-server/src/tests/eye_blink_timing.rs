@@ -46,5 +46,6 @@ fn always_idle_sink_duration_tracks_blink_median() {
 
     assert_eq!(slower.duration_ms, 1200);
     assert_eq!(faster.duration_ms, 800);
-    assert_eq!(slower.amplitude_px, config.amplitude_px);
+    assert_eq!(slower.sink_amount, config.sink_amount);
+    assert_eq!(slower.lift_amount, config.lift_amount);
 }

@@ -128,11 +128,10 @@ impl SquashBounceAnimationConfig {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct IdleSinkAnimationConfig {
     pub algorithm: IdleAlgorithm,
     pub duration_ms: u64,
-    pub amplitude_px: f32,
     pub sink_amount: f32,
     pub lift_amount: f32,
 }
@@ -142,9 +141,8 @@ impl Default for IdleSinkAnimationConfig {
         Self {
             algorithm: IdleAlgorithm::IdleSink,
             duration_ms: 2200,
-            amplitude_px: 6.0,
-            sink_amount: 0.045,
-            lift_amount: 0.03,
+            sink_amount: 0.0015,
+            lift_amount: 0.0015,
         }
     }
 }

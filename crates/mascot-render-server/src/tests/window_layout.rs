@@ -23,7 +23,6 @@ fn zero_squash() -> SquashBounceAnimationConfig {
 
 fn zero_idle_sink() -> IdleSinkAnimationConfig {
     IdleSinkAnimationConfig {
-        amplitude_px: 0.0,
         sink_amount: 0.0,
         lift_amount: 0.0,
         ..Default::default()
@@ -96,15 +95,14 @@ fn layout_reserves_room_for_motion_extrema() {
             ..Default::default()
         },
         IdleSinkAnimationConfig {
-            amplitude_px: 4.0,
             sink_amount: 0.08,
             lift_amount: 0.03,
             ..Default::default()
         },
     );
 
-    assert!((layout.window_size().x - 75.52).abs() < 0.001);
-    assert!((layout.window_size().y - 79.76).abs() < 0.001);
+    assert!((layout.window_size().x - 74.72).abs() < 0.001);
+    assert!((layout.window_size().y - 79.36).abs() < 0.001);
 }
 
 #[test]

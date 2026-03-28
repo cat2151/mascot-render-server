@@ -53,7 +53,7 @@ pub(super) fn sample_idle_sink(
 
     MotionTransform {
         offset_x: 0.0,
-        offset_y: config.amplitude_px.max(0.0) * (sink - lift),
+        offset_y: 0.0,
         scale_x: 1.0 + config.sink_amount.max(0.0) * sink
             - config.lift_amount.max(0.0) * lift * IDLE_SINK_LIFT_SCALE_X_RATIO,
         scale_y: 1.0 - config.sink_amount.max(0.0) * sink + config.lift_amount.max(0.0) * lift,
