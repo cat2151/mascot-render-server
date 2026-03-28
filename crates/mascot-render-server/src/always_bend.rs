@@ -35,7 +35,8 @@ pub(crate) fn mesh(texture_id: TextureId, image_rect: Rect, bend: MotionTransfor
 
         for column in 0..=ALWAYS_BEND_COLUMNS {
             let u = normalized_step(column, ALWAYS_BEND_COLUMNS);
-            let x = image_rect.left() + image_rect.width() * u + row_bend * horizontal_influence(u);
+            let column_bend = row_bend * horizontal_influence(u);
+            let x = image_rect.left() + image_rect.width() * u + column_bend;
             mesh.vertices.push(Vertex {
                 pos: Pos2::new(x, y),
                 uv: Pos2::new(u, v),
@@ -68,6 +69,7 @@ pub(crate) fn mesh(texture_id: TextureId, image_rect: Rect, bend: MotionTransfor
 }
 
 fn normalized_step(index: usize, max: usize) -> f32 {
+    debug_assert!(max > 0, "bend mesh grid dimensions must stay positive");
     index as f32 / max.max(1) as f32
 }
 
