@@ -114,16 +114,16 @@ pub(crate) fn fill_missing_positions(
 
     let mut existing_right_edge = None::<f32>;
     let mut existing_bottom = None::<f32>;
-    let mut fallback_bottom = 0.0_f32;
+    let mut max_height = 0.0_f32;
     for entry in layout_entries.iter() {
-        fallback_bottom = fallback_bottom.max(entry.size[1]);
+        max_height = max_height.max(entry.size[1]);
         if let Some([x, y]) = entry.position {
             existing_right_edge = Some(existing_right_edge.map_or(x, |current| current.min(x)));
             let bottom = y + entry.size[1];
             existing_bottom = Some(existing_bottom.map_or(bottom, |current| current.max(bottom)));
         }
     }
-    let bottom = existing_bottom.unwrap_or(fallback_bottom);
+    let bottom = existing_bottom.unwrap_or(max_height);
 
     let missing_sizes = missing_indices
         .iter()
@@ -353,6 +353,8 @@ pub(crate) fn patch_favorite_gallery_positions_toml(
         else {
             continue;
         };
+        // Existing gallery coordinates may have been adjusted by the user, so this backfill only
+        // fills entries that are still missing favorite_gallery_position.
         if entry
             .get("favorite_gallery_position")
             .and_then(toml::Value::as_array)
@@ -403,11 +405,18 @@ fn table_visibility_overrides(value: Option<&toml::Value>) -> Vec<(usize, bool)>
                 .iter()
                 .filter_map(|layer| {
                     let table = layer.as_table()?;
-                    let layer_index = table
-                        .get("layer_index")
-                        .and_then(toml::Value::as_integer)?
-                        .try_into()
-                        .ok()?;
+                    let layer_index_value =
+                        table.get("layer_index").and_then(toml::Value::as_integer)?;
+                    let layer_index = match layer_index_value.try_into() {
+                        Ok(layer_index) => layer_index,
+                        Err(_) => {
+                            eprintln!(
+                                "favorite gallery ignored invalid layer_index {} while matching visibility_overrides",
+                                layer_index_value
+                            );
+                            return None;
+                        }
+                    };
                     let visible = table.get("visible").and_then(toml::Value::as_bool)?;
                     Some((layer_index, visible))
                 })
