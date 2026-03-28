@@ -30,6 +30,7 @@ fn sample_config() -> MascotConfig {
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: Some(PathBuf::from("cache/demo/variation.json")),
         always_bouncing: false,
+        always_bend: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,
         head_hitbox: Default::default(),

@@ -5,6 +5,7 @@ use eframe::egui::{self, Color32, Pos2, Rect};
 use eframe::App;
 use mascot_render_server::{captures_logical_point, TransparentHitTestUpdate};
 
+use crate::always_bend;
 use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 
 use super::{keyboard_scale_steps, scroll_scale_steps, MascotApp};
@@ -77,6 +78,9 @@ impl App for MascotApp {
         let texture_id = active_skin.texture.id();
         let active_image_size = active_skin.image_size;
         let active_alpha_mask = Arc::clone(&active_skin.alpha_mask);
+        let bend_transform = self.config.always_bend.then(|| {
+            always_bend::sample_always_bend(now - self.always_bend_started_at, image_rect)
+        });
         self.transparent_hit_test.update(TransparentHitTestUpdate {
             now,
             enabled: self.config.transparent_background_click_through,
@@ -104,12 +108,20 @@ impl App for MascotApp {
                     painter.rect_filled(response.rect, 0.0, Color32::from_rgb(0, 120, 255));
                 }
 
-                painter.image(
-                    texture_id,
-                    image_rect,
-                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                    Color32::WHITE,
-                );
+                if let Some(bend_transform) = bend_transform {
+                    painter.add(egui::Shape::mesh(always_bend::mesh(
+                        texture_id,
+                        image_rect,
+                        bend_transform,
+                    )));
+                } else {
+                    painter.image(
+                        texture_id,
+                        image_rect,
+                        Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+                }
 
                 if response.clicked()
                     && response
@@ -171,6 +183,11 @@ impl App for MascotApp {
             .pending_scale_persist_remaining(now)
             .map(|remaining| repaint_after.min(remaining))
             .unwrap_or(repaint_after);
+        let repaint_after = if self.config.always_bend {
+            repaint_after.min(always_bend::repaint_after())
+        } else {
+            repaint_after
+        };
         ctx.request_repaint_after(repaint_after);
     }
 

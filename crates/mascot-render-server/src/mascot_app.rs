@@ -45,6 +45,7 @@ pub(crate) struct MascotApp {
     scale: f32,
     pending_persisted_scale: Option<f32>,
     last_scale_change_at: Option<Instant>,
+    always_bend_started_at: Instant,
     base_size: Vec2,
     skin_cache: MascotSkinCache<CachedSkin>,
     motion: MotionState,
@@ -66,6 +67,7 @@ impl MascotApp {
         control_rx: Receiver<MascotControlCommand>,
         saved_window_position: Option<Pos2>,
     ) -> Self {
+        let now = Instant::now();
         let scale = effective_scale(image.width, image.height, config.scale);
         let base_size = size_vec(image.width, image.height, Some(scale));
         let runtime_state_path = mascot_runtime_state_path(&config_path);
@@ -103,11 +105,12 @@ impl MascotApp {
             scale,
             pending_persisted_scale: None,
             last_scale_change_at: None,
+            always_bend_started_at: now,
             base_size,
             skin_cache,
             motion: MotionState::new(),
-            eye_blink: EyeBlinkLoop::new(Instant::now()),
-            favorite_shuffle: FavoriteShufflePlaylist::new(Instant::now()),
+            eye_blink: EyeBlinkLoop::new(now),
+            favorite_shuffle: FavoriteShufflePlaylist::new(now),
             control_rx,
             transparent_hit_test,
             window_layout: initial_window_layout,
@@ -115,7 +118,7 @@ impl MascotApp {
             pending_restored_anchor_position: saved_window_position,
         };
         app.motion
-            .set_always_bouncing(app.config.always_bouncing, Instant::now());
+            .set_always_bouncing(app.config.always_bouncing, now);
         if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
             eprintln!("{error:#}");
         }

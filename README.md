@@ -47,6 +47,8 @@ psd-viewer-tui
 - mascot-render-server.toml
     - always_bouncing
         - If set to `true`, a small squash/stretch breathing-like motion is continuously played for UX verification.
+    - always_bend
+        - If set to `true`, the single mascot image is rendered with a gentle mesh bend so the upper side sways left and right more than the lower side.
     - always_idle_sink
         - IdleSink breathing setting exclusively for `always_bouncing`.
         - By default, it sinks and rises more gently than regular `squash_bounce`, and the tempo subtly changes in sync with the median fluctuation of the blink interval.
