@@ -25,6 +25,12 @@ pub(crate) struct FavoriteGalleryEntry {
     pub(crate) favorite_gallery_position: Option<[f32; 2]>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct FavoriteGalleryLayoutEntry {
+    pub(crate) size: [f32; 2],
+    pub(crate) position: Option<[f32; 2]>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default, deny_unknown_fields)]
 struct FavoritesFile {
@@ -58,24 +64,23 @@ pub(crate) fn load_gallery_image(core: &Core) -> Result<Option<MascotImageData>>
         return Ok(None);
     }
 
-    if rendered
+    let mut layout_entries = rendered
         .iter()
-        .any(|favorite| favorite.entry.favorite_gallery_position.is_none())
-    {
-        let packed_positions = pack_positions_from_right(
-            &rendered
-                .iter()
-                .map(|favorite| favorite.base_size)
-                .collect::<Vec<_>>(),
-        );
-        for (favorite, position) in rendered.iter_mut().zip(packed_positions) {
-            favorite.entry.favorite_gallery_position = Some(position);
-        }
-        save_favorites(
+        .map(|favorite| FavoriteGalleryLayoutEntry {
+            size: favorite.base_size,
+            position: favorite.entry.favorite_gallery_position,
+        })
+        .collect::<Vec<_>>();
+    let updated_indices = fill_missing_positions(&mut layout_entries);
+    for (favorite, layout_entry) in rendered.iter_mut().zip(layout_entries) {
+        favorite.entry.favorite_gallery_position = layout_entry.position;
+    }
+    if !updated_indices.is_empty() {
+        patch_favorite_gallery_positions(
             &favorites_path,
-            &rendered
-                .iter()
-                .map(|favorite| favorite.entry.clone())
+            &updated_indices
+                .into_iter()
+                .map(|index| rendered[index].entry.clone())
                 .collect::<Vec<_>>(),
         )?;
     }
@@ -91,6 +96,63 @@ pub(crate) fn pack_positions_from_right(sizes: &[[f32; 2]]) -> Vec<[f32; 2]> {
     for [width, height] in sizes {
         next_right_edge -= *width;
         positions.push([next_right_edge, max_height - *height]);
+    }
+    positions
+}
+
+pub(crate) fn fill_missing_positions(
+    layout_entries: &mut [FavoriteGalleryLayoutEntry],
+) -> Vec<usize> {
+    let missing_indices = layout_entries
+        .iter()
+        .enumerate()
+        .filter_map(|(index, entry)| entry.position.is_none().then_some(index))
+        .collect::<Vec<_>>();
+    if missing_indices.is_empty() {
+        return Vec::new();
+    }
+
+    let existing_right_edge = layout_entries
+        .iter()
+        .filter_map(|entry| entry.position.map(|[x, _]| x))
+        .reduce(f32::min);
+    let bottom = layout_entries
+        .iter()
+        .filter_map(|entry| entry.position.map(|[_, y]| y + entry.size[1]))
+        .reduce(f32::max)
+        .unwrap_or_else(|| {
+            layout_entries
+                .iter()
+                .map(|entry| entry.size[1])
+                .fold(0.0, f32::max)
+        });
+
+    let missing_sizes = missing_indices
+        .iter()
+        .map(|&index| layout_entries[index].size)
+        .collect::<Vec<_>>();
+    let positions = if let Some(right_edge) = existing_right_edge {
+        pack_positions_with_right_edge(&missing_sizes, right_edge, bottom)
+    } else {
+        pack_positions_from_right(&missing_sizes)
+    };
+
+    for (index, position) in missing_indices.iter().copied().zip(positions) {
+        layout_entries[index].position = Some(position);
+    }
+    missing_indices
+}
+
+fn pack_positions_with_right_edge(
+    sizes: &[[f32; 2]],
+    right_edge: f32,
+    bottom: f32,
+) -> Vec<[f32; 2]> {
+    let mut next_right_edge = right_edge;
+    let mut positions = Vec::with_capacity(sizes.len());
+    for [width, height] in sizes {
+        next_right_edge -= *width;
+        positions.push([next_right_edge, bottom - *height]);
     }
     positions
 }
@@ -260,21 +322,96 @@ fn load_favorites(path: &Path) -> Result<Vec<FavoriteGalleryEntry>> {
     }
 }
 
-fn save_favorites(path: &Path, favorites: &[FavoriteGalleryEntry]) -> Result<()> {
-    if let Some(parent) = path.parent().filter(|value| !value.as_os_str().is_empty()) {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-    let toml = toml::to_string_pretty(&FavoritesFile {
-        favorites: favorites.to_vec(),
-    })
-    .context("failed to serialize favorite gallery entries")?;
-    fs::write(path, toml).with_context(|| {
+fn patch_favorite_gallery_positions(path: &Path, updates: &[FavoriteGalleryEntry]) -> Result<()> {
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("failed to read favorite gallery entries {}", path.display()))?;
+    let patched = patch_favorite_gallery_positions_toml(&raw, updates)?;
+    fs::write(path, patched).with_context(|| {
         format!(
             "failed to write favorite gallery entries {}",
             path.display()
         )
     })
+}
+
+pub(crate) fn patch_favorite_gallery_positions_toml(
+    raw: &str,
+    updates: &[FavoriteGalleryEntry],
+) -> Result<String> {
+    let mut value = toml::from_str::<toml::Value>(raw)
+        .context("failed to parse favorites TOML while patching gallery positions")?;
+    let favorites = value
+        .get_mut("favorites")
+        .and_then(toml::Value::as_array_mut)
+        .context("favorites should remain an array while patching gallery positions")?;
+
+    for update in updates {
+        let Some(position) = update.favorite_gallery_position else {
+            continue;
+        };
+        let Some(entry) = favorites.iter_mut().find(|entry| {
+            favorite_entry_matches_update(entry, update)
+                && entry
+                    .get("favorite_gallery_position")
+                    .and_then(toml::Value::as_array)
+                    .is_none()
+        }) else {
+            continue;
+        };
+
+        let Some(table) = entry.as_table_mut() else {
+            continue;
+        };
+        table.insert(
+            "favorite_gallery_position".to_string(),
+            toml::Value::Array(vec![position[0].into(), position[1].into()]),
+        );
+    }
+
+    toml::to_string_pretty(&value).context("failed to serialize patched favorites TOML")
+}
+
+fn favorite_entry_matches_update(value: &toml::Value, update: &FavoriteGalleryEntry) -> bool {
+    let Some(table) = value.as_table() else {
+        return false;
+    };
+    let zip_path = table
+        .get("zip_path")
+        .and_then(toml::Value::as_str)
+        .map(Path::new);
+    let psd_path_in_zip = table
+        .get("psd_path_in_zip")
+        .and_then(toml::Value::as_str)
+        .map(Path::new);
+    zip_path == Some(update.zip_path.as_path())
+        && psd_path_in_zip == Some(update.psd_path_in_zip.as_path())
+        && table_visibility_overrides(table.get("visibility_overrides"))
+            == update
+                .visibility_overrides
+                .iter()
+                .map(|layer| (layer.layer_index, layer.visible))
+                .collect::<Vec<_>>()
+}
+
+fn table_visibility_overrides(value: Option<&toml::Value>) -> Vec<(usize, bool)> {
+    value
+        .and_then(toml::Value::as_array)
+        .map(|layers| {
+            layers
+                .iter()
+                .filter_map(|layer| {
+                    let table = layer.as_table()?;
+                    let layer_index = table
+                        .get("layer_index")
+                        .and_then(toml::Value::as_integer)?
+                        .try_into()
+                        .ok()?;
+                    let visible = table.get("visible").and_then(toml::Value::as_bool)?;
+                    Some((layer_index, visible))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn sanitize_favorites(favorites: Vec<FavoriteGalleryEntry>) -> Vec<FavoriteGalleryEntry> {

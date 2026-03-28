@@ -305,6 +305,42 @@ fn upsert_favorite_updates_existing_entry_when_only_scale_and_position_change() 
 }
 
 #[test]
+fn upsert_favorite_preserves_existing_gallery_position_when_new_entry_omits_it() {
+    let existing = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: vec![LayerVisibilityOverride {
+            layer_index: 4,
+            visible: true,
+        }],
+        mascot_scale: Some(0.75),
+        window_position: Some([120.0, 48.0]),
+        favorite_gallery_position: Some([360.0, 12.0]),
+    };
+    let updated = FavoriteEntry {
+        zip_path: PathBuf::from("/workspace/a.zip"),
+        psd_path_in_zip: PathBuf::from("a/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: vec![LayerVisibilityOverride {
+            layer_index: 4,
+            visible: true,
+        }],
+        mascot_scale: Some(1.25),
+        window_position: Some([300.0, 90.0]),
+        favorite_gallery_position: None,
+    };
+    let mut app = App::loading(None);
+    app.set_favorites_for_test(vec![existing], HashMap::new());
+
+    assert!(app.upsert_favorite_for_test(updated));
+    assert_eq!(
+        app.favorite_entries_for_test()[0].favorite_gallery_position,
+        Some([360.0, 12.0])
+    );
+}
+
+#[test]
 fn refresh_rebuilds_favorite_preview_when_visible() {
     let root = workspace_cache_root().join("test-favorite-preview-refresh");
     let preview_path = root.join("favorite-refresh.png");
