@@ -356,6 +356,46 @@ stretch_amount = 0.08
 }
 
 #[test]
+fn load_mascot_config_disables_favorite_ensemble_while_psd_viewer_tui_is_active() {
+    let root = workspace_cache_root().join("test-mascot-active-psd-viewer-tui");
+    let config_path = root.join("mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let activity_path = psd_viewer_tui_activity_path(&config_path);
+    let _ = fs::remove_dir_all(&root);
+    let _ = fs::remove_file(&runtime_state_path);
+    let _ = fs::remove_file(&activity_path);
+
+    fs::create_dir_all(&root).expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+favorite_ensemble_enabled = true
+"#,
+    )
+    .expect("should seed mascot config");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/active/render.png",
+  "zip_path": "assets/zip/active.zip",
+  "psd_path_in_zip": "active/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
+    fs::write(&activity_path, crate::unix_timestamp().to_string())
+        .expect("should write psd-viewer-tui heartbeat");
+
+    let loaded = load_mascot_config(&config_path).expect("config should load");
+
+    assert!(
+        !loaded.favorite_ensemble_enabled,
+        "psd-viewer-tui activity should temporarily disable favorite ensemble"
+    );
+}
+
+#[test]
 fn mascot_window_size_uses_scale_or_legacy_fallback() {
     assert_eq!(mascot_window_size(1200, 600, None), [480.0, 240.0]);
     assert_eq!(mascot_window_size(400, 200, Some(0.5)), [200.0, 100.0]);
