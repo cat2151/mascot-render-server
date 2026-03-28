@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::favorites::{load_favorites, save_favorites, FavoriteEntry};
+use crate::favorites::{favorites_path, load_favorites, save_favorites, FavoriteEntry};
 use mascot_render_core::{workspace_cache_root, LayerVisibilityOverride, PsdEntry};
 
 #[path = "favorites_app.rs"]
@@ -12,7 +12,7 @@ mod favorites_entries;
 #[test]
 fn favorites_round_trip_as_toml() {
     let root = workspace_cache_root().join("test-favorites-round-trip");
-    let path = root.join("favorites/psd-viewer-tui.toml");
+    let path = root.join("favorites/favorites.toml");
     let _ = fs::remove_dir_all(&root);
 
     let favorites = vec![
@@ -41,15 +41,27 @@ fn favorites_round_trip_as_toml() {
     ];
 
     save_favorites(&path, &favorites).expect("should write favorites");
+    let saved = fs::read_to_string(&path).expect("should read favorites toml");
+    assert!(!saved.contains("version ="));
 
     let loaded = load_favorites(&path).expect("should read favorites");
     assert_eq!(loaded, favorites);
 }
 
 #[test]
+fn favorites_path_uses_dedicated_file_name() {
+    assert_eq!(
+        favorites_path()
+            .file_name()
+            .and_then(|value| value.to_str()),
+        Some("favorites.toml")
+    );
+}
+
+#[test]
 fn favorites_deduplicate_by_visibility_and_keep_latest_scale_and_position() {
     let root = workspace_cache_root().join("test-favorites-deduplicate");
-    let path = root.join("favorites/psd-viewer-tui.toml");
+    let path = root.join("favorites/favorites.toml");
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(path.parent().expect("favorites file should have a parent"))
         .expect("should create temp directory");
@@ -57,8 +69,6 @@ fn favorites_deduplicate_by_visibility_and_keep_latest_scale_and_position() {
     fs::write(
         &path,
         r#"
-version = 1
-
 [[favorites]]
 zip_path = "/workspace/a.zip"
 psd_path_in_zip = "a/body.psd"
@@ -95,7 +105,7 @@ window_position = [300.0, 90.0]
 #[test]
 fn favorites_allow_default_and_custom_layer_states_for_same_psd() {
     let root = workspace_cache_root().join("test-favorites-default-and-custom");
-    let path = root.join("favorites/psd-viewer-tui.toml");
+    let path = root.join("favorites/favorites.toml");
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(path.parent().expect("favorites file should have a parent"))
         .expect("should create temp directory");
@@ -103,8 +113,6 @@ fn favorites_allow_default_and_custom_layer_states_for_same_psd() {
     fs::write(
         &path,
         r#"
-version = 1
-
 [[favorites]]
 zip_path = "/workspace/a.zip"
 psd_path_in_zip = "a/body.psd"
@@ -132,9 +140,9 @@ visibility_overrides = [{ layer_index = 4, visible = true }]
 }
 
 #[test]
-fn favorites_without_new_fields_still_load() {
-    let root = workspace_cache_root().join("test-favorites-legacy-load");
-    let path = root.join("favorites/psd-viewer-tui.toml");
+fn favorites_with_legacy_version_field_are_rejected() {
+    let root = workspace_cache_root().join("test-favorites-legacy-version");
+    let path = root.join("favorites/favorites.toml");
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(path.parent().expect("favorites file should have a parent"))
         .expect("should create temp directory");
@@ -150,13 +158,10 @@ psd_path_in_zip = "a/body.psd"
 psd_file_name = "body.psd"
 "#,
     )
-    .expect("should seed legacy favorite");
+    .expect("should seed legacy-format favorite");
 
-    let loaded = load_favorites(&path).expect("should load legacy favorites");
-    assert_eq!(loaded.len(), 1);
-    assert!(loaded[0].visibility_overrides.is_empty());
-    assert_eq!(loaded[0].mascot_scale, None);
-    assert_eq!(loaded[0].window_position, None);
+    let loaded = load_favorites(&path).expect("should ignore legacy favorites");
+    assert!(loaded.is_empty());
 }
 
 fn sample_psd(path: &str, file_name: &str) -> PsdEntry {

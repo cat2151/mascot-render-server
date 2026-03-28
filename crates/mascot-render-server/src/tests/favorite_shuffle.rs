@@ -23,8 +23,6 @@ fn favorite_shuffle_deduplicates_and_fills_missing_file_name() {
     fs::write(
         &path,
         r#"
-version = 1
-
 [[favorites]]
 zip_path = "/workspace/a.zip"
 psd_path_in_zip = "a/body.psd"
@@ -54,8 +52,6 @@ fn favorite_shuffle_invalid_entry_is_rejected_during_parse() {
     fs::write(
         &path,
         r#"
-version = 1
-
 [[favorites]]
 psd_path_in_zip = "a/body.psd"
 psd_file_name = "body.psd"
@@ -65,6 +61,40 @@ psd_file_name = "body.psd"
 
     let loaded =
         load_favorites(&path).expect("should load favorites while ignoring invalid entries");
+    assert!(loaded.is_empty());
+}
+
+#[test]
+fn favorite_shuffle_uses_dedicated_favorites_file_name() {
+    let root = workspace_cache_root().join("test-favorite-shuffle-path");
+    assert_eq!(
+        favorites_path_for(&root),
+        root.join("favorites/favorites.toml")
+    );
+}
+
+#[test]
+fn favorite_shuffle_rejects_legacy_version_field() {
+    let root = workspace_cache_root().join("test-favorite-shuffle-legacy-version");
+    let path = favorites_path_for(&root);
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
+        .expect("should create favorites directory");
+
+    fs::write(
+        &path,
+        r#"
+version = 1
+
+[[favorites]]
+zip_path = "/workspace/a.zip"
+psd_path_in_zip = "a/body.psd"
+psd_file_name = "body.psd"
+"#,
+    )
+    .expect("should seed legacy favorites cache");
+
+    let loaded = load_favorites(&path).expect("should ignore legacy favorites cache");
     assert!(loaded.is_empty());
 }
 

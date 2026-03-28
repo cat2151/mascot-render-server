@@ -12,8 +12,7 @@ use mascot_render_core::{
 use serde::Deserialize;
 
 const FAVORITES_DIR: &str = "favorites";
-const FAVORITES_FILE_NAME: &str = "psd-viewer-tui.toml";
-const FAVORITES_FILE_VERSION: u32 = 1;
+const FAVORITES_FILE_NAME: &str = "favorites.toml";
 
 pub const FAVORITE_SHUFFLE_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -53,20 +52,10 @@ struct FavoriteEntryFile {
     psd_file_name: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
 struct FavoritesFile {
-    version: u32,
     favorites: Vec<FavoriteEntryFile>,
-}
-
-impl Default for FavoritesFile {
-    fn default() -> Self {
-        Self {
-            version: FAVORITES_FILE_VERSION,
-            favorites: Vec::new(),
-        }
-    }
 }
 
 impl FavoriteEntry {
@@ -284,17 +273,7 @@ pub(crate) fn load_favorites(path: &Path) -> Result<Vec<FavoriteEntry>> {
     let bytes = fs::read_to_string(path)
         .with_context(|| format!("failed to read favorites {}", path.display()))?;
     match toml::from_str::<FavoritesFile>(&bytes) {
-        Ok(file) if file.version == FAVORITES_FILE_VERSION => {
-            Ok(sanitize_favorites(file.favorites))
-        }
-        Ok(file) => {
-            eprintln!(
-                "favorite shuffle ignored unsupported favorites cache version {} at {}",
-                file.version,
-                path.display()
-            );
-            Ok(Vec::new())
-        }
+        Ok(file) => Ok(sanitize_favorites(file.favorites)),
         Err(error) => {
             eprintln!(
                 "favorite shuffle ignored invalid favorites cache {}: {error:#}",
