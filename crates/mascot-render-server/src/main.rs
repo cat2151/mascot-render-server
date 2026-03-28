@@ -6,6 +6,7 @@ mod eye_blink_timing;
 mod favorite_ensemble;
 mod mascot_app;
 mod mascot_scale;
+mod mouth_flap;
 
 #[cfg(test)]
 #[path = "tests/always_bend.rs"]

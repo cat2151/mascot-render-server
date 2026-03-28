@@ -30,7 +30,7 @@ fn default_server_address_uses_expected_port() {
 fn motion_timeline_request_round_trips_as_json() {
     let request = MotionTimelineRequest {
         steps: vec![MotionTimelineStep {
-            kind: MotionTimelineKind::Shake,
+            kind: MotionTimelineKind::MouthFlap,
             duration_ms: 5_000,
             fps: 20,
         }],

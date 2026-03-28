@@ -62,6 +62,7 @@ impl App for MascotApp {
             eprintln!("{error:#}");
         }
         let blink_closed = self.closed_skin.is_some() && self.eye_blink.is_closed(now);
+        let mouth_flap_open = self.motion.mouth_flap_is_open(now);
         let always_idle_sink = always_idle_sink_for_blink_median(
             self.config.always_idle_sink,
             self.eye_blink.current_median_ms(),
@@ -197,7 +198,13 @@ impl App for MascotApp {
             always_idle_sink,
         );
         let image_rect = self.window_layout.image_rect(self.base_size, transform);
-        let active_skin = if blink_closed {
+        let active_skin = if let Some(is_open) = mouth_flap_open {
+            if is_open {
+                self.mouth_open_skin.as_ref().unwrap_or(&self.open_skin)
+            } else {
+                self.mouth_closed_skin.as_ref().unwrap_or(&self.open_skin)
+            }
+        } else if blink_closed {
             self.closed_skin.as_ref().unwrap_or(&self.open_skin)
         } else {
             &self.open_skin

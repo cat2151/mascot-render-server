@@ -24,6 +24,7 @@ pub fn validate_motion_timeline_request(request: &MotionTimelineRequest) -> Resu
 
     match step.kind {
         MotionTimelineKind::Shake => Ok(()),
+        MotionTimelineKind::MouthFlap => Ok(()),
     }
 }
 
@@ -43,6 +44,9 @@ pub fn apply_motion_timeline_request(
             Duration::from_millis(step.duration_ms),
             step.fps,
         ),
+        MotionTimelineKind::MouthFlap => {
+            motion.trigger_mouth_flap(now, Duration::from_millis(step.duration_ms), step.fps)
+        }
     }
 
     Ok(())
