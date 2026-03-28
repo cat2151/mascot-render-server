@@ -12,8 +12,6 @@ use super::{MascotTarget, MASCOT_RUNTIME_STATE_VERSION};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub(super) struct MascotStaticConfigFile {
-    #[serde(skip_serializing)]
-    pub(super) version: Option<u32>,
     pub(super) always_bouncing: bool,
     pub(super) transparent_background_click_through: bool,
     pub(super) flash_blue_background_on_transparent_input: bool,
@@ -21,14 +19,11 @@ pub(super) struct MascotStaticConfigFile {
     pub(super) bounce: BounceAnimationConfig,
     pub(super) squash_bounce: SquashBounceAnimationConfig,
     pub(super) always_idle_sink: IdleSinkAnimationConfig,
-    #[serde(skip_serializing)]
-    pub(super) updated_at: Option<u64>,
 }
 
 impl Default for MascotStaticConfigFile {
     fn default() -> Self {
         Self {
-            version: None,
             always_bouncing: false,
             transparent_background_click_through: false,
             flash_blue_background_on_transparent_input: true,
@@ -36,7 +31,6 @@ impl Default for MascotStaticConfigFile {
             bounce: BounceAnimationConfig::default(),
             squash_bounce: SquashBounceAnimationConfig::default(),
             always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
-            updated_at: None,
         }
     }
 }
