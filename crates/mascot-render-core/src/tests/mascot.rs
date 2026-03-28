@@ -111,6 +111,12 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(static_toml.contains("always_bend = false"));
     assert!(static_toml.contains("[bend]"));
     assert!(static_toml.contains("[idle_sink]"));
+    let idle_sink_section = idle_sink_section(&static_toml);
+    assert!(idle_sink_section.contains("algorithm = \"idle_sink\""));
+    assert!(idle_sink_section.contains("duration_ms = 2200"));
+    assert!(idle_sink_section.contains("sink_amount = 0.0015"));
+    assert!(idle_sink_section.contains("lift_amount = 0.0015"));
+    assert!(!idle_sink_section.contains("amplitude_px ="));
     assert!(
         runtime_state_path.exists(),
         "runtime state should be written"
@@ -385,6 +391,48 @@ lift_amount = 0.05
 }
 
 #[test]
+fn load_mascot_config_rejects_idle_sink_amplitude_px() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-idle-sink-amplitude/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-idle-sink-amplitude"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-idle-sink-amplitude"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+[idle_sink]
+algorithm = "idle_sink"
+duration_ms = 2200
+amplitude_px = 0.0
+sink_amount = 0.0015
+lift_amount = 0.0015
+"#,
+    )
+    .expect("should seed unsupported idle_sink amplitude config");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/legacy/render.png",
+  "zip_path": "assets/zip/legacy.zip",
+  "psd_path_in_zip": "legacy/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
+
+    let error =
+        load_mascot_config(&config_path).expect_err("idle_sink amplitude_px should be rejected");
+    assert!(
+        format!("{error:#}").contains("amplitude_px"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
 fn writing_mascot_config_preserves_current_static_sections() {
     let config_path =
         workspace_cache_root().join("test-mascot-preserve-current/mascot-render-server.toml");
@@ -479,6 +527,7 @@ stretch_amount = 0.08
     assert!(static_toml.contains("amplitude_ratio = 0.02"));
     assert!(static_toml.contains("favorite_ensemble_enabled = true"));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
+    assert!(!static_toml.contains("[idle_sink]"));
     let runtime_json =
         fs::read_to_string(&runtime_state_path).expect("should write mascot runtime JSON");
     assert!(runtime_json.contains("\"png_path\""));
@@ -559,6 +608,15 @@ fn default_mascot_scale_targets_thirty_three_percent_of_screen_height() {
     let scale = default_mascot_scale_for_screen_height(1650, 1440);
 
     assert!((scale - 0.288).abs() < 0.001, "unexpected scale: {scale}");
+}
+
+fn idle_sink_section(static_toml: &str) -> &str {
+    let (_, tail) = static_toml
+        .split_once("[idle_sink]\n")
+        .expect("static TOML should contain idle_sink section");
+    tail.split_once("\n[")
+        .map_or(tail, |(section, _)| section)
+        .trim()
 }
 
 fn seed_favorite_ensemble_config(test_name: &str) -> (PathBuf, PathBuf) {

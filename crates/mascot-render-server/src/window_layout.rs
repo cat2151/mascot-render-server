@@ -188,13 +188,13 @@ fn crop_rect_for_motion(
         },
         MotionTransform {
             offset_x: 0.0,
-            offset_y: idle_sink.amplitude_px.max(0.0),
+            offset_y: 0.0,
             scale_x: 1.0 + idle_sink.sink_amount.max(0.0),
             scale_y: 1.0 - idle_sink.sink_amount.max(0.0),
         },
         MotionTransform {
             offset_x: 0.0,
-            offset_y: -idle_sink.amplitude_px.max(0.0),
+            offset_y: 0.0,
             scale_x: 1.0 - idle_sink.lift_amount.max(0.0) * IDLE_SINK_LIFT_SCALE_X_RATIO,
             scale_y: 1.0 + idle_sink.lift_amount.max(0.0),
         },

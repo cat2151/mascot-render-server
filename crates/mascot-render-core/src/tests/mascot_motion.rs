@@ -288,12 +288,11 @@ fn disabling_always_bouncing_keeps_triggered_squash_bounce_running() {
 }
 
 #[test]
-fn idle_sink_starts_at_rest_and_then_lifts_after_sinking() {
+fn idle_sink_starts_at_rest_and_then_scales_for_sink_and_lift() {
     let mut motion = MotionState::new();
     let now = Instant::now();
     let idle_sink = IdleSinkAnimationConfig {
         duration_ms: 400,
-        amplitude_px: 8.0,
         ..IdleSinkAnimationConfig::default_for_always_bouncing()
     };
 
@@ -319,6 +318,10 @@ fn idle_sink_starts_at_rest_and_then_lifts_after_sinking() {
     );
 
     assert_eq!(resting, MotionTransform::identity());
-    assert!(sinking.offset_y > 0.0);
-    assert!(lifting.offset_y < 0.0);
+    assert_eq!(sinking.offset_y, 0.0);
+    assert!(sinking.scale_x > 1.0);
+    assert!(sinking.scale_y < 1.0);
+    assert_eq!(lifting.offset_y, 0.0);
+    assert!(lifting.scale_x < 1.0);
+    assert!(lifting.scale_y > 1.0);
 }
