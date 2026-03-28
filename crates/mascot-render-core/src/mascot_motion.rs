@@ -239,7 +239,7 @@ impl MotionState {
         });
     }
 
-    pub fn set_always_bouncing(&mut self, enabled: bool, now: Instant) {
+    pub fn set_always_idle_sink_enabled(&mut self, enabled: bool, now: Instant) {
         let was_idle_animation = self
             .active
             .is_some_and(|active| active.idle && self.idle_kind == Some(active.kind));

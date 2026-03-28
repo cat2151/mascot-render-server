@@ -178,9 +178,10 @@ impl MascotApp {
             pending_restored_anchor_position: saved_window_position,
         };
         app.motion
-            .set_always_bouncing(app.config.always_idle_sink_enabled, now);
+            .set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);
         if let Some(favorite_ensemble) = &mut app.favorite_ensemble {
-            favorite_ensemble.set_always_bouncing(app.config.always_idle_sink_enabled, now);
+            favorite_ensemble
+                .set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);
         }
         if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
             eprintln!("{error:#}");
@@ -305,10 +306,10 @@ impl MascotApp {
 
         self.config = next_config;
         self.motion
-            .set_always_bouncing(self.config.always_idle_sink_enabled, Instant::now());
+            .set_always_idle_sink_enabled(self.config.always_idle_sink_enabled, Instant::now());
         if let Some(favorite_ensemble) = &mut self.favorite_ensemble {
             favorite_ensemble
-                .set_always_bouncing(self.config.always_idle_sink_enabled, Instant::now());
+                .set_always_idle_sink_enabled(self.config.always_idle_sink_enabled, Instant::now());
         }
         if png_changed || ensemble_mode_changed {
             self.open_skin = self.load_active_skin(ctx)?;
