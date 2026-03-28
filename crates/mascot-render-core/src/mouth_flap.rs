@@ -38,6 +38,58 @@ pub struct MouthFlapDefaultTarget {
     pub closed_layer_names: &'static [&'static str],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OpenCandidate {
+    row_index: usize,
+    priority: usize,
+    distance: usize,
+    visible: bool,
+}
+
+impl OpenCandidate {
+    fn is_better_than(&self, current: Option<Self>) -> bool {
+        let Some(current) = current else {
+            return true;
+        };
+
+        self.priority < current.priority
+            || (self.priority == current.priority && self.visible && !current.visible)
+            || (self.priority == current.priority
+                && self.visible == current.visible
+                && self.distance < current.distance)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PairCandidate {
+    open_row_index: usize,
+    closed_row_index: usize,
+    closed_priority: usize,
+    open_priority: usize,
+    open_visible: bool,
+    distance: usize,
+}
+
+impl PairCandidate {
+    fn is_better_than(&self, current: Option<Self>) -> bool {
+        let Some(current) = current else {
+            return true;
+        };
+
+        self.closed_priority < current.closed_priority
+            || (self.closed_priority == current.closed_priority
+                && self.open_priority < current.open_priority)
+            || (self.closed_priority == current.closed_priority
+                && self.open_priority == current.open_priority
+                && self.open_visible
+                && !current.open_visible)
+            || (self.closed_priority == current.closed_priority
+                && self.open_priority == current.open_priority
+                && self.open_visible == current.open_visible
+                && self.distance < current.distance)
+    }
+}
+
 const DEFAULT_MOUTH_OPEN_LAYER_NAMES: [&str; 1] = [MOUTH_OPEN_LAYER];
 const DEFAULT_MOUTH_CLOSED_LAYER_NAMES: [&str; 3] = [
     MOUTH_CLOSED_LAYER,
@@ -161,7 +213,7 @@ fn find_named_pair_in_group_scope(
 ) -> Option<(usize, usize)> {
     let group_close_index =
         matching_group_close_index(document, group_open_index).unwrap_or(document.layers.len());
-    let mut best_match = None;
+    let mut best_match = None::<PairCandidate>;
 
     for (closed_priority, closed_name) in target.closed_layer_names.iter().enumerate() {
         for closed_row_index in group_open_index + 1..group_close_index {
@@ -176,47 +228,27 @@ fn find_named_pair_in_group_scope(
                 continue;
             }
 
-            let Some((open_row_index, open_priority, distance, open_visible)) =
+            let Some(open_candidate) =
                 find_open_row_in_scope(document, states, target, closed_row_index)
             else {
                 continue;
             };
 
-            match best_match {
-                Some((
-                    _,
-                    _,
-                    best_closed_priority,
-                    best_open_priority,
-                    best_open_visible,
-                    best_distance,
-                )) if best_closed_priority < closed_priority
-                    || (best_closed_priority == closed_priority
-                        && best_open_priority < open_priority)
-                    || (best_closed_priority == closed_priority
-                        && best_open_priority == open_priority
-                        && best_open_visible
-                        && !open_visible)
-                    || (best_closed_priority == closed_priority
-                        && best_open_priority == open_priority
-                        && best_open_visible == open_visible
-                        && best_distance <= distance) => {}
-                _ => {
-                    best_match = Some((
-                        open_row_index,
-                        closed_row_index,
-                        closed_priority,
-                        open_priority,
-                        open_visible,
-                        distance,
-                    ));
-                }
+            let candidate = PairCandidate {
+                open_row_index: open_candidate.row_index,
+                closed_row_index,
+                closed_priority,
+                open_priority: open_candidate.priority,
+                open_visible: open_candidate.visible,
+                distance: open_candidate.distance,
+            };
+            if candidate.is_better_than(best_match) {
+                best_match = Some(candidate);
             }
         }
     }
 
-    best_match
-        .map(|(open_row_index, closed_row_index, _, _, _, _)| (open_row_index, closed_row_index))
+    best_match.map(|candidate| (candidate.open_row_index, candidate.closed_row_index))
 }
 
 fn find_open_row_in_scope(
@@ -224,10 +256,10 @@ fn find_open_row_in_scope(
     states: &[RowVisibilityState],
     target: &MouthFlapTarget,
     closed_row_index: usize,
-) -> Option<(usize, usize, usize, bool)> {
+) -> Option<OpenCandidate> {
     let closed_descriptor = document.layers.get(closed_row_index)?;
     let (scope_start, scope_end) = exclusive_scope_bounds(document, closed_row_index);
-    let mut best_match = None;
+    let mut best_match = None::<OpenCandidate>;
 
     for (open_priority, open_name) in target.open_layer_names.iter().enumerate() {
         for open_row_index in scope_start..scope_end {
@@ -246,16 +278,14 @@ fn find_open_row_in_scope(
                 .get(open_row_index)
                 .is_some_and(|state| state.visible);
             let distance = open_row_index.abs_diff(closed_row_index);
-            match best_match {
-                Some((_, best_open_priority, best_distance, best_open_visible))
-                    if best_open_priority < open_priority
-                        || (best_open_priority == open_priority
-                            && best_open_visible
-                            && !open_visible)
-                        || (best_open_priority == open_priority
-                            && best_open_visible == open_visible
-                            && best_distance <= distance) => {}
-                _ => best_match = Some((open_row_index, open_priority, distance, open_visible)),
+            let candidate = OpenCandidate {
+                row_index: open_row_index,
+                priority: open_priority,
+                distance,
+                visible: open_visible,
+            };
+            if candidate.is_better_than(best_match) {
+                best_match = Some(candidate);
             }
         }
     }
