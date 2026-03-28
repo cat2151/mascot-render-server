@@ -353,8 +353,8 @@ pub(crate) fn patch_favorite_gallery_positions_toml(
         else {
             continue;
         };
-        // Existing gallery coordinates may have been adjusted by the user, so this backfill only
-        // fills entries that are still missing favorite_gallery_position.
+        // Only backfill entries missing favorite_gallery_position, preserving
+        // user-adjusted coordinates.
         if entry
             .get("favorite_gallery_position")
             .and_then(toml::Value::as_array)
