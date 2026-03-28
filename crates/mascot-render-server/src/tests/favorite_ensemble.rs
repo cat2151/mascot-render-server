@@ -6,24 +6,40 @@ use mascot_render_core::LayerVisibilityOverride;
 use std::path::PathBuf;
 
 #[test]
-fn favorite_ensemble_packs_entries_from_right_edge_without_horizontal_gaps() {
-    let positions = pack_positions_from_right(&[[80.0, 120.0], [40.0, 60.0], [30.0, 90.0]]);
+fn favorite_ensemble_packs_entries_from_right_edge_without_visible_horizontal_gaps() {
+    let positions = pack_positions_from_right(&[
+        FavoriteEnsembleLayoutEntry {
+            size: [80.0, 120.0],
+            content_x_bounds: [10.0, 70.0],
+            position: None,
+        },
+        FavoriteEnsembleLayoutEntry {
+            size: [40.0, 60.0],
+            content_x_bounds: [5.0, 35.0],
+            position: None,
+        },
+        FavoriteEnsembleLayoutEntry {
+            size: [30.0, 90.0],
+            content_x_bounds: [0.0, 20.0],
+            position: None,
+        },
+    ]);
 
     assert_eq!(positions.len(), 3);
     assert_eq!(
         positions[0],
-        [70.0, 0.0],
-        "first favorite should sit at the right edge"
+        [40.0, 0.0],
+        "first favorite should align its visible right edge to the layout right edge"
     );
     assert_eq!(
         positions[1],
-        [30.0, 60.0],
-        "second favorite should continue to the left"
+        [15.0, 60.0],
+        "second favorite should continue leftward without a visible gap"
     );
     assert_eq!(
         positions[2],
         [0.0, 30.0],
-        "later favorites should keep filling leftward"
+        "later favorites should keep filling leftward based on visible bounds"
     );
 }
 
@@ -32,14 +48,17 @@ fn favorite_ensemble_only_places_missing_entries_to_the_left_of_existing_layout(
     let mut layout = vec![
         FavoriteEnsembleLayoutEntry {
             size: [80.0, 120.0],
+            content_x_bounds: [10.0, 70.0],
             position: Some([70.0, 0.0]),
         },
         FavoriteEnsembleLayoutEntry {
             size: [40.0, 60.0],
+            content_x_bounds: [5.0, 35.0],
             position: None,
         },
         FavoriteEnsembleLayoutEntry {
             size: [30.0, 90.0],
+            content_x_bounds: [10.0, 20.0],
             position: Some([40.0, 30.0]),
         },
     ];
@@ -48,7 +67,7 @@ fn favorite_ensemble_only_places_missing_entries_to_the_left_of_existing_layout(
 
     assert_eq!(updated, vec![1]);
     assert_eq!(layout[0].position, Some([70.0, 0.0]));
-    assert_eq!(layout[1].position, Some([0.0, 60.0]));
+    assert_eq!(layout[1].position, Some([15.0, 60.0]));
     assert_eq!(layout[2].position, Some([40.0, 30.0]));
 }
 

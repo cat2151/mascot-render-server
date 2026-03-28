@@ -6,6 +6,7 @@ use mascot_render_core::{
     load_mascot_image, local_data_root, mascot_window_size, Core, DisplayDiff,
     LayerVisibilityOverride, MascotImageData, RenderRequest, DISPLAY_DIFF_VERSION,
 };
+use mascot_render_server::alpha_bounds_from_mask;
 use serde::{Deserialize, Serialize};
 
 const FAVORITES_DIR: &str = "favorites";
@@ -28,6 +29,7 @@ pub(crate) struct FavoriteEnsembleEntry {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct FavoriteEnsembleLayoutEntry {
     pub(crate) size: [f32; 2],
+    pub(crate) content_x_bounds: [f32; 2],
     pub(crate) position: Option<[f32; 2]>,
 }
 
@@ -79,10 +81,7 @@ pub(crate) fn load_favorite_ensemble(core: &Core) -> Result<Option<FavoriteEnsem
 
     let mut layout_entries = rendered
         .iter()
-        .map(|favorite| FavoriteEnsembleLayoutEntry {
-            size: favorite.base_size,
-            position: favorite.entry.favorite_ensemble_position,
-        })
+        .map(layout_entry_from_rendered)
         .collect::<Vec<_>>();
     let updated_indices = fill_missing_positions(&mut layout_entries);
     for (favorite, layout_entry) in rendered.iter_mut().zip(layout_entries) {
@@ -101,14 +100,22 @@ pub(crate) fn load_favorite_ensemble(core: &Core) -> Result<Option<FavoriteEnsem
     Ok(Some(build_favorite_ensemble(rendered)))
 }
 
-pub(crate) fn pack_positions_from_right(sizes: &[[f32; 2]]) -> Vec<[f32; 2]> {
-    let total_width = sizes.iter().map(|[width, _]| *width).sum::<f32>();
-    let max_height = sizes.iter().map(|[_, height]| *height).fold(0.0, f32::max);
-    let mut next_right_edge = total_width;
-    let mut positions = Vec::with_capacity(sizes.len());
-    for [width, height] in sizes {
-        next_right_edge -= *width;
-        positions.push([next_right_edge, max_height - *height]);
+pub(crate) fn pack_positions_from_right(
+    layout_entries: &[FavoriteEnsembleLayoutEntry],
+) -> Vec<[f32; 2]> {
+    let total_visible_width = layout_entries.iter().map(visible_width).sum::<f32>();
+    let max_height = layout_entries
+        .iter()
+        .map(|entry| entry.size[1])
+        .fold(0.0, f32::max);
+    let mut next_visible_right_edge = total_visible_width;
+    let mut positions = Vec::with_capacity(layout_entries.len());
+    for entry in layout_entries {
+        positions.push([
+            next_visible_right_edge - entry.content_x_bounds[1],
+            max_height - entry.size[1],
+        ]);
+        next_visible_right_edge -= visible_width(entry);
     }
     positions
 }
@@ -131,21 +138,25 @@ pub(crate) fn fill_missing_positions(
     for entry in layout_entries.iter() {
         max_height = max_height.max(entry.size[1]);
         if let Some([x, y]) = entry.position {
-            existing_right_edge = Some(existing_right_edge.map_or(x, |current| current.min(x)));
+            let visible_left_edge = x + entry.content_x_bounds[0];
+            existing_right_edge = Some(
+                existing_right_edge
+                    .map_or(visible_left_edge, |current| current.min(visible_left_edge)),
+            );
             let bottom = y + entry.size[1];
             existing_bottom = Some(existing_bottom.map_or(bottom, |current| current.max(bottom)));
         }
     }
     let bottom = existing_bottom.unwrap_or(max_height);
 
-    let missing_sizes = missing_indices
+    let missing_entries = missing_indices
         .iter()
-        .map(|&index| layout_entries[index].size)
+        .map(|&index| layout_entries[index])
         .collect::<Vec<_>>();
     let positions = if let Some(right_edge) = existing_right_edge {
-        pack_positions_with_right_edge(&missing_sizes, right_edge, bottom)
+        pack_positions_with_right_edge(&missing_entries, right_edge, bottom)
     } else {
-        pack_positions_from_right(&missing_sizes)
+        pack_positions_from_right(&missing_entries)
     };
 
     for (index, position) in missing_indices.iter().copied().zip(positions) {
@@ -155,17 +166,63 @@ pub(crate) fn fill_missing_positions(
 }
 
 fn pack_positions_with_right_edge(
-    sizes: &[[f32; 2]],
+    layout_entries: &[FavoriteEnsembleLayoutEntry],
     right_edge: f32,
     bottom: f32,
 ) -> Vec<[f32; 2]> {
-    let mut next_right_edge = right_edge;
-    let mut positions = Vec::with_capacity(sizes.len());
-    for [width, height] in sizes {
-        next_right_edge -= *width;
-        positions.push([next_right_edge, bottom - *height]);
+    let mut next_visible_right_edge = right_edge;
+    let mut positions = Vec::with_capacity(layout_entries.len());
+    for entry in layout_entries {
+        positions.push([
+            next_visible_right_edge - entry.content_x_bounds[1],
+            bottom - entry.size[1],
+        ]);
+        next_visible_right_edge -= visible_width(entry);
     }
     positions
+}
+
+fn layout_entry_from_rendered(favorite: &RenderedFavorite) -> FavoriteEnsembleLayoutEntry {
+    FavoriteEnsembleLayoutEntry {
+        size: favorite.base_size,
+        content_x_bounds: scaled_content_x_bounds(
+            &favorite.entry,
+            &favorite.image,
+            favorite.base_size,
+        ),
+        position: favorite.entry.favorite_ensemble_position,
+    }
+}
+
+fn visible_width(entry: &FavoriteEnsembleLayoutEntry) -> f32 {
+    (entry.content_x_bounds[1] - entry.content_x_bounds[0]).max(0.0)
+}
+
+fn scaled_content_x_bounds(
+    entry: &FavoriteEnsembleEntry,
+    image: &MascotImageData,
+    base_size: [f32; 2],
+) -> [f32; 2] {
+    let Some(bounds) = alpha_bounds_from_mask(
+        [image.width, image.height],
+        &image
+            .rgba
+            .chunks_exact(4)
+            .map(|pixel| pixel[3])
+            .collect::<Vec<_>>(),
+        1,
+    ) else {
+        eprintln!(
+            "favorite ensemble could not detect visible bounds for {} :: {}; using full image width",
+            entry.zip_path.display(),
+            entry.psd_path_in_zip.display()
+        );
+        return [0.0, base_size[0]];
+    };
+    let scale = base_size[0] / image.width as f32;
+    let left = (bounds.min_x as f32 * scale).clamp(0.0, base_size[0]);
+    let right = (bounds.max_x as f32 * scale).clamp(left, base_size[0]);
+    [left, right]
 }
 
 fn render_favorite(core: &Core, entry: FavoriteEnsembleEntry) -> Result<RenderedFavorite> {
