@@ -7,8 +7,7 @@ use mascot_render_core::{local_data_root, LayerVisibilityOverride, ZipEntry};
 use serde::{Deserialize, Serialize};
 
 const FAVORITES_DIR: &str = "favorites";
-const FAVORITES_FILE_NAME: &str = "psd-viewer-tui.toml";
-const FAVORITES_FILE_VERSION: u32 = 1;
+const FAVORITES_FILE_NAME: &str = "favorites.toml";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(crate) struct FavoriteEntry {
@@ -61,20 +60,10 @@ struct FavoriteIdentityKey {
     visibility_overrides: Vec<(usize, bool)>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
 struct FavoritesFile {
-    version: u32,
     favorites: Vec<FavoriteEntry>,
-}
-
-impl Default for FavoritesFile {
-    fn default() -> Self {
-        Self {
-            version: FAVORITES_FILE_VERSION,
-            favorites: Vec::new(),
-        }
-    }
 }
 
 pub(crate) fn favorites_path() -> PathBuf {
@@ -91,10 +80,7 @@ pub(crate) fn load_favorites(path: &Path) -> Result<Vec<FavoriteEntry>> {
     let bytes = fs::read_to_string(path)
         .with_context(|| format!("failed to read favorites {}", path.display()))?;
     match toml::from_str::<FavoritesFile>(&bytes) {
-        Ok(file) if file.version == FAVORITES_FILE_VERSION => {
-            Ok(sanitize_favorites(file.favorites))
-        }
-        Ok(_) => Ok(Vec::new()),
+        Ok(file) => Ok(sanitize_favorites(file.favorites)),
         Err(_) => Ok(Vec::new()),
     }
 }
@@ -106,7 +92,6 @@ pub(crate) fn save_favorites(path: &Path, favorites: &[FavoriteEntry]) -> Result
     }
 
     let file = FavoritesFile {
-        version: FAVORITES_FILE_VERSION,
         favorites: sanitize_favorites(favorites.to_vec()),
     };
     let toml = toml::to_string_pretty(&file).context("failed to serialize favorites")?;
