@@ -106,14 +106,22 @@ fn load_mascot_config_defaults_flash_blue_background_when_key_is_missing() {
         &config_path,
         r#"
 version = 4
-png_path = "cache/legacy/render.png"
-zip_path = "assets/zip/legacy.zip"
-psd_path_in_zip = "legacy/basic.psd"
 always_bouncing = true
 transparent_background_click_through = false
 "#,
     )
     .expect("should seed mascot config without flash setting");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/legacy/render.png",
+  "zip_path": "assets/zip/legacy.zip",
+  "psd_path_in_zip": "legacy/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
 
     let loaded = load_mascot_config(&config_path).expect("config should load");
 
@@ -123,27 +131,23 @@ transparent_background_click_through = false
         loaded.always_idle_sink,
         IdleSinkAnimationConfig::default_for_always_bouncing()
     );
-    assert!(!runtime_state_path.exists());
+    assert!(runtime_state_path.exists());
 }
 
 #[test]
-fn load_mascot_config_supports_legacy_combined_toml_without_runtime_json() {
-    let config_path = workspace_cache_root().join("test-mascot-legacy/mascot-render-server.toml");
+fn load_mascot_config_rejects_legacy_debug_flash_key() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-legacy-flash/mascot-render-server.toml");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
-    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-legacy"));
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-legacy-flash"));
     let _ = fs::remove_file(&runtime_state_path);
 
-    fs::create_dir_all(workspace_cache_root().join("test-mascot-legacy"))
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-legacy-flash"))
         .expect("should create temp directory");
     fs::write(
         &config_path,
         r#"
 version = 4
-png_path = "cache/legacy/render.png"
-scale = 0.42
-zip_path = "assets/zip/legacy.zip"
-psd_path_in_zip = "legacy/basic.psd"
-display_diff_path = "cache/legacy/basic.json"
 always_bouncing = true
 transparent_background_click_through = true
 debug_flash_blue_background_on_transparent_input = true
@@ -171,29 +175,26 @@ squash_amount = 0.22
 stretch_amount = 0.08
 "#,
     )
-    .expect("should seed legacy mascot config");
+    .expect("should seed mascot config with legacy debug key");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/legacy/render.png",
+  "scale": 0.42,
+  "zip_path": "assets/zip/legacy.zip",
+  "psd_path_in_zip": "legacy/basic.psd",
+  "display_diff_path": "cache/legacy/basic.json",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
 
-    let loaded = load_mascot_config(&config_path).expect("legacy combined config should load");
-
-    assert_eq!(loaded.png_path, PathBuf::from("cache/legacy/render.png"));
-    assert_eq!(loaded.scale, Some(0.42));
-    assert_eq!(loaded.zip_path, PathBuf::from("assets/zip/legacy.zip"));
-    assert_eq!(loaded.psd_path_in_zip, PathBuf::from("legacy/basic.psd"));
-    assert_eq!(
-        loaded.display_diff_path,
-        Some(PathBuf::from("cache/legacy/basic.json"))
+    let error = load_mascot_config(&config_path).expect_err("legacy debug key should be rejected");
+    assert!(
+        format!("{error:#}").contains("debug_flash_blue_background_on_transparent_input"),
+        "unexpected error: {error:#}"
     );
-    assert!(loaded.always_bouncing);
-    assert!(loaded.transparent_background_click_through);
-    assert!(loaded.flash_blue_background_on_transparent_input);
-    assert_eq!(loaded.head_hitbox.x, 0.3);
-    assert_eq!(loaded.bounce.duration_ms, 1200);
-    assert_eq!(loaded.squash_bounce.squash_amount, 0.22);
-    assert_eq!(
-        loaded.always_idle_sink,
-        IdleSinkAnimationConfig::default_for_always_bouncing()
-    );
-    assert!(!runtime_state_path.exists());
 }
 
 #[test]
@@ -210,9 +211,6 @@ fn load_mascot_config_rejects_legacy_always_squash_bounce_section() {
         &config_path,
         r#"
 version = 4
-png_path = "cache/legacy/render.png"
-zip_path = "assets/zip/legacy.zip"
-psd_path_in_zip = "legacy/basic.psd"
 
 [always_squash_bounce]
 duration_ms = 1200
@@ -222,32 +220,41 @@ stretch_amount = 0.05
 "#,
     )
     .expect("should seed legacy idle config");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/legacy/render.png",
+  "zip_path": "assets/zip/legacy.zip",
+  "psd_path_in_zip": "legacy/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
 
     let error =
         load_mascot_config(&config_path).expect_err("legacy idle section should be rejected");
 
     assert!(
-        error.to_string().contains("[always_idle_sink]"),
+        format!("{error:#}").contains("always_squash_bounce"),
         "unexpected error: {error:#}"
     );
 }
 
 #[test]
-fn writing_mascot_config_preserves_custom_static_sections_and_normalizes_legacy_file() {
-    let config_path = workspace_cache_root().join("test-mascot-preserve/mascot-render-server.toml");
+fn writing_mascot_config_preserves_current_static_sections() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-preserve-current/mascot-render-server.toml");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
-    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-preserve"));
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-preserve-current"));
     let _ = fs::remove_file(&runtime_state_path);
 
-    fs::create_dir_all(workspace_cache_root().join("test-mascot-preserve"))
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-preserve-current"))
         .expect("should create temp directory");
     fs::write(
         &config_path,
         r#"
-version = 2
-png_path = "cache/old/render.png"
-zip_path = "assets/zip/old.zip"
-psd_path_in_zip = "old/basic.psd"
+version = 4
 always_bouncing = true
 transparent_background_click_through = true
 flash_blue_background_on_transparent_input = true
@@ -276,7 +283,7 @@ squash_amount = 0.22
 stretch_amount = 0.08
 "#,
     )
-    .expect("should seed legacy mascot config");
+    .expect("should seed current mascot config");
 
     let target = MascotTarget {
         png_path: workspace_cache_root().join("demo/render.png"),
@@ -302,12 +309,11 @@ stretch_amount = 0.08
         IdleSinkAnimationConfig::default_for_always_bouncing()
     );
 
-    let static_toml =
-        fs::read_to_string(&config_path).expect("should rewrite mascot static config TOML");
+    let static_toml = fs::read_to_string(&config_path).expect("should keep mascot static config");
     assert!(!static_toml.contains("png_path ="));
     assert!(!static_toml.contains("psd_path_in_zip ="));
     assert!(static_toml.contains("always_bouncing = true"));
-    assert!(static_toml.contains("[always_idle_sink]"));
+    assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
     let runtime_json =
         fs::read_to_string(&runtime_state_path).expect("should write mascot runtime JSON");
     assert!(runtime_json.contains("\"png_path\""));

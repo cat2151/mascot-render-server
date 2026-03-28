@@ -8,8 +8,7 @@ use mascot_render_core::{display_path, existing_zip_sources, Core, CoreConfig};
 use super::{App, FocusPane, PreviewBackend};
 use crate::favorites::{favorites_path, load_favorites};
 use crate::tui_config::{
-    ensure_tui_config_split, load_tui_config, load_tui_runtime_state, save_tui_config,
-    tui_config_path, TuiRuntimeState,
+    load_tui_config, load_tui_runtime_state, save_tui_config, tui_config_path, TuiRuntimeState,
 };
 use crate::tui_history::load_tui_history;
 use crate::workspace_state::{load_workspace_state, WorkspaceState};
@@ -73,7 +72,6 @@ impl App {
         if !tui_config_path.exists() {
             save_tui_config(&tui_config_path, &tui_config)?;
         }
-        ensure_tui_config_split(&tui_config_path, &tui_config, &tui_runtime_state)?;
 
         progress("Loading workspace cursor cache...".to_string());
         let mut restored_state = load_workspace_state(core.cache_dir())?;

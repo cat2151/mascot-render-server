@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::{
-    build_closed_eye_display_diff, default_eye_blink_targets, migrate_eye_blink_layers,
-    resolve_eye_blink_rows, DisplayDiff, LayerDescriptor, LayerKind, PsdDocument,
+    build_closed_eye_display_diff, default_eye_blink_targets, resolve_eye_blink_rows, DisplayDiff,
+    LayerDescriptor, LayerKind, PsdDocument,
 };
 
 #[test]
@@ -15,15 +15,6 @@ fn default_eye_blink_targets_use_basic_eye_for_known_psds() {
         .expect("default V3.2 target should exist");
     assert_eq!(target.first_layer_name, "基本目");
     assert_eq!(target.second_layer_name, "閉じ目");
-}
-
-#[test]
-fn migrate_eye_blink_layers_rewrites_legacy_normal_eye_targets() {
-    let migrated =
-        migrate_eye_blink_layers("ずんだもん立ち絵素材改ver1.1.1.psd", "普通目", "閉じ目")
-            .expect("legacy target should migrate");
-
-    assert_eq!(migrated, ("基本目", "閉じ目"));
 }
 
 #[test]
