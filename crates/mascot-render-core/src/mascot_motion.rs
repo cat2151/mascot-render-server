@@ -294,7 +294,7 @@ impl MotionState {
         let mouth_flap = self.active_mouth_flap(now)?;
         let elapsed = now.duration_since(mouth_flap.started_at);
         let frame = elapsed.as_nanos() / mouth_flap.frame_interval.as_nanos().max(1);
-        Some(frame % 2 == 0)
+        Some(frame.is_multiple_of(2))
     }
 
     pub fn sample(
