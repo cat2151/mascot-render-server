@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";
+const FAVORITE_ENSEMBLE_CONTENT_BOUNDS_ALPHA_THRESHOLD: u8 = 1;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub(crate) struct FavoriteEnsembleEntry {
@@ -196,17 +197,17 @@ fn visible_width(entry: &FavoriteEnsembleLayoutEntry) -> f32 {
     (entry.content_x_bounds[1] - entry.content_x_bounds[0]).max(0.0)
 }
 
-fn scaled_content_x_bounds(
+pub(crate) fn scaled_content_x_bounds(
     entry: &FavoriteEnsembleEntry,
     image: &MascotImageData,
     base_size: [f32; 2],
 ) -> [f32; 2] {
-    let alpha_mask = image
-        .rgba
-        .chunks_exact(4)
-        .map(|pixel| pixel[3])
-        .collect::<Vec<_>>();
-    let Some(bounds) = alpha_bounds_from_mask([image.width, image.height], &alpha_mask, 1) else {
+    let alpha_mask = alpha_mask_from_image(image);
+    let Some(bounds) = alpha_bounds_from_mask(
+        [image.width, image.height],
+        &alpha_mask,
+        FAVORITE_ENSEMBLE_CONTENT_BOUNDS_ALPHA_THRESHOLD,
+    ) else {
         let reason = if alpha_mask.len() != image.width as usize * image.height as usize {
             format!(
                 "invalid alpha mask length {} for image size {}x{}",
@@ -229,6 +230,14 @@ fn scaled_content_x_bounds(
     let raw_right = (bounds.max_x as f32 * scale).clamp(0.0, base_size[0]);
     let right = raw_right.max(left);
     [left, right]
+}
+
+fn alpha_mask_from_image(image: &MascotImageData) -> Vec<u8> {
+    image
+        .rgba
+        .chunks_exact(4)
+        .map(|pixel| pixel[3])
+        .collect::<Vec<_>>()
 }
 
 fn render_favorite(core: &Core, entry: FavoriteEnsembleEntry) -> Result<RenderedFavorite> {

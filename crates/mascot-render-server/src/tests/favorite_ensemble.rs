@@ -1,8 +1,8 @@
 use crate::favorite_ensemble::{
     fill_missing_positions, pack_positions_from_right, patch_favorite_ensemble_positions_toml,
-    FavoriteEnsembleEntry, FavoriteEnsembleLayoutEntry,
+    scaled_content_x_bounds, FavoriteEnsembleEntry, FavoriteEnsembleLayoutEntry,
 };
-use mascot_render_core::LayerVisibilityOverride;
+use mascot_render_core::{LayerVisibilityOverride, MascotImageData};
 use std::path::PathBuf;
 
 #[test]
@@ -133,4 +133,57 @@ window_position = [10.0, 20.0]
         favorites[1]["window_position"].as_array(),
         Some(&vec![toml::Value::from(10.0), toml::Value::from(20.0)])
     );
+}
+
+#[test]
+fn favorite_ensemble_scales_visible_content_x_bounds_from_alpha_pixels() {
+    let bounds = scaled_content_x_bounds(
+        &sample_favorite_entry(Some(10.0)),
+        &MascotImageData {
+            path: PathBuf::from("dummy-favorite.png"),
+            width: 4,
+            height: 2,
+            rgba: rgba_with_alpha(&[
+                0, 255, 255, 0, //
+                0, 255, 255, 0,
+            ]),
+        },
+        [40.0, 20.0],
+    );
+
+    assert_eq!(bounds, [10.0, 30.0]);
+}
+
+#[test]
+fn favorite_ensemble_uses_full_width_when_image_is_fully_transparent() {
+    let bounds = scaled_content_x_bounds(
+        &sample_favorite_entry(Some(15.0)),
+        &MascotImageData {
+            path: PathBuf::from("dummy-favorite.png"),
+            width: 3,
+            height: 1,
+            rgba: rgba_with_alpha(&[0, 0, 0]),
+        },
+        [45.0, 15.0],
+    );
+
+    assert_eq!(bounds, [0.0, 45.0]);
+}
+
+fn sample_favorite_entry(mascot_scale: Option<f32>) -> FavoriteEnsembleEntry {
+    FavoriteEnsembleEntry {
+        zip_path: PathBuf::from("dummy-a.zip"),
+        psd_path_in_zip: PathBuf::from("dummy/body.psd"),
+        psd_file_name: "body.psd".to_string(),
+        visibility_overrides: Vec::new(),
+        mascot_scale,
+        favorite_ensemble_position: None,
+    }
+}
+
+fn rgba_with_alpha(alpha_values: &[u8]) -> Vec<u8> {
+    alpha_values
+        .iter()
+        .flat_map(|&alpha| [0, 0, 0, alpha])
+        .collect()
 }
