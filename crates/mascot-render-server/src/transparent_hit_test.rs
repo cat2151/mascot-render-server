@@ -38,9 +38,8 @@ impl TransparentHitTestWindow {
             .and_then(|until| until.checked_duration_since(now))
     }
 
-    pub fn flash_transparent_input_visual(&mut self) {
-        self.transparent_input_visual_until =
-            Some(Instant::now() + TRANSPARENT_INPUT_DEBUG_FLASH_DURATION);
+    pub fn flash_transparent_input_visual(&mut self, now: Instant) {
+        self.transparent_input_visual_until = Some(now + TRANSPARENT_INPUT_DEBUG_FLASH_DURATION);
     }
 }
 pub fn captures_logical_point(

@@ -116,14 +116,14 @@ fn logical_points_detect_transparent_pixels_without_client_conversion() {
 #[test]
 fn transparent_input_flash_lasts_for_one_second() {
     let mut hit_test = TransparentHitTestWindow::disabled();
+    let now = Instant::now();
 
-    hit_test.flash_transparent_input_visual();
+    hit_test.flash_transparent_input_visual(now);
 
     let remaining = hit_test
-        .transparent_input_visual_remaining(Instant::now())
+        .transparent_input_visual_remaining(now)
         .expect("flash should become visible");
-    assert!(remaining <= Duration::from_secs(1));
-    assert!(remaining > Duration::from_millis(900));
+    assert_eq!(remaining, Duration::from_secs(1));
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn update_clears_expired_transparent_input_flash() {
     let now = Instant::now();
     let later = now + Duration::from_secs(2);
 
-    hit_test.flash_transparent_input_visual();
+    hit_test.flash_transparent_input_visual(now);
     hit_test.update(TransparentHitTestUpdate { now: later });
 
     assert!(hit_test.transparent_input_visual_remaining(later).is_none());

@@ -267,7 +267,8 @@ impl App for MascotApp {
                         )
                     })
                 {
-                    self.transparent_hit_test.flash_transparent_input_visual();
+                    self.transparent_hit_test
+                        .flash_transparent_input_visual(now);
                 }
 
                 if response.drag_started() || response.dragged() {
