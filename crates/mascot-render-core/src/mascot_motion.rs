@@ -6,8 +6,7 @@ mod sampling;
 
 const ANIMATION_FRAME_INTERVAL: Duration = Duration::from_millis(16);
 pub const IDLE_SINK_LIFT_SCALE_X_RATIO: f32 = 0.35;
-const DEFAULT_ALWAYS_BEND_AMPLITUDE_RATIO: f32 = 0.015;
-const DEFAULT_BEND_AMPLITUDE_RATIO: f32 = 0.0075;
+const DEFAULT_ALWAYS_BEND_AMPLITUDE_RATIO: f32 = 0.0075;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -143,7 +142,7 @@ pub struct BendConfig {
 impl Default for BendConfig {
     fn default() -> Self {
         Self {
-            amplitude_ratio: DEFAULT_BEND_AMPLITUDE_RATIO,
+            amplitude_ratio: DEFAULT_ALWAYS_BEND_AMPLITUDE_RATIO,
         }
     }
 }

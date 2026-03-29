@@ -29,13 +29,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, target.display_diff_path);
     assert!(!loaded.always_idle_sink_enabled);
-    assert_eq!(
-        loaded.always_bend,
-        AlwaysBendConfig {
-            enabled: false,
-            amplitude_ratio: 0.0075,
-        }
-    );
+    assert_eq!(loaded.always_bend, AlwaysBendConfig::default());
     assert!(!loaded.favorite_ensemble_enabled);
     assert_eq!(loaded.bounce.algorithm, BounceAlgorithm::DampedSine);
     assert_eq!(
@@ -127,7 +121,10 @@ always_bend = true
 
     assert!(loaded.always_idle_sink_enabled);
     assert!(loaded.always_bend.enabled);
-    assert_eq!(loaded.always_bend.amplitude_ratio, 0.0075);
+    assert_eq!(
+        loaded.always_bend.amplitude_ratio,
+        AlwaysBendConfig::default().amplitude_ratio
+    );
     assert!(!loaded.favorite_ensemble_enabled);
     assert_eq!(
         loaded.always_idle_sink,
