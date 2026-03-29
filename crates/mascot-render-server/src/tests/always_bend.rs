@@ -10,6 +10,7 @@ use mascot_render_core::{
 use crate::always_bend;
 use crate::mascot_app::{
     allows_precise_pointer_interaction, click_interaction_hit_test, transparent_hit_test_enabled,
+    transparent_input_flash_enabled,
 };
 
 const LONG_RUNNING_PHASE_STABILITY_MS: u64 = 4_200 * 10_000; // About 11.7 hours of complete bend cycles.
@@ -102,6 +103,23 @@ fn always_bend_disables_precise_pointer_hit_testing() {
     };
     assert!(!transparent_hit_test_enabled(&bent_config));
     assert!(!allows_precise_pointer_interaction(&bent_config));
+}
+
+#[test]
+fn blue_background_flash_stays_enabled_with_always_bend_and_idle_sink() {
+    let config = MascotConfig {
+        always_idle_sink_enabled: true,
+        always_bend: AlwaysBendConfig {
+            enabled: true,
+            ..AlwaysBendConfig::default()
+        },
+        transparent_background_click_through: true,
+        ..sample_config()
+    };
+
+    assert!(transparent_input_flash_enabled(&config));
+    assert!(!transparent_hit_test_enabled(&config));
+    assert!(!allows_precise_pointer_interaction(&config));
 }
 
 #[test]

@@ -92,6 +92,10 @@ pub(crate) fn transparent_hit_test_enabled(config: &MascotConfig) -> bool {
         && allows_precise_pointer_interaction(config)
 }
 
+pub(crate) fn transparent_input_flash_enabled(config: &MascotConfig) -> bool {
+    config.flash_blue_background_on_transparent_input
+}
+
 pub(crate) fn click_interaction_hit_test(image_rect: Rect, pointer_pos: Pos2) -> bool {
     image_rect.contains(pointer_pos)
 }
@@ -103,6 +107,10 @@ impl MascotApp {
 
     pub(crate) fn allows_precise_pointer_interaction(&self) -> bool {
         allows_precise_pointer_interaction(&self.config)
+    }
+
+    pub(crate) fn transparent_input_flash_enabled(&self) -> bool {
+        transparent_input_flash_enabled(&self.config)
     }
 
     pub(crate) fn new(

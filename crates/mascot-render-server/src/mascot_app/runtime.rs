@@ -226,7 +226,7 @@ impl App for MascotApp {
         self.transparent_hit_test.update(TransparentHitTestUpdate {
             now,
             enabled: self.transparent_hit_test_enabled(),
-            debug_flash_enabled: self.config.flash_blue_background_on_transparent_input,
+            debug_flash_enabled: self.transparent_input_flash_enabled(),
             alpha_mask: Arc::clone(&active_alpha_mask),
             image_size: active_image_size,
             image_rect,
@@ -235,7 +235,7 @@ impl App for MascotApp {
         let transparent_input_visual_remaining = self
             .transparent_hit_test
             .transparent_input_visual_remaining(now)
-            .filter(|_| self.config.flash_blue_background_on_transparent_input);
+            .filter(|_| self.transparent_input_flash_enabled());
 
         egui::Area::new("mascot-image".into())
             .fixed_pos(Pos2::ZERO)
@@ -273,9 +273,7 @@ impl App for MascotApp {
                     self.motion.trigger(now);
                 }
 
-                if self.allows_precise_pointer_interaction()
-                    && self.config.flash_blue_background_on_transparent_input
-                    && !self.config.transparent_background_click_through
+                if self.transparent_input_flash_enabled()
                     && response.is_pointer_button_down_on()
                     && response.interact_pointer_pos().is_some_and(|pos| {
                         !captures_logical_point(
