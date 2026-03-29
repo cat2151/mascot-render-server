@@ -142,12 +142,11 @@ impl App {
         let target = match auto_generate_mouth_flap_target(&document, &base_variation) {
             Ok(target) => target,
             Err(error) => {
-                let diagnostic = format_auto_mouth_flap_generation_failure_log(
+                self.show_log_overlay(format_mouth_flap_diagnostic(
                     &psd_entry.file_name,
                     &describe_mouth_flap_auto_generation_failure(&document, &base_variation),
                     &error,
-                );
-                self.show_log_overlay(diagnostic);
+                ));
                 return Err(format!(
                     "selected PSD '{}' does not support automatic mouth flap preview: {error}",
                     psd_entry.file_name
@@ -229,11 +228,7 @@ impl App {
     }
 }
 
-fn format_auto_mouth_flap_generation_failure_log(
-    psd_file_name: &str,
-    diagnostic: &str,
-    error: &str,
-) -> String {
+fn format_mouth_flap_diagnostic(psd_file_name: &str, diagnostic: &str, error: &str) -> String {
     format!(
         "Failed to auto-generate mouth flap target for PSD '{psd_file_name}'.\nmouth-group diagnostics:\n{}\nreason: {error}",
         diagnostic,
