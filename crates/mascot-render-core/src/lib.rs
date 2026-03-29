@@ -26,10 +26,9 @@ pub use api::{
 pub use archive::{display_path, existing_zip_sources};
 pub use core::{Core, CoreConfig};
 pub use eye_blink::{
-    build_closed_eye_display_diff, default_eye_blink_targets, find_eye_blink_target,
-    resolve_eye_blink_rows, EyeBlinkRows, EyeBlinkTarget, BASIC_EYE_LAYER, CLOSED_EYE_LAYER,
-    DEFAULT_EYE_BLINK_TARGETS, EYE_SET_LAYER, NORMAL_EYE_LAYER, PSD_ZUNDAMON_111, PSD_ZUNDAMON_23,
-    PSD_ZUNDAMON_V32_BASIC, PSD_ZUNDAMON_V32_FULL, PSD_ZUNDAMON_V32_UPWARD, SMILE_LAYER,
+    auto_generate_eye_blink_target, build_closed_eye_display_diff, resolve_eye_blink_rows,
+    EyeBlinkRows, EyeBlinkTarget, AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS, BASIC_EYE_LAYER,
+    CLOSED_EYE_LAYER, EYE_SET_LAYER, NORMAL_EYE_LAYER, SMILE_LAYER,
 };
 pub use layer_name_format::{
     is_exclusive_kind, is_exclusive_name, is_mandatory_kind, is_mandatory_name, is_toggleable_kind,

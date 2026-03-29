@@ -4,8 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use mascot_render_core::{
-    default_eye_blink_targets, default_mouth_flap_targets, local_data_root, workspace_cache_root,
-    EyeBlinkTarget, MouthFlapTarget,
+    default_mouth_flap_targets, local_data_root, workspace_cache_root, MouthFlapTarget,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +16,6 @@ pub(crate) const DEFAULT_LAYER_SCROLL_MARGIN_RATIO: f32 = 0.25;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TuiConfig {
     pub(crate) layer_scroll_margin_ratio: f32,
-    pub(crate) eye_blink_targets: Vec<EyeBlinkTarget>,
     pub(crate) mouth_flap_targets: Vec<MouthFlapTarget>,
 }
 
@@ -25,7 +23,6 @@ impl Default for TuiConfig {
     fn default() -> Self {
         Self {
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
-            eye_blink_targets: default_eye_blink_targets(),
             mouth_flap_targets: default_mouth_flap_targets(),
         }
     }
@@ -84,8 +81,6 @@ pub(crate) struct PsdRuntimeState {
 struct TuiConfigFile {
     version: u32,
     layer_scroll_margin_ratio: f32,
-    #[serde(default = "default_eye_blink_targets")]
-    eye_blink_targets: Vec<EyeBlinkTarget>,
     #[serde(default = "default_mouth_flap_targets")]
     mouth_flap_targets: Vec<MouthFlapTarget>,
 }
@@ -95,7 +90,6 @@ impl Default for TuiConfigFile {
         Self {
             version: TUI_CONFIG_VERSION,
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
-            eye_blink_targets: default_eye_blink_targets(),
             mouth_flap_targets: default_mouth_flap_targets(),
         }
     }
@@ -142,7 +136,6 @@ pub(crate) fn load_tui_config(path: &Path) -> Result<TuiConfig> {
             layer_scroll_margin_ratio: sanitize_layer_scroll_margin_ratio(
                 file.layer_scroll_margin_ratio,
             ),
-            eye_blink_targets: sanitize_eye_blink_targets(file.eye_blink_targets),
             mouth_flap_targets: sanitize_mouth_flap_targets(file.mouth_flap_targets),
         }),
         Ok(_) => Ok(TuiConfig::default()),
@@ -170,7 +163,6 @@ pub(crate) fn save_tui_config(path: &Path, config: &TuiConfig) -> Result<()> {
         layer_scroll_margin_ratio: sanitize_layer_scroll_margin_ratio(
             config.layer_scroll_margin_ratio,
         ),
-        eye_blink_targets: sanitize_eye_blink_targets(config.eye_blink_targets.clone()),
         mouth_flap_targets: sanitize_mouth_flap_targets(config.mouth_flap_targets.clone()),
     };
     let toml = toml::to_string_pretty(&file).context("failed to serialize TUI config")?;
@@ -248,33 +240,11 @@ fn sanitize_layer_scroll_margin_ratio(ratio: f32) -> f32 {
     ratio.clamp(0.0, 0.49)
 }
 
-fn sanitize_eye_blink_targets(targets: Vec<EyeBlinkTarget>) -> Vec<EyeBlinkTarget> {
-    targets
-        .into_iter()
-        .filter_map(sanitize_eye_blink_target)
-        .collect()
-}
-
 fn sanitize_mouth_flap_targets(targets: Vec<MouthFlapTarget>) -> Vec<MouthFlapTarget> {
     targets
         .into_iter()
         .filter_map(sanitize_mouth_flap_target)
         .collect()
-}
-
-fn sanitize_eye_blink_target(target: EyeBlinkTarget) -> Option<EyeBlinkTarget> {
-    let psd_file_name = sanitize_psd_file_name(&target.psd_file_name);
-    let first_layer_name = target.first_layer_name.trim().to_string();
-    let second_layer_name = target.second_layer_name.trim().to_string();
-    if psd_file_name.is_empty() || first_layer_name.is_empty() || second_layer_name.is_empty() {
-        return None;
-    }
-
-    Some(EyeBlinkTarget {
-        psd_file_name,
-        first_layer_name,
-        second_layer_name,
-    })
 }
 
 fn sanitize_mouth_flap_target(target: MouthFlapTarget) -> Option<MouthFlapTarget> {

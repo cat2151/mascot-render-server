@@ -200,7 +200,6 @@ impl App {
             help_overlay_visible: false,
             eye_blink: None,
             mouth_flap: None,
-            eye_blink_targets: tui_config.eye_blink_targets.clone(),
             mouth_flap_targets: tui_config.mouth_flap_targets.clone(),
             tui_runtime_state,
             mascot_scale: None,
