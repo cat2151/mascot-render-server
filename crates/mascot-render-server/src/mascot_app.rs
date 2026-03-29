@@ -92,10 +92,11 @@ pub(crate) fn transparent_hit_test_enabled(config: &MascotConfig) -> bool {
         && allows_precise_pointer_interaction(config)
 }
 
-/// Blue flash is visual feedback for transparent input and remains available
-/// even when precise pointer hit testing is disabled by always-bend.
+/// Blue flash is only available when transparent input is handled in-process,
+/// so click-through disables it while other motion settings do not.
 pub(crate) fn transparent_input_flash_enabled(config: &MascotConfig) -> bool {
     config.flash_blue_background_on_transparent_input
+        && !config.transparent_background_click_through
 }
 
 pub(crate) fn click_interaction_hit_test(image_rect: Rect, pointer_pos: Pos2) -> bool {

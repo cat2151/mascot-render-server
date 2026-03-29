@@ -106,14 +106,14 @@ fn always_bend_disables_precise_pointer_hit_testing() {
 }
 
 #[test]
-fn blue_background_flash_stays_enabled_with_always_bend_and_idle_sink() {
+fn blue_background_flash_depends_on_click_through_not_always_bend_or_idle_sink() {
     let config = MascotConfig {
         always_idle_sink_enabled: true,
         always_bend: AlwaysBendConfig {
             enabled: true,
             ..AlwaysBendConfig::default()
         },
-        transparent_background_click_through: true,
+        transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,
         ..sample_config()
     };
@@ -121,6 +121,17 @@ fn blue_background_flash_stays_enabled_with_always_bend_and_idle_sink() {
     assert!(transparent_input_flash_enabled(&config));
     assert!(!transparent_hit_test_enabled(&config));
     assert!(!allows_precise_pointer_interaction(&config));
+}
+
+#[test]
+fn blue_background_flash_is_disabled_when_click_through_is_enabled() {
+    let config = MascotConfig {
+        transparent_background_click_through: true,
+        flash_blue_background_on_transparent_input: true,
+        ..sample_config()
+    };
+
+    assert!(!transparent_input_flash_enabled(&config));
 }
 
 #[test]
