@@ -30,22 +30,15 @@ pub(super) fn draw_help_dialog(
     help_lines: Vec<Line<'static>>,
     focused: bool,
 ) {
-    let desired_width = help_overlay_width(&help_lines);
-    let desired_height = help_lines.len().saturating_add(2) as u16;
-    let overlay_area = centered_rect(frame.area(), desired_width, desired_height);
-    let overlay = Paragraph::new(help_lines)
-        .style(base_style(focused))
-        .wrap(Wrap { trim: false })
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .style(base_style(focused))
-                .border_style(overlay_border_style(focused))
-                .title("Help"),
-        );
+    draw_text_overlay(frame, "Help", help_lines, focused);
+}
 
-    frame.render_widget(Clear, overlay_area);
-    frame.render_widget(overlay, overlay_area);
+pub(super) fn draw_log_dialog(
+    frame: &mut ratatui::Frame,
+    lines: Vec<Line<'static>>,
+    focused: bool,
+) {
+    draw_text_overlay(frame, "Log", lines, focused);
 }
 
 pub(super) fn draw_unfocused_preview_overlay(
@@ -143,6 +136,30 @@ fn draw_compact_loading_overlay(frame: &mut ratatui::Frame, message: &str, focus
     let overlay = Paragraph::new(message.to_string())
         .alignment(Alignment::Center)
         .style(compact_overlay_style(focused));
+
+    frame.render_widget(Clear, overlay_area);
+    frame.render_widget(overlay, overlay_area);
+}
+
+fn draw_text_overlay(
+    frame: &mut ratatui::Frame,
+    title: &str,
+    lines: Vec<Line<'static>>,
+    focused: bool,
+) {
+    let desired_width = help_overlay_width(&lines);
+    let desired_height = lines.len().saturating_add(2) as u16;
+    let overlay_area = centered_rect(frame.area(), desired_width, desired_height);
+    let overlay = Paragraph::new(lines)
+        .style(base_style(focused))
+        .wrap(Wrap { trim: false })
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(base_style(focused))
+                .border_style(overlay_border_style(focused))
+                .title(title),
+        );
 
     frame.render_widget(Clear, overlay_area);
     frame.render_widget(overlay, overlay_area);

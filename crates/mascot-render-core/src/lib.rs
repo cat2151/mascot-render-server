@@ -47,9 +47,11 @@ pub use mascot_motion::{
 };
 pub use model::{LayerKind, LayerNode, PsdEntry, ZipEntry};
 pub use mouth_flap::{
-    auto_generate_mouth_flap_target, build_mouth_flap_display_diffs, resolve_mouth_flap_rows,
-    MouthFlapDisplayDiffs, MouthFlapRows, MouthFlapTarget, MOUTH_CLOSED_LAYER,
-    MOUTH_CLOSED_LAYER_ALT_1, MOUTH_CLOSED_LAYER_ALT_2, MOUTH_GROUP_LAYER, MOUTH_OPEN_LAYER,
+    auto_generate_mouth_flap_target, build_mouth_flap_display_diffs,
+    describe_mouth_flap_auto_generation_failure, resolve_mouth_flap_rows, MouthFlapDisplayDiffs,
+    MouthFlapRows, MouthFlapTarget, MOUTH_CLOSED_LAYER, MOUTH_CLOSED_LAYER_ALT_1,
+    MOUTH_CLOSED_LAYER_ALT_2, MOUTH_CLOSED_LAYER_ALT_3, MOUTH_GROUP_LAYER, MOUTH_OPEN_LAYER,
+    MOUTH_OPEN_LAYER_ALT_1, MOUTH_OPEN_LAYER_ALT_2, MOUTH_OPEN_LAYER_ALT_3,
 };
 pub use variation::{
     load_variation_spec, save_variation_spec, variation_hash, variation_png_path,

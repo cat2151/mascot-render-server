@@ -27,6 +27,21 @@ fn question_mark_toggles_help_overlay_visibility() {
 }
 
 #[test]
+fn log_overlay_closes_help_and_updates_footer_label() {
+    let mut app = App::loading(None);
+    app.toggle_help_overlay();
+
+    app.show_log_overlay("mouth flap diagnostic");
+
+    assert!(app.is_log_overlay_visible());
+    assert!(!app.is_help_overlay_visible());
+    assert!(line_text(app.help_line()).contains("Esc: close log"));
+
+    app.clear_log_overlay();
+    assert!(!app.is_log_overlay_visible());
+}
+
+#[test]
 fn help_overlay_includes_all_shortcuts() {
     let app = App::loading(None);
     let lines = app
@@ -45,8 +60,10 @@ fn help_overlay_includes_all_shortcuts() {
         "help overlay should describe favorite saving"
     );
     assert!(
-        lines.contains(&"v: open/close favorites list, Esc: close favorites list".to_string()),
-        "help overlay should describe favorites list toggle"
+        lines.contains(
+            &"v: open/close favorites list, Esc: close favorites list or log overlay".to_string()
+        ),
+        "help overlay should describe favorites list and log overlay closing"
     );
     assert!(
         lines.contains(&"e: toggle favorite ensemble true/false".to_string()),
@@ -63,8 +80,9 @@ fn footer_help_line_mentions_space_and_enter_for_toggle() {
         "footer should describe both Space and Enter as toggle keys"
     );
     assert!(
-        line_text(app.help_line()).contains("f: favorite | v: favorites | e: ensemble"),
-        "footer should describe favorites and ensemble shortcuts"
+        line_text(app.help_line())
+            .contains("f: favorite | v: favorites | e: ensemble | -/+: mascot scale"),
+        "footer should describe favorites, ensemble, and scale shortcuts"
     );
 }
 
