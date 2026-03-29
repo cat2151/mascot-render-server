@@ -11,7 +11,7 @@ use mascot_render_server::{
 use crate::always_bend;
 use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 
-use super::{click_animation_hit_test, keyboard_scale_steps, scroll_scale_steps, MascotApp};
+use super::{click_interaction_hit_test, keyboard_scale_steps, scroll_scale_steps, MascotApp};
 
 impl App for MascotApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
@@ -144,9 +144,8 @@ impl App for MascotApp {
 
                             if !handled_click
                                 && response.clicked()
-                                && pointer_pos.is_some_and(|pos| {
-                                    click_animation_hit_test(&self.config, image_rect, pos)
-                                })
+                                && pointer_pos
+                                    .is_some_and(|pos| click_interaction_hit_test(image_rect, pos))
                             {
                                 member.motion.trigger(now);
                                 handled_click = true;
@@ -269,7 +268,7 @@ impl App for MascotApp {
                 if response.clicked()
                     && response
                         .interact_pointer_pos()
-                        .is_some_and(|pos| click_animation_hit_test(&self.config, image_rect, pos))
+                        .is_some_and(|pos| click_interaction_hit_test(image_rect, pos))
                 {
                     self.motion.trigger(now);
                 }

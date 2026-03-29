@@ -18,12 +18,6 @@ always_bend = true
 transparent_background_click_through = true
 debug_flash_blue_background_on_transparent_input = true
 
-[head_hitbox]
-x = 0.3
-y = 0.1
-width = 0.2
-height = 0.2
-
 [bounce]
 algorithm = "damped_sine"
 duration_ms = 1200
@@ -60,6 +54,46 @@ stretch_amount = 0.08
     let error = load_mascot_config(&config_path).expect_err("legacy debug key should be rejected");
     assert!(
         format!("{error:#}").contains("debug_flash_blue_background_on_transparent_input"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
+fn load_mascot_config_rejects_legacy_head_hitbox_section() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-legacy-head-hitbox/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-legacy-head-hitbox"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-legacy-head-hitbox"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+[head_hitbox]
+x = 0.3
+y = 0.1
+width = 0.2
+height = 0.2
+"#,
+    )
+    .expect("should seed legacy head_hitbox section");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/legacy/render.png",
+  "zip_path": "assets/zip/legacy.zip",
+  "psd_path_in_zip": "legacy/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
+
+    let error = load_mascot_config(&config_path).expect_err("legacy section should be rejected");
+    assert!(
+        format!("{error:#}").contains("head_hitbox"),
         "unexpected error: {error:#}"
     );
 }

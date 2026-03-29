@@ -1,25 +1,9 @@
 use std::time::{Duration, Instant};
 
-use eframe::egui::{Pos2, Rect, Vec2};
-
 use crate::{
-    BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, MotionState, MotionTransform,
+    BounceAnimationConfig, IdleSinkAnimationConfig, MotionState, MotionTransform,
     SquashBounceAnimationConfig,
 };
-
-#[test]
-fn head_hitbox_uses_normalized_coordinates() {
-    let hitbox = HeadHitbox {
-        x: 0.2,
-        y: 0.1,
-        width: 0.5,
-        height: 0.4,
-    };
-    let rect = Rect::from_min_size(Pos2::new(10.0, 20.0), Vec2::new(200.0, 400.0));
-
-    assert!(hitbox.contains(rect, Pos2::new(70.0, 100.0)));
-    assert!(!hitbox.contains(rect, Pos2::new(25.0, 30.0)));
-}
 
 #[test]
 fn motion_state_alternates_between_animation_kinds() {
