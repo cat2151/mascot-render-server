@@ -8,7 +8,9 @@ use mascot_render_core::{
 };
 
 use crate::always_bend;
-use crate::mascot_app::{allows_precise_pointer_interaction, transparent_hit_test_enabled};
+use crate::mascot_app::{
+    allows_precise_pointer_interaction, click_animation_hit_test, transparent_hit_test_enabled,
+};
 
 const LONG_RUNNING_PHASE_STABILITY_MS: u64 = 4_200 * 10_000; // About 11.7 hours of complete bend cycles.
 const FLOAT_TOLERANCE: f32 = 1e-6;
@@ -100,6 +102,29 @@ fn always_bend_disables_precise_pointer_hit_testing() {
     };
     assert!(!transparent_hit_test_enabled(&bent_config));
     assert!(!allows_precise_pointer_interaction(&bent_config));
+}
+
+#[test]
+fn always_bend_uses_image_rect_for_click_animation_hit_test() {
+    let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(240.0, 480.0));
+    let config = sample_config();
+    let body_point = pos2(20.0, 430.0);
+
+    assert!(!click_animation_hit_test(&config, image_rect, body_point));
+
+    let bent_config = MascotConfig {
+        always_bend: AlwaysBendConfig {
+            enabled: true,
+            ..config.always_bend
+        },
+        ..config
+    };
+
+    assert!(click_animation_hit_test(
+        &bent_config,
+        image_rect,
+        body_point
+    ));
 }
 
 fn sample_config() -> MascotConfig {

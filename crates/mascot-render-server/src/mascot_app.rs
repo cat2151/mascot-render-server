@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{Context, Result};
-use eframe::egui::{self, Pos2, Vec2};
+use eframe::egui::{self, Pos2, Rect, Vec2};
 use eframe::CreationContext;
 use mascot_render_core::{
     load_mascot_config, mascot_runtime_state_path, psd_viewer_tui_activity_path, Core, CoreConfig,
@@ -90,6 +90,18 @@ pub(crate) fn transparent_hit_test_enabled(config: &MascotConfig) -> bool {
     config.transparent_background_click_through
         && !config.favorite_ensemble_enabled
         && allows_precise_pointer_interaction(config)
+}
+
+pub(crate) fn click_animation_hit_test(
+    config: &MascotConfig,
+    image_rect: Rect,
+    pointer_pos: Pos2,
+) -> bool {
+    if allows_precise_pointer_interaction(config) {
+        config.head_hitbox.contains(image_rect, pointer_pos)
+    } else {
+        image_rect.contains(pointer_pos)
+    }
 }
 
 impl MascotApp {
