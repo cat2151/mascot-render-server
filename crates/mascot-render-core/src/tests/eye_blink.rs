@@ -78,6 +78,54 @@ fn auto_generate_eye_blink_target_falls_back_to_smile_layer() {
 }
 
 #[test]
+fn auto_generate_eye_blink_target_falls_back_to_eye_close_2_layer() {
+    let document = PsdDocument {
+        zip_path: PathBuf::from("demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo.psd"),
+        file_name: "demo.psd".to_string(),
+        metadata: String::new(),
+        layers: vec![
+            descriptor(2, "*基本目", LayerKind::Layer, true, 0),
+            descriptor(1, "*目閉じ2", LayerKind::Layer, false, 0),
+        ],
+        error: None,
+        log_path: None,
+        default_rendered_png_path: None,
+        render_warnings: Vec::new(),
+    };
+
+    let target = auto_generate_eye_blink_target(&document, &DisplayDiff::default())
+        .expect("should match 目閉じ2");
+
+    assert_eq!(target.first_layer_name, "基本目");
+    assert_eq!(target.second_layer_name, "目閉じ2");
+}
+
+#[test]
+fn auto_generate_eye_blink_target_falls_back_to_eye_close_layer() {
+    let document = PsdDocument {
+        zip_path: PathBuf::from("demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo.psd"),
+        file_name: "demo.psd".to_string(),
+        metadata: String::new(),
+        layers: vec![
+            descriptor(2, "*基本目", LayerKind::Layer, true, 0),
+            descriptor(1, "*目閉じ", LayerKind::Layer, false, 0),
+        ],
+        error: None,
+        log_path: None,
+        default_rendered_png_path: None,
+        render_warnings: Vec::new(),
+    };
+
+    let target = auto_generate_eye_blink_target(&document, &DisplayDiff::default())
+        .expect("should match 目閉じ");
+
+    assert_eq!(target.first_layer_name, "基本目");
+    assert_eq!(target.second_layer_name, "目閉じ");
+}
+
+#[test]
 fn build_closed_eye_display_diff_activates_closed_eye_layer() {
     let document = PsdDocument {
         zip_path: PathBuf::from("demo.zip"),

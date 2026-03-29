@@ -18,7 +18,14 @@ pub const SMILE_LAYER: &str = "にっこり";
 pub const BASIC_EYE_LAYER: &str = "基本目";
 pub const NORMAL_EYE_LAYER: &str = "普通目";
 pub const CLOSED_EYE_LAYER: &str = "閉じ目";
-pub const AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS: [&str; 2] = [CLOSED_EYE_LAYER, SMILE_LAYER];
+pub const CLOSED_EYE_LAYER_ALT_1: &str = "目閉じ2";
+pub const CLOSED_EYE_LAYER_ALT_2: &str = "目閉じ";
+pub const AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS: &[&str] = &[
+    CLOSED_EYE_LAYER,
+    CLOSED_EYE_LAYER_ALT_1,
+    CLOSED_EYE_LAYER_ALT_2,
+    SMILE_LAYER,
+];
 const AUTO_EYE_BLINK_PREFERRED_OPEN_LAYER_NAMES: [&str; 3] =
     [EYE_SET_LAYER, BASIC_EYE_LAYER, NORMAL_EYE_LAYER];
 
