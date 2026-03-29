@@ -8,7 +8,8 @@ pub use client::{
     hide_mascot_render_server, hide_mascot_render_server_at, mascot_render_server_address,
     mascot_render_server_healthcheck, mascot_render_server_healthcheck_at,
     play_timeline_mascot_render_server, play_timeline_mascot_render_server_at,
-    show_mascot_render_server, show_mascot_render_server_at,
+    preview_mouth_flap_timeline_request, show_mascot_render_server, show_mascot_render_server_at,
     wait_for_mascot_render_server_healthcheck_at, ChangeSkinRequest, MotionTimelineKind,
     MotionTimelineRequest, MotionTimelineStep, MASCOT_RENDER_SERVER_PORT,
+    PREVIEW_MOUTH_FLAP_DURATION_MS, PREVIEW_MOUTH_FLAP_FPS,
 };

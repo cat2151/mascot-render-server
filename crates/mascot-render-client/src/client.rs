@@ -8,6 +8,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 pub const MASCOT_RENDER_SERVER_PORT: u16 = 62152;
+pub const PREVIEW_MOUTH_FLAP_DURATION_MS: u64 = 5_000;
+pub const PREVIEW_MOUTH_FLAP_FPS: u16 = 4;
 
 const MASCOT_RENDER_SERVER_HOST: &str = "127.0.0.1";
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
@@ -58,6 +60,16 @@ pub fn change_skin_mascot_render_server(png_path: &Path) -> Result<()> {
 
 pub fn play_timeline_mascot_render_server(request: &MotionTimelineRequest) -> Result<()> {
     play_timeline_mascot_render_server_at(mascot_render_server_address(), request)
+}
+
+pub fn preview_mouth_flap_timeline_request() -> MotionTimelineRequest {
+    MotionTimelineRequest {
+        steps: vec![MotionTimelineStep {
+            kind: MotionTimelineKind::MouthFlap,
+            duration_ms: PREVIEW_MOUTH_FLAP_DURATION_MS,
+            fps: PREVIEW_MOUTH_FLAP_FPS,
+        }],
+    }
 }
 
 pub fn mascot_render_server_healthcheck_at(address: SocketAddr) -> Result<()> {
