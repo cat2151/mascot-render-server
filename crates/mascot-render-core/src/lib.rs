@@ -28,7 +28,8 @@ pub use core::{Core, CoreConfig};
 pub use eye_blink::{
     auto_generate_eye_blink_target, build_closed_eye_display_diff, resolve_eye_blink_rows,
     EyeBlinkRows, EyeBlinkTarget, AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS, BASIC_EYE_LAYER,
-    CLOSED_EYE_LAYER, EYE_SET_LAYER, NORMAL_EYE_LAYER, SMILE_LAYER,
+    CLOSED_EYE_LAYER, CLOSED_EYE_LAYER_ALT_1, CLOSED_EYE_LAYER_ALT_2, EYE_SET_LAYER,
+    NORMAL_EYE_LAYER, SMILE_LAYER,
 };
 pub use layer_name_format::{
     is_exclusive_kind, is_exclusive_name, is_mandatory_kind, is_mandatory_name, is_toggleable_kind,
