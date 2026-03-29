@@ -20,6 +20,7 @@ pub const MOUTH_CLOSED_LAYER: &str = "むふ";
 pub const MOUTH_CLOSED_LAYER_ALT_1: &str = "むん";
 pub const MOUTH_CLOSED_LAYER_ALT_2: &str = "んむ";
 pub const MOUTH_CLOSED_LAYER_ALT_3: &str = "ん";
+pub const MOUTH_CLOSED_LAYER_ALT_4: &str = "んー";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MouthFlapTarget {
@@ -100,11 +101,12 @@ const DEFAULT_MOUTH_OPEN_LAYER_NAMES: [&str; 4] = [
     MOUTH_OPEN_LAYER_ALT_2,
     MOUTH_OPEN_LAYER_ALT_3,
 ];
-const DEFAULT_MOUTH_CLOSED_LAYER_NAMES: [&str; 4] = [
+const DEFAULT_MOUTH_CLOSED_LAYER_NAMES: [&str; 5] = [
     MOUTH_CLOSED_LAYER,
     MOUTH_CLOSED_LAYER_ALT_1,
     MOUTH_CLOSED_LAYER_ALT_2,
     MOUTH_CLOSED_LAYER_ALT_3,
+    MOUTH_CLOSED_LAYER_ALT_4,
 ];
 
 pub fn auto_generate_mouth_flap_target(

@@ -178,6 +178,32 @@ fn auto_generate_mouth_flap_target_uses_added_open_and_closed_fallbacks() {
 }
 
 #[test]
+fn auto_generate_mouth_flap_target_supports_closed_fallback_with_long_n() {
+    let document = PsdDocument {
+        zip_path: PathBuf::from("demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo.psd"),
+        file_name: "demo.psd".to_string(),
+        metadata: String::new(),
+        layers: vec![
+            descriptor(4, "!口", LayerKind::GroupOpen, true, 0),
+            descriptor(3, "*お", LayerKind::Layer, true, 1),
+            descriptor(2, "*んー", LayerKind::Layer, false, 1),
+            descriptor(1, "(unnamed)", LayerKind::GroupClose, true, 0),
+        ],
+        error: None,
+        log_path: None,
+        default_rendered_png_path: None,
+        render_warnings: Vec::new(),
+    };
+
+    let target =
+        auto_generate_mouth_flap_target(&document, &DisplayDiff::new()).expect("should resolve");
+
+    assert_eq!(target.open_layer_names, vec!["お"]);
+    assert_eq!(target.closed_layer_names, vec!["んー"]);
+}
+
+#[test]
 fn describe_mouth_flap_auto_generation_failure_limits_logs_to_mouth_groups_and_missing_side() {
     let document = PsdDocument {
         zip_path: PathBuf::from("demo.zip"),
@@ -215,13 +241,14 @@ fn describe_mouth_flap_auto_generation_failure_limits_logs_to_mouth_groups_and_m
         "missing open side should list only mouth-group layer names"
     );
     assert!(
-        !diagnostic
-            .contains("closed candidates [むふ, むん, んむ, ん] were not found. layers: あ, むふ"),
+        !diagnostic.contains(
+            "closed candidates [むふ, むん, んむ, ん, んー] were not found. layers: あ, むふ"
+        ),
         "closed layers should not be logged when they are already present"
     );
     assert!(
         diagnostic.contains(
-            "closed candidates [むふ, むん, んむ, ん] were not found. layers: ほあー, い"
+            "closed candidates [むふ, むん, んむ, ん, んー] were not found. layers: ほあー, い"
         ),
         "missing closed side should list only mouth-group layer names"
     );
