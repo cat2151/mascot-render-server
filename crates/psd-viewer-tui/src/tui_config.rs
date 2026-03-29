@@ -309,28 +309,28 @@ fn sanitize_name_list(values: Vec<String>, fallback: impl FnOnce() -> Vec<String
 fn default_eye_blink_preferred_open_layer_names() -> Vec<String> {
     AUTO_EYE_BLINK_PREFERRED_OPEN_LAYER_NAMES
         .iter()
-        .map(|name| (*name).to_string())
+        .map(|name| name.to_string())
         .collect()
 }
 
 fn default_eye_blink_closed_layer_keywords() -> Vec<String> {
     AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS
         .iter()
-        .map(|name| (*name).to_string())
+        .map(|name| name.to_string())
         .collect()
 }
 
 fn default_mouth_flap_open_layer_names() -> Vec<String> {
     DEFAULT_MOUTH_OPEN_LAYER_NAMES
         .iter()
-        .map(|name| (*name).to_string())
+        .map(|name| name.to_string())
         .collect()
 }
 
 fn default_mouth_flap_closed_layer_names() -> Vec<String> {
     DEFAULT_MOUTH_CLOSED_LAYER_NAMES
         .iter()
-        .map(|name| (*name).to_string())
+        .map(|name| name.to_string())
         .collect()
 }
 

@@ -28,7 +28,7 @@ use mascot_render_core::{
 
 use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override, LayerRow};
 use crate::favorites::{FavoriteEntry, FavoriteKey};
-use crate::tui_config::{TuiRuntimeState, DEFAULT_LAYER_SCROLL_MARGIN_RATIO};
+use crate::tui_config::{TuiConfig, TuiRuntimeState, DEFAULT_LAYER_SCROLL_MARGIN_RATIO};
 use crate::tui_history::{save_tui_history, TuiHistory};
 use crate::workspace_state::save_workspace_state;
 use eye_blink::EyeBlinkAnimation;
@@ -95,6 +95,7 @@ pub(crate) struct App {
 impl App {
     pub(crate) fn loading(screen_height_px: Option<u16>) -> Self {
         let core = Core::new(CoreConfig::default());
+        let default_tui_config = TuiConfig::default();
         let status = format!(
             "Opening TUI first. ZIP/PSD cache will load in background from {}.",
             display_path(core.cache_dir())
@@ -119,10 +120,11 @@ impl App {
             tui_runtime_state: TuiRuntimeState::default(),
             mascot_scale: None,
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
-            eye_blink_preferred_open_layer_names: Vec::new(),
-            eye_blink_closed_layer_keywords: Vec::new(),
-            mouth_flap_open_layer_names: Vec::new(),
-            mouth_flap_closed_layer_names: Vec::new(),
+            eye_blink_preferred_open_layer_names: default_tui_config
+                .eye_blink_preferred_open_layer_names,
+            eye_blink_closed_layer_keywords: default_tui_config.eye_blink_closed_layer_keywords,
+            mouth_flap_open_layer_names: default_tui_config.mouth_flap_open_layer_names,
+            mouth_flap_closed_layer_names: default_tui_config.mouth_flap_closed_layer_names,
             layer_scroll_offset: 0,
             screen_height_px,
             variations: HashMap::new(),

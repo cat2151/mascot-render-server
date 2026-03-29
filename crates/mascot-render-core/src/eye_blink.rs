@@ -170,7 +170,7 @@ fn find_auto_eye_blink_pair(
         let candidate_score = (
             keyword_rank,
             open_score.visible_penalty,
-            open_score.preferred_name_penalty,
+            open_score.preferred_name_rank,
             open_score.distance,
             closed_row_index,
             open_row_index,
@@ -217,7 +217,7 @@ fn find_auto_open_row(
 
         let score = AutoOpenScore {
             visible_penalty: usize::from(!states.get(row_index).is_some_and(|state| state.visible)),
-            preferred_name_penalty: preferred_open_layer_names
+            preferred_name_rank: preferred_open_layer_names
                 .iter()
                 .position(|name| *name == normalized_name)
                 .unwrap_or(preferred_open_layer_names.len()),
@@ -261,6 +261,6 @@ fn normalize_eye_blink_layer_name(name: &str) -> &str {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct AutoOpenScore {
     visible_penalty: usize,
-    preferred_name_penalty: usize,
+    preferred_name_rank: usize,
     distance: usize,
 }
