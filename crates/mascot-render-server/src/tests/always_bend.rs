@@ -114,6 +114,7 @@ fn blue_background_flash_stays_enabled_with_always_bend_and_idle_sink() {
             ..AlwaysBendConfig::default()
         },
         transparent_background_click_through: true,
+        flash_blue_background_on_transparent_input: true,
         ..sample_config()
     };
 
