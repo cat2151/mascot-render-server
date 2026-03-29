@@ -46,8 +46,11 @@ pub(super) fn sample_idle_sink(
     now: Instant,
     started_at: Instant,
     config: IdleSinkAnimationConfig,
+    phase_offset_ratio: f32,
 ) -> MotionTransform {
-    let t = animation_progress(now, started_at, config.duration_ms);
+    let t = (animation_progress(now, started_at, config.duration_ms)
+        + phase_offset_ratio.rem_euclid(1.0))
+    .fract();
     let sink = phase_pulse(t, 0.0, 0.25, 0.5);
     let lift = phase_pulse(t, 0.5, 0.75, 1.0);
 

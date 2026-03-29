@@ -199,17 +199,16 @@ pub struct MotionState {
     active: Option<ActiveAnimation>,
     mouth_flap: Option<MouthFlapAnimation>,
     random_state: u64,
+    idle_phase_offset_ratio: f32,
 }
 
 impl MotionState {
     pub fn new() -> Self {
-        Self {
-            next_kind: Some(AnimationKind::Bounce),
-            idle_kind: None,
-            active: None,
-            mouth_flap: None,
-            random_state: sampling::seed_from_system_time(),
-        }
+        Self::with_seed_and_idle_phase_offset(sampling::seed_from_system_time(), 0.0)
+    }
+
+    pub fn new_with_idle_phase_offset(phase_offset_ratio: f32) -> Self {
+        Self::with_seed_and_idle_phase_offset(sampling::seed_from_system_time(), phase_offset_ratio)
     }
 
     pub fn trigger(&mut self, now: Instant) {
@@ -297,7 +296,12 @@ impl MotionState {
             ),
             AnimationKind::IdleSink => (
                 Duration::from_millis(always_idle_sink.duration_ms.max(1)),
-                sampling::sample_idle_sink(now, active.started_at, always_idle_sink),
+                sampling::sample_idle_sink(
+                    now,
+                    active.started_at,
+                    always_idle_sink,
+                    self.idle_phase_offset_ratio,
+                ),
             ),
             AnimationKind::Shake => (
                 active.shake_duration,
@@ -420,18 +424,23 @@ impl MotionState {
             shake_frame_interval: Duration::ZERO,
         }
     }
-}
 
-#[cfg(test)]
-impl MotionState {
-    pub(crate) fn new_with_seed(seed: u64) -> Self {
+    fn with_seed_and_idle_phase_offset(seed: u64, phase_offset_ratio: f32) -> Self {
         Self {
             next_kind: Some(AnimationKind::Bounce),
             idle_kind: None,
             active: None,
             mouth_flap: None,
             random_state: seed,
+            idle_phase_offset_ratio: phase_offset_ratio.rem_euclid(1.0),
         }
+    }
+}
+
+#[cfg(test)]
+impl MotionState {
+    pub(crate) fn new_with_seed(seed: u64) -> Self {
+        Self::with_seed_and_idle_phase_offset(seed, 0.0)
     }
 
     pub(crate) fn next_animation_name(&self) -> &'static str {

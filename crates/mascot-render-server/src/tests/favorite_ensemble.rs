@@ -2,6 +2,7 @@ use crate::favorite_ensemble::{
     fill_missing_positions, pack_positions_from_right, patch_favorite_ensemble_positions_toml,
     scaled_content_x_bounds, FavoriteEnsembleEntry, FavoriteEnsembleLayoutEntry,
 };
+use crate::mascot_app::member_phase_offset_ratio;
 use mascot_render_core::{LayerVisibilityOverride, MascotImageData};
 use std::path::PathBuf;
 
@@ -168,6 +169,14 @@ fn favorite_ensemble_uses_full_width_when_image_is_fully_transparent() {
     );
 
     assert_eq!(bounds, [0.0, 45.0]);
+}
+
+#[test]
+fn favorite_ensemble_member_phase_offsets_are_evenly_distributed() {
+    assert_eq!(member_phase_offset_ratio(0, 1), 0.0);
+    assert_eq!(member_phase_offset_ratio(0, 3), 0.0);
+    assert_eq!(member_phase_offset_ratio(1, 3), 1.0 / 3.0);
+    assert_eq!(member_phase_offset_ratio(2, 3), 2.0 / 3.0);
 }
 
 fn sample_favorite_entry(mascot_scale: Option<f32>) -> FavoriteEnsembleEntry {

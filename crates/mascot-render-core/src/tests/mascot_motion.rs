@@ -309,3 +309,34 @@ fn idle_sink_starts_at_rest_and_then_scales_for_sink_and_lift() {
     assert!(lifting.scale_x < 1.0);
     assert!(lifting.scale_y > 1.0);
 }
+
+#[test]
+fn idle_sink_phase_offset_changes_idle_phase_per_motion() {
+    let mut baseline = MotionState::new();
+    let mut shifted = MotionState::new_with_idle_phase_offset(0.25);
+    let now = Instant::now();
+    let idle_sink = IdleSinkAnimationConfig {
+        duration_ms: 400,
+        ..IdleSinkAnimationConfig::default_for_always_bouncing()
+    };
+
+    baseline.set_always_idle_sink_enabled(true, now);
+    shifted.set_always_idle_sink_enabled(true, now);
+
+    let baseline_transform = baseline.sample(
+        now,
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        idle_sink,
+    );
+    let shifted_transform = shifted.sample(
+        now,
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        idle_sink,
+    );
+
+    assert_eq!(baseline_transform, MotionTransform::identity());
+    assert!(shifted_transform.scale_x > 1.0);
+    assert!(shifted_transform.scale_y < 1.0);
+}
