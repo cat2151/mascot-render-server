@@ -119,8 +119,15 @@ impl App {
         } else {
             "help"
         };
+        let esc_action_text = if self.log_overlay.is_some() {
+            " | Esc: close log"
+        } else if self.favorites_visible {
+            " | Esc: close favorites"
+        } else {
+            ""
+        };
         Line::from(format!(
-            "q: quit | ?: {help_action} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | f: favorite | v: favorites | e: ensemble | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
+            "q: quit | ?: {help_action}{esc_action_text} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | f: favorite | v: favorites | e: ensemble | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
         ))
     }
 
@@ -134,7 +141,7 @@ impl App {
             Line::from("PageUp/PageDown: page scroll"),
             Line::from("Space/Enter: toggle selected layer"),
             Line::from("f: save current PSD to favorites (ZIP / PSD or layer pane)"),
-            Line::from("v: open/close favorites list, Esc: close favorites list"),
+            Line::from("v: open/close favorites list, Esc: close favorites list or log overlay"),
             Line::from("e: toggle favorite ensemble true/false"),
             Line::from("Enter on favorites list: select PSD"),
             Line::from("-/+: mascot scale"),

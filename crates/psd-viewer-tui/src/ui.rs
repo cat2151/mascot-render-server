@@ -4,6 +4,7 @@ mod style;
 
 use mascot_render_core::display_path;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
 use ratatui_image::{Image, StatefulImage};
 use tui_sixel_preview::PreviewState;
@@ -282,6 +283,8 @@ pub(crate) fn draw(
 
     if app.is_help_overlay_visible() {
         overlay::draw_help_dialog(frame, app.help_overlay_lines(), terminal_focused);
+    } else if let Some(message) = app.log_overlay_message() {
+        overlay::draw_log_dialog(frame, overlay_lines(message), terminal_focused);
     }
 }
 
@@ -315,4 +318,11 @@ fn right_column_constraint(use_server_preview: bool) -> Constraint {
     } else {
         Constraint::Percentage(33)
     }
+}
+
+fn overlay_lines(message: &str) -> Vec<Line<'static>> {
+    message
+        .lines()
+        .map(|line| Line::from(line.to_string()))
+        .collect()
 }

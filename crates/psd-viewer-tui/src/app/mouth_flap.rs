@@ -2,13 +2,14 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use mascot_render_core::{
-    auto_generate_mouth_flap_target, resolve_mouth_flap_rows, variation_spec_path, DisplayDiff,
-    PsdDocument, PsdEntry, RenderRequest,
+    auto_generate_mouth_flap_target, describe_mouth_flap_auto_generation_failure,
+    resolve_mouth_flap_rows, variation_spec_path, DisplayDiff, PsdDocument, PsdEntry,
+    RenderRequest,
 };
 
 use super::support::current_preview_status;
 use super::App;
-use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override, LayerRow};
+use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override};
 
 const MOUTH_FLAP_DURATION: Duration = Duration::from_secs(5);
 const MOUTH_FLAP_INTERVAL: Duration = Duration::from_millis(250);
@@ -46,6 +47,7 @@ impl App {
             Ok(animation) => {
                 let frame = animation.current_frame();
                 self.clear_preview_animations();
+                self.clear_log_overlay();
                 self.current_preview_png_path = Some(frame.preview_png_path.clone());
                 self.current_variation_spec_path = frame.variation_spec_path.clone();
                 self.status = format!(
@@ -58,7 +60,6 @@ impl App {
             }
             Err(error) => {
                 self.status = format!("Mouth flap preview unavailable: {error}");
-                eprintln!("{error:#}");
                 false
             }
         }
@@ -111,15 +112,11 @@ impl App {
         mouth_flap_timeout.min(eye_blink_timeout)
     }
 
-    fn start_mouth_flap_preview_inner(&self) -> Result<MouthFlapAnimation, String> {
+    fn start_mouth_flap_preview_inner(&mut self) -> Result<MouthFlapAnimation, String> {
         let selected_psd_path = self
             .selected_psd_entry()
             .map(|entry| entry.path.clone())
             .ok_or_else(|| "no PSD selected".to_string())?;
-        let document = self
-            .current_psd_document
-            .as_ref()
-            .ok_or_else(|| "selected PSD document is not loaded".to_string())?;
         let (zip_path, extracted_dir) = self
             .selected_zip_entry()
             .map(|zip| (zip.zip_path.clone(), zip.extracted_dir.clone()))
@@ -128,6 +125,10 @@ impl App {
             .selected_psd_entry()
             .cloned()
             .ok_or_else(|| "no PSD entry selected".to_string())?;
+        let document = self
+            .current_psd_document
+            .as_ref()
+            .ok_or_else(|| "selected PSD document is not loaded".to_string())?;
         let psd_path_in_zip = super::support::psd_path_in_zip(
             &selected_psd_path,
             &extracted_dir,
@@ -138,22 +139,17 @@ impl App {
             .get(&selected_psd_path)
             .cloned()
             .unwrap_or_default();
-        let target =
-            auto_generate_mouth_flap_target(document, &base_variation).map_err(|error| {
-                let layer_rows = resolve_layer_rows(document, &base_variation);
-                eprintln!(
-                    "{}",
-                    format_auto_mouth_flap_generation_failure_log(
-                        &psd_entry.file_name,
-                        &layer_rows,
-                        &error
-                    )
-                );
-                format!(
-                    "selected PSD '{}' does not support automatic mouth flap preview: {error}",
-                    psd_entry.file_name
-                )
-            })?;
+        let target = match auto_generate_mouth_flap_target_with_diagnostic(
+            document,
+            &base_variation,
+            &psd_entry.file_name,
+        ) {
+            Ok(target) => target,
+            Err((diagnostic, message)) => {
+                self.show_log_overlay(diagnostic);
+                return Err(message);
+            }
+        };
         let resolved = resolve_mouth_flap_rows(document, &base_variation, &target)?;
         let frame_context = MouthFlapFrameContext {
             zip_path: &zip_path,
@@ -229,24 +225,31 @@ impl App {
     }
 }
 
-fn format_auto_mouth_flap_generation_failure_log(
-    psd_file_name: &str,
-    layer_rows: &[LayerRow],
-    error: &str,
-) -> String {
+fn format_mouth_flap_diagnostic(psd_file_name: &str, diagnostic: &str, error: &str) -> String {
     format!(
-        "Failed to auto-generate mouth flap target for PSD '{psd_file_name}'.\nlayer list:\n{}\nreason: {error}",
-        format_mouth_flap_layer_rows(layer_rows)
+        "Failed to auto-generate mouth flap target for PSD '{psd_file_name}'.\nmouth-group diagnostics:\n{}\nreason: {error}",
+        diagnostic,
     )
 }
 
-fn format_mouth_flap_layer_rows(layer_rows: &[LayerRow]) -> String {
-    layer_rows
-        .iter()
-        .enumerate()
-        .map(|(index, row)| format!("  - [{}] {}", index, row.display_label()))
-        .collect::<Vec<_>>()
-        .join("\n")
+fn auto_generate_mouth_flap_target_with_diagnostic(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+    psd_file_name: &str,
+) -> Result<mascot_render_core::MouthFlapTarget, (String, String)> {
+    auto_generate_mouth_flap_target(document, base_variation).map_err(|error| {
+        (
+            format_mouth_flap_diagnostic(
+                psd_file_name,
+                &describe_mouth_flap_auto_generation_failure(document, base_variation),
+                &error,
+            ),
+            format!(
+                "selected PSD '{}' does not support automatic mouth flap preview: {error}",
+                psd_file_name
+            ),
+        )
+    })
 }
 
 fn ensure_named_row_visible(

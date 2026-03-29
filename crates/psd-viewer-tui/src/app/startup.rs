@@ -143,6 +143,7 @@ impl App {
         self.focus = previous.focus;
         self.terminal_focused = previous.terminal_focused;
         self.help_overlay_visible = previous.help_overlay_visible;
+        self.log_overlay = previous.log_overlay.clone();
         self.tui_runtime_state = previous.tui_runtime_state.clone();
         self.layer_scroll_offset = previous.layer_scroll_offset;
         self.favorites = previous.favorites.clone();
@@ -187,6 +188,7 @@ impl App {
         let favorites = load_favorites(&favorites_path())?;
         let mut app = Self {
             status,
+            log_overlay: None,
             core,
             current_psd_document: None,
             current_preview_png_path: None,

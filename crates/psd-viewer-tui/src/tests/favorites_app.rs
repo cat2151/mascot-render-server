@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::app::{apply_favorite_variation, apply_favorite_window_position, App, FocusPane};
 use crate::favorites::FavoriteEntry;
-use crate::{is_favorite_save_key, is_favorites_toggle_key};
+use crate::{is_favorite_save_key, is_favorites_toggle_key, is_log_overlay_close_key};
 use mascot_render_core::{
     workspace_cache_root, DisplayDiff, LayerVisibilityOverride, PsdEntry, ZipEntry,
 };
@@ -25,6 +25,16 @@ fn favorites_toggle_accepts_v_always_and_esc_only_when_visible() {
     assert!(!is_favorites_toggle_key(&plain_esc, false));
     assert!(is_favorites_toggle_key(&plain_esc, true));
     assert!(!is_favorites_toggle_key(&ctrl_v, true));
+}
+
+#[test]
+fn log_overlay_close_key_accepts_plain_esc_only_when_visible() {
+    let plain_esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE);
+    let ctrl_esc = KeyEvent::new(KeyCode::Esc, KeyModifiers::CONTROL);
+
+    assert!(!is_log_overlay_close_key(&plain_esc, false));
+    assert!(is_log_overlay_close_key(&plain_esc, true));
+    assert!(!is_log_overlay_close_key(&ctrl_esc, true));
 }
 
 #[test]

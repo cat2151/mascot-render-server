@@ -54,6 +54,7 @@ pub(crate) enum PreviewBackend {
 #[derive(Debug)]
 pub(crate) struct App {
     status: String,
+    log_overlay: Option<String>,
     core: Core,
     current_psd_document: Option<PsdDocument>,
     current_preview_png_path: Option<PathBuf>,
@@ -97,6 +98,7 @@ impl App {
 
         Self {
             status,
+            log_overlay: None,
             core,
             current_psd_document: None,
             current_preview_png_path: None,
@@ -153,6 +155,23 @@ impl App {
 
     pub(crate) fn set_status_message(&mut self, status: impl Into<String>) {
         self.status = status.into();
+    }
+
+    pub(crate) fn is_log_overlay_visible(&self) -> bool {
+        self.log_overlay.is_some()
+    }
+
+    pub(crate) fn log_overlay_message(&self) -> Option<&str> {
+        self.log_overlay.as_deref()
+    }
+
+    pub(crate) fn show_log_overlay(&mut self, message: impl Into<String>) {
+        self.log_overlay = Some(message.into());
+        self.help_overlay_visible = false;
+    }
+
+    pub(crate) fn clear_log_overlay(&mut self) {
+        self.log_overlay = None;
     }
 
     pub(crate) fn is_startup_loading(&self) -> bool {
