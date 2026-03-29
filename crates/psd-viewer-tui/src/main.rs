@@ -110,12 +110,8 @@ fn is_favorites_toggle_key(key: &crossterm::event::KeyEvent, favorites_visible: 
     matches!(key.code, KeyCode::Char('v')) || favorites_visible && matches!(key.code, KeyCode::Esc)
 }
 
-fn is_log_overlay_close_key(key: &crossterm::event::KeyEvent, log_overlay_visible: bool) -> bool {
-    log_overlay_visible && key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Esc)
-}
-
-fn is_help_overlay_close_key(key: &crossterm::event::KeyEvent, help_overlay_visible: bool) -> bool {
-    help_overlay_visible && key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Esc)
+fn is_overlay_close_key(key: &crossterm::event::KeyEvent, overlay_visible: bool) -> bool {
+    overlay_visible && key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Esc)
 }
 
 fn is_favorite_save_key(
@@ -208,7 +204,7 @@ fn run_app(
                 let mut force_server_sync = false;
                 if app.is_log_overlay_visible() {
                     match key.code {
-                        _ if is_log_overlay_close_key(&key, true) => {
+                        _ if is_overlay_close_key(&key, app.is_log_overlay_visible()) => {
                             app.clear_log_overlay();
                         }
                         KeyCode::Char('q') if key.modifiers == KeyModifiers::NONE => {
@@ -226,7 +222,7 @@ fn run_app(
                 let help_overlay_visible = app.is_help_overlay_visible();
                 if help_overlay_visible {
                     match key.code {
-                        _ if is_help_overlay_close_key(&key, true) => {
+                        _ if is_overlay_close_key(&key, help_overlay_visible) => {
                             app.toggle_help_overlay();
                         }
                         KeyCode::Char('?') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
