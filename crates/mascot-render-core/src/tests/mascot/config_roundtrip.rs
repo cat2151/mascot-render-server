@@ -52,6 +52,11 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!static_toml.contains("flash_blue_background_on_transparent_input ="));
     assert!(static_toml.contains("always_bend = false"));
     assert!(static_toml.contains("[bend]"));
+    let bend_table = extract_bend_table(&static_toml);
+    assert!(bend_table
+        .get("amplitude_ratio")
+        .and_then(toml::Value::as_float)
+        .is_some_and(|value| (value - 0.0075).abs() < 1e-6));
     assert!(static_toml.contains("[idle_sink]"));
     assert!(!static_toml.contains("[head_hitbox]"));
     let idle_sink_table = extract_idle_sink_table(&static_toml);
