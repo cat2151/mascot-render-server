@@ -50,7 +50,7 @@ psd-viewer-tui
     - always_bend
         - trueにすると、UX検証用の左右 bend を常時再生します。
     - bend
-        - `amplitude_ratio` で bend 幅をマスコット画像幅に対する比率で指定できます。デフォルトは `0.015` です。
+        - `amplitude_ratio` で bend 幅をマスコット画像幅に対する比率で指定できます。デフォルトは `0.0075` です。
     - idle_sink
         - always_idle_sink 専用の IdleSink 呼吸設定です。
         - デフォルトでは通常の squash_bounce より穏やかに沈み込み・持ち上がり、まばたき interval の中央値のゆらぎに合わせて少しずつテンポが変わります。

@@ -50,7 +50,7 @@ psd-viewer-tui
     - always_bend
         - If `true`, constant left/right bending will play for UX verification.
     - bend
-        - With `amplitude_ratio`, you can specify the bend width as a ratio to the mascot image width. The default is `0.015`.
+        - With `amplitude_ratio`, you can specify the bend width as a ratio to the mascot image width. The default is `0.0075`.
     - idle_sink
         - IdleSink breathing settings specific to `always_idle_sink`.
         - By default, it sinks and rises more gently than normal `squash_bounce`, and the tempo gradually changes in sync with the fluctuations in the median blink interval.

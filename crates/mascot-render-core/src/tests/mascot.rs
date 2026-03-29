@@ -23,6 +23,15 @@ fn extract_idle_sink_table(static_toml: &str) -> toml::value::Table {
         .expect("static TOML should contain idle_sink section")
 }
 
+fn extract_bend_table(static_toml: &str) -> toml::value::Table {
+    toml::from_str::<toml::Value>(static_toml)
+        .expect("static TOML should parse")
+        .get("bend")
+        .and_then(toml::Value::as_table)
+        .cloned()
+        .expect("static TOML should contain bend section")
+}
+
 fn seed_favorite_ensemble_config(test_name: &str) -> (PathBuf, PathBuf) {
     let root = workspace_cache_root().join(test_name);
     let config_path = root.join("mascot-render-server.toml");
