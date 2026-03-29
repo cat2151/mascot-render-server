@@ -1,4 +1,5 @@
 pub(crate) mod eye_blink;
+mod favorite_ensemble;
 mod favorites;
 mod info;
 mod layer_scroll;

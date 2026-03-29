@@ -25,6 +25,9 @@ mod display_diff_state_tests;
 #[path = "tests/eye_blink.rs"]
 mod eye_blink_tests;
 #[cfg(test)]
+#[path = "tests/favorite_ensemble.rs"]
+mod favorite_ensemble_tests;
+#[cfg(test)]
 #[path = "tests/favorites.rs"]
 mod favorites_tests;
 #[cfg(test)]
@@ -116,6 +119,10 @@ fn is_favorite_save_key(
         && matches!(key.code, KeyCode::Char('f'))
         && !favorites_visible
         && matches!(focus, app::FocusPane::Library | app::FocusPane::Layer)
+}
+
+fn is_favorite_ensemble_toggle_key(key: &crossterm::event::KeyEvent) -> bool {
+    key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Char('e'))
 }
 
 fn run_app(
@@ -218,6 +225,9 @@ fn run_app(
                     }
                     _ if is_favorite_save_key(&key, app.focus, app.favorites_visible()) => {
                         app.add_current_favorite()?;
+                    }
+                    _ if is_favorite_ensemble_toggle_key(&key) => {
+                        force_server_sync = app.toggle_favorite_ensemble_enabled()?;
                     }
                     KeyCode::Up | KeyCode::Char('k') if key.modifiers == KeyModifiers::NONE => {
                         app.select_previous()?;

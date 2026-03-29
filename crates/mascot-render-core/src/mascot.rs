@@ -1,8 +1,6 @@
 use std::ffi::OsString;
 use std::fs;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use anyhow::{anyhow, bail, Context, Result};
 use image::ImageReader;
@@ -21,8 +19,6 @@ use config_files::{MascotRuntimeStateFile, MascotStaticConfigFile};
 const DEFAULT_MAX_EDGE: f32 = 480.0;
 const DEFAULT_SCREEN_HEIGHT_RATIO: f32 = 0.33;
 const MASCOT_RUNTIME_STATE_VERSION: u32 = 1;
-const PSD_VIEWER_TUI_ACTIVITY_TTL: Duration = Duration::from_secs(5);
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MascotImageData {
     pub path: PathBuf,
@@ -90,8 +86,6 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
     let runtime_state_path = mascot_runtime_state_path(config_path);
     let runtime_target = load_mascot_runtime_target(config_path)?;
     validate_mascot_target(&runtime_target, &runtime_state_path)?;
-    let favorite_ensemble_enabled =
-        effective_favorite_ensemble_enabled(config_path, static_config.favorite_ensemble_enabled)?;
 
     Ok(MascotConfig {
         png_path: runtime_target.png_path,
@@ -105,69 +99,21 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
             enabled: static_config.always_bend,
             amplitude_ratio: static_config.bend.amplitude_ratio,
         },
-        favorite_ensemble_enabled,
+        favorite_ensemble_enabled: static_config.favorite_ensemble_enabled,
         bounce: static_config.bounce,
         squash_bounce: static_config.squash_bounce,
         always_idle_sink: static_config.always_idle_sink,
     })
 }
 
-fn effective_favorite_ensemble_enabled(
-    config_path: &Path,
-    favorite_ensemble_enabled: bool,
-) -> Result<bool> {
-    if !favorite_ensemble_enabled {
-        return Ok(false);
-    }
-
-    Ok(!psd_viewer_tui_is_active(config_path)?)
+pub fn load_favorite_ensemble_enabled(config_path: &Path) -> Result<bool> {
+    Ok(load_mascot_static_config_file(config_path)?.favorite_ensemble_enabled)
 }
 
-fn psd_viewer_tui_is_active(config_path: &Path) -> Result<bool> {
-    let activity_path = psd_viewer_tui_activity_path(config_path);
-    let bytes = match fs::read_to_string(&activity_path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
-        Err(error) => {
-            eprintln!(
-                "warning: ignoring unreadable psd-viewer-tui activity heartbeat {}: {error:#}",
-                activity_path.display()
-            );
-            return Ok(false);
-        }
-    };
-    let heartbeat = bytes.trim();
-    if heartbeat.is_empty() {
-        eprintln!(
-            "warning: ignoring empty psd-viewer-tui activity heartbeat {}",
-            activity_path.display()
-        );
-        return Ok(false);
-    }
-
-    let active_at = match heartbeat.parse::<u64>() {
-        Ok(active_at) => active_at,
-        Err(error) => {
-            eprintln!(
-                "warning: ignoring invalid psd-viewer-tui activity heartbeat {}: {:?} ({error})",
-                activity_path.display(),
-                heartbeat
-            );
-            return Ok(false);
-        }
-    };
-    let now = unix_timestamp();
-    if active_at > now {
-        eprintln!(
-            "warning: ignoring future psd-viewer-tui activity heartbeat {}: active_at={} now={}",
-            activity_path.display(),
-            active_at,
-            now
-        );
-        return Ok(false);
-    }
-
-    Ok(now.saturating_sub(active_at) <= PSD_VIEWER_TUI_ACTIVITY_TTL.as_secs())
+pub fn set_favorite_ensemble_enabled(config_path: &Path, enabled: bool) -> Result<()> {
+    let mut config = load_mascot_static_config_file(config_path)?;
+    config.favorite_ensemble_enabled = enabled;
+    write_mascot_static_config_file(config_path, &config)
 }
 
 pub fn write_mascot_config(config_path: &Path, target: &MascotTarget) -> Result<()> {
