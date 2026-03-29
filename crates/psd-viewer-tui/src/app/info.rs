@@ -8,6 +8,18 @@ use crate::favorites::favorites_path;
 use crate::tui_config::{tui_config_path, tui_runtime_state_path};
 
 impl App {
+    fn active_esc_action_text(&self) -> &'static str {
+        if self.help_overlay_visible {
+            " | Esc: close help"
+        } else if self.log_overlay.is_some() {
+            " | Esc: close log"
+        } else if self.favorites_visible {
+            " | Esc: close favorites"
+        } else {
+            ""
+        }
+    }
+
     pub(crate) fn info_lines(&self) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
         if let Some(zip) = self.selected_zip_entry() {
@@ -119,17 +131,9 @@ impl App {
         } else {
             "help"
         };
-        let esc_action_text = if self.help_overlay_visible {
-            " | Esc: close help"
-        } else if self.log_overlay.is_some() {
-            " | Esc: close log"
-        } else if self.favorites_visible {
-            " | Esc: close favorites"
-        } else {
-            ""
-        };
         Line::from(format!(
-            "q: quit | ?: {help_action}{esc_action_text} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | f: favorite | v: favorites | e: ensemble | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
+            "q: quit | ?: {help_action}{} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | f: favorite | v: favorites | e: ensemble | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
+            self.active_esc_action_text(),
         ))
     }
 
