@@ -3,7 +3,11 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
-use mascot_render_core::{local_data_root, workspace_cache_root, MouthFlapTarget};
+use mascot_render_core::{
+    local_data_root, workspace_cache_root, AUTO_EYE_BLINK_PREFERRED_OPEN_LAYER_NAMES,
+    AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS, DEFAULT_MOUTH_CLOSED_LAYER_NAMES,
+    DEFAULT_MOUTH_OPEN_LAYER_NAMES,
+};
 use serde::{Deserialize, Serialize};
 
 const TUI_CONFIG_PATH: &str = "psd-viewer-tui.toml";
@@ -14,12 +18,20 @@ pub(crate) const DEFAULT_LAYER_SCROLL_MARGIN_RATIO: f32 = 0.25;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TuiConfig {
     pub(crate) layer_scroll_margin_ratio: f32,
+    pub(crate) eye_blink_preferred_open_layer_names: Vec<String>,
+    pub(crate) eye_blink_closed_layer_keywords: Vec<String>,
+    pub(crate) mouth_flap_open_layer_names: Vec<String>,
+    pub(crate) mouth_flap_closed_layer_names: Vec<String>,
 }
 
 impl Default for TuiConfig {
     fn default() -> Self {
         Self {
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
+            eye_blink_preferred_open_layer_names: default_eye_blink_preferred_open_layer_names(),
+            eye_blink_closed_layer_keywords: default_eye_blink_closed_layer_keywords(),
+            mouth_flap_open_layer_names: default_mouth_flap_open_layer_names(),
+            mouth_flap_closed_layer_names: default_mouth_flap_closed_layer_names(),
         }
     }
 }
@@ -77,10 +89,14 @@ pub(crate) struct PsdRuntimeState {
 struct TuiConfigFile {
     version: u32,
     layer_scroll_margin_ratio: f32,
-    #[serde(default, skip_serializing, rename = "eye_blink_targets")]
-    _eye_blink_targets: Vec<LegacyEyeBlinkTarget>,
-    #[serde(default, skip_serializing, rename = "mouth_flap_targets")]
-    _mouth_flap_targets: Vec<MouthFlapTarget>,
+    #[serde(default)]
+    eye_blink_preferred_open_layer_names: Vec<String>,
+    #[serde(default)]
+    eye_blink_closed_layer_keywords: Vec<String>,
+    #[serde(default)]
+    mouth_flap_open_layer_names: Vec<String>,
+    #[serde(default)]
+    mouth_flap_closed_layer_names: Vec<String>,
 }
 
 impl Default for TuiConfigFile {
@@ -88,23 +104,12 @@ impl Default for TuiConfigFile {
         Self {
             version: TUI_CONFIG_VERSION,
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
-            _eye_blink_targets: Vec::new(),
-            _mouth_flap_targets: Vec::new(),
+            eye_blink_preferred_open_layer_names: default_eye_blink_preferred_open_layer_names(),
+            eye_blink_closed_layer_keywords: default_eye_blink_closed_layer_keywords(),
+            mouth_flap_open_layer_names: default_mouth_flap_open_layer_names(),
+            mouth_flap_closed_layer_names: default_mouth_flap_closed_layer_names(),
         }
     }
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(default)]
-/// Legacy read-only shape for deprecated `[[eye_blink_targets]]` entries.
-///
-/// These entries are accepted only so older `psd-viewer-tui.toml` files can
-/// still load without dropping unrelated settings. They are ignored by the
-/// application and never written back out.
-struct LegacyEyeBlinkTarget {
-    psd_file_name: String,
-    first_layer_name: String,
-    second_layer_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -148,6 +153,22 @@ pub(crate) fn load_tui_config(path: &Path) -> Result<TuiConfig> {
             layer_scroll_margin_ratio: sanitize_layer_scroll_margin_ratio(
                 file.layer_scroll_margin_ratio,
             ),
+            eye_blink_preferred_open_layer_names: sanitize_name_list(
+                file.eye_blink_preferred_open_layer_names,
+                default_eye_blink_preferred_open_layer_names,
+            ),
+            eye_blink_closed_layer_keywords: sanitize_name_list(
+                file.eye_blink_closed_layer_keywords,
+                default_eye_blink_closed_layer_keywords,
+            ),
+            mouth_flap_open_layer_names: sanitize_name_list(
+                file.mouth_flap_open_layer_names,
+                default_mouth_flap_open_layer_names,
+            ),
+            mouth_flap_closed_layer_names: sanitize_name_list(
+                file.mouth_flap_closed_layer_names,
+                default_mouth_flap_closed_layer_names,
+            ),
         }),
         Ok(_) => Ok(TuiConfig::default()),
         Err(_) => Ok(TuiConfig::default()),
@@ -174,8 +195,22 @@ pub(crate) fn save_tui_config(path: &Path, config: &TuiConfig) -> Result<()> {
         layer_scroll_margin_ratio: sanitize_layer_scroll_margin_ratio(
             config.layer_scroll_margin_ratio,
         ),
-        _eye_blink_targets: Vec::new(),
-        _mouth_flap_targets: Vec::new(),
+        eye_blink_preferred_open_layer_names: sanitize_name_list(
+            config.eye_blink_preferred_open_layer_names.clone(),
+            default_eye_blink_preferred_open_layer_names,
+        ),
+        eye_blink_closed_layer_keywords: sanitize_name_list(
+            config.eye_blink_closed_layer_keywords.clone(),
+            default_eye_blink_closed_layer_keywords,
+        ),
+        mouth_flap_open_layer_names: sanitize_name_list(
+            config.mouth_flap_open_layer_names.clone(),
+            default_mouth_flap_open_layer_names,
+        ),
+        mouth_flap_closed_layer_names: sanitize_name_list(
+            config.mouth_flap_closed_layer_names.clone(),
+            default_mouth_flap_closed_layer_names,
+        ),
     };
     let toml = toml::to_string_pretty(&file).context("failed to serialize TUI config")?;
     fs::write(path, toml).with_context(|| format!("failed to write TUI config {}", path.display()))
@@ -250,6 +285,53 @@ fn sanitize_layer_scroll_margin_ratio(ratio: f32) -> f32 {
         return DEFAULT_LAYER_SCROLL_MARGIN_RATIO;
     }
     ratio.clamp(0.0, 0.49)
+}
+
+fn sanitize_name_list(values: Vec<String>, fallback: impl FnOnce() -> Vec<String>) -> Vec<String> {
+    let mut sanitized = Vec::new();
+    for value in values {
+        let value = value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        if sanitized.iter().any(|existing| existing == value) {
+            continue;
+        }
+        sanitized.push(value.to_string());
+    }
+    if sanitized.is_empty() {
+        fallback()
+    } else {
+        sanitized
+    }
+}
+
+fn default_eye_blink_preferred_open_layer_names() -> Vec<String> {
+    AUTO_EYE_BLINK_PREFERRED_OPEN_LAYER_NAMES
+        .iter()
+        .map(|name| name.to_string())
+        .collect()
+}
+
+fn default_eye_blink_closed_layer_keywords() -> Vec<String> {
+    AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS
+        .iter()
+        .map(|name| name.to_string())
+        .collect()
+}
+
+fn default_mouth_flap_open_layer_names() -> Vec<String> {
+    DEFAULT_MOUTH_OPEN_LAYER_NAMES
+        .iter()
+        .map(|name| name.to_string())
+        .collect()
+}
+
+fn default_mouth_flap_closed_layer_names() -> Vec<String> {
+    DEFAULT_MOUTH_CLOSED_LAYER_NAMES
+        .iter()
+        .map(|name| name.to_string())
+        .collect()
 }
 
 fn unix_timestamp() -> u64 {

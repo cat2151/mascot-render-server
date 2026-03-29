@@ -21,6 +21,19 @@ pub const MOUTH_CLOSED_LAYER_ALT_1: &str = "むん";
 pub const MOUTH_CLOSED_LAYER_ALT_2: &str = "んむ";
 pub const MOUTH_CLOSED_LAYER_ALT_3: &str = "ん";
 pub const MOUTH_CLOSED_LAYER_ALT_4: &str = "んー";
+pub const DEFAULT_MOUTH_OPEN_LAYER_NAMES: &[&str] = &[
+    MOUTH_OPEN_LAYER,
+    MOUTH_OPEN_LAYER_ALT_1,
+    MOUTH_OPEN_LAYER_ALT_2,
+    MOUTH_OPEN_LAYER_ALT_3,
+];
+pub const DEFAULT_MOUTH_CLOSED_LAYER_NAMES: &[&str] = &[
+    MOUTH_CLOSED_LAYER,
+    MOUTH_CLOSED_LAYER_ALT_1,
+    MOUTH_CLOSED_LAYER_ALT_2,
+    MOUTH_CLOSED_LAYER_ALT_3,
+    MOUTH_CLOSED_LAYER_ALT_4,
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MouthFlapTarget {
@@ -95,34 +108,60 @@ impl PairCandidate {
     }
 }
 
-const DEFAULT_MOUTH_OPEN_LAYER_NAMES: [&str; 4] = [
-    MOUTH_OPEN_LAYER,
-    MOUTH_OPEN_LAYER_ALT_1,
-    MOUTH_OPEN_LAYER_ALT_2,
-    MOUTH_OPEN_LAYER_ALT_3,
-];
-const DEFAULT_MOUTH_CLOSED_LAYER_NAMES: [&str; 5] = [
-    MOUTH_CLOSED_LAYER,
-    MOUTH_CLOSED_LAYER_ALT_1,
-    MOUTH_CLOSED_LAYER_ALT_2,
-    MOUTH_CLOSED_LAYER_ALT_3,
-    MOUTH_CLOSED_LAYER_ALT_4,
-];
-
 pub fn auto_generate_mouth_flap_target(
     document: &PsdDocument,
     base_variation: &DisplayDiff,
 ) -> Result<MouthFlapTarget, String> {
+    auto_generate_mouth_flap_target_with_layer_name_slices(
+        document,
+        base_variation,
+        DEFAULT_MOUTH_OPEN_LAYER_NAMES,
+        DEFAULT_MOUTH_CLOSED_LAYER_NAMES,
+    )
+}
+
+pub fn auto_generate_mouth_flap_target_with_layer_names<
+    OpenLayerName: AsRef<str>,
+    ClosedLayerName: AsRef<str>,
+>(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+    open_layer_names: &[OpenLayerName],
+    closed_layer_names: &[ClosedLayerName],
+) -> Result<MouthFlapTarget, String> {
+    auto_generate_mouth_flap_target_with_layer_name_slices(
+        document,
+        base_variation,
+        open_layer_names,
+        closed_layer_names,
+    )
+}
+
+fn auto_generate_mouth_flap_target_with_layer_name_slices<
+    OpenLayerName: AsRef<str>,
+    ClosedLayerName: AsRef<str>,
+>(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+    open_layer_names: &[OpenLayerName],
+    closed_layer_names: &[ClosedLayerName],
+) -> Result<MouthFlapTarget, String> {
     let states = resolve_row_states(document, base_variation);
     let (open_row_index, closed_row_index) =
-        find_named_pair_in_visible_group(document, &states, MOUTH_GROUP_LAYER, &default_target())
+        find_named_pair_in_visible_group(
+            document,
+            &states,
+            MOUTH_GROUP_LAYER,
+            open_layer_names,
+            closed_layer_names,
+        )
             .ok_or_else(|| {
                 format!(
                     "PSD '{}' does not contain an auto-detectable mouth flap pair in visible '{}' groups matching open layers [{}] and closed layers [{}]",
                     document.file_name,
                     MOUTH_GROUP_LAYER,
-                    DEFAULT_MOUTH_OPEN_LAYER_NAMES.join(", "),
-                    DEFAULT_MOUTH_CLOSED_LAYER_NAMES.join(", ")
+                    format_name_list(open_layer_names),
+                    format_name_list(closed_layer_names),
                 )
             })?;
 
@@ -137,8 +176,42 @@ pub fn describe_mouth_flap_auto_generation_failure(
     document: &PsdDocument,
     base_variation: &DisplayDiff,
 ) -> String {
+    describe_mouth_flap_auto_generation_failure_with_layer_name_slices(
+        document,
+        base_variation,
+        DEFAULT_MOUTH_OPEN_LAYER_NAMES,
+        DEFAULT_MOUTH_CLOSED_LAYER_NAMES,
+    )
+}
+
+pub fn describe_mouth_flap_auto_generation_failure_with_layer_names<
+    OpenLayerName: AsRef<str>,
+    ClosedLayerName: AsRef<str>,
+>(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+    open_layer_names: &[OpenLayerName],
+    closed_layer_names: &[ClosedLayerName],
+) -> String {
+    describe_mouth_flap_auto_generation_failure_with_layer_name_slices(
+        document,
+        base_variation,
+        open_layer_names,
+        closed_layer_names,
+    )
+}
+
+fn describe_mouth_flap_auto_generation_failure_with_layer_name_slices<
+    OpenLayerName: AsRef<str>,
+    ClosedLayerName: AsRef<str>,
+>(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+    open_layer_names: &[OpenLayerName],
+    closed_layer_names: &[ClosedLayerName],
+) -> String {
     let states = resolve_row_states(document, base_variation);
-    format_missing_pair_diagnostics(document, &states, &default_target())
+    format_missing_pair_diagnostics(document, &states, open_layer_names, closed_layer_names)
 }
 
 pub fn resolve_mouth_flap_rows(
@@ -147,17 +220,21 @@ pub fn resolve_mouth_flap_rows(
     target: &MouthFlapTarget,
 ) -> Result<MouthFlapRows, String> {
     let states = resolve_row_states(document, base_variation);
-    let (open_row_index, closed_row_index) =
-        find_named_pair_in_visible_group(document, &states, MOUTH_GROUP_LAYER, target).ok_or_else(
-            || {
-                format!(
-                    "PSD does not contain a visible '{}' group with open layers [{}] and closed layers [{}]",
-                    MOUTH_GROUP_LAYER,
-                    target.open_layer_names.join(", "),
-                    target.closed_layer_names.join(", ")
-                )
-            },
-        )?;
+    let (open_row_index, closed_row_index) = find_named_pair_in_visible_group(
+        document,
+        &states,
+        MOUTH_GROUP_LAYER,
+        &target.open_layer_names,
+        &target.closed_layer_names,
+    )
+    .ok_or_else(|| {
+        format!(
+            "PSD does not contain a visible '{}' group with open layers [{}] and closed layers [{}]",
+            MOUTH_GROUP_LAYER,
+            target.open_layer_names.join(", "),
+            target.closed_layer_names.join(", ")
+        )
+    })?;
 
     Ok(MouthFlapRows {
         open_row_index,
@@ -189,11 +266,12 @@ pub fn build_mouth_flap_display_diffs(
     })
 }
 
-fn find_named_pair_in_visible_group(
+fn find_named_pair_in_visible_group<OpenLayerName: AsRef<str>, ClosedLayerName: AsRef<str>>(
     document: &PsdDocument,
     states: &[RowVisibilityState],
     group_name: &str,
-    target: &MouthFlapTarget,
+    open_layer_names: &[OpenLayerName],
+    closed_layer_names: &[ClosedLayerName],
 ) -> Option<(usize, usize)> {
     for (group_open_index, descriptor) in document.layers.iter().enumerate() {
         if descriptor.kind != LayerKind::GroupOpen
@@ -205,8 +283,13 @@ fn find_named_pair_in_visible_group(
             continue;
         }
 
-        let Some(pair) = find_named_pair_in_group_scope(document, states, group_open_index, target)
-        else {
+        let Some(pair) = find_named_pair_in_group_scope(
+            document,
+            states,
+            group_open_index,
+            open_layer_names,
+            closed_layer_names,
+        ) else {
             continue;
         };
         return Some(pair);
@@ -215,22 +298,23 @@ fn find_named_pair_in_visible_group(
     None
 }
 
-fn find_named_pair_in_group_scope(
+fn find_named_pair_in_group_scope<OpenLayerName: AsRef<str>, ClosedLayerName: AsRef<str>>(
     document: &PsdDocument,
     states: &[RowVisibilityState],
     group_open_index: usize,
-    target: &MouthFlapTarget,
+    open_layer_names: &[OpenLayerName],
+    closed_layer_names: &[ClosedLayerName],
 ) -> Option<(usize, usize)> {
     let group_close_index =
         matching_group_close_index(document, group_open_index).unwrap_or(document.layers.len());
     let mut best_match = None::<PairCandidate>;
 
-    for (closed_priority, closed_name) in target.closed_layer_names.iter().enumerate() {
+    for (closed_priority, closed_name) in closed_layer_names.iter().enumerate() {
         for closed_row_index in group_open_index + 1..group_close_index {
             let Some(closed_descriptor) = document.layers.get(closed_row_index) else {
                 continue;
             };
-            if !is_named_exclusive_descriptor(closed_descriptor, closed_name)
+            if !is_named_exclusive_descriptor(closed_descriptor, closed_name.as_ref())
                 || !states
                     .get(closed_row_index)
                     .is_some_and(|state| state.parent_visible)
@@ -239,7 +323,7 @@ fn find_named_pair_in_group_scope(
             }
 
             let Some(open_candidate) =
-                find_open_row_in_scope(document, states, target, closed_row_index)
+                find_open_row_in_scope(document, states, open_layer_names, closed_row_index)
             else {
                 continue;
             };
@@ -261,17 +345,17 @@ fn find_named_pair_in_group_scope(
     best_match.map(|candidate| (candidate.open_row_index, candidate.closed_row_index))
 }
 
-fn find_open_row_in_scope(
+fn find_open_row_in_scope<OpenLayerName: AsRef<str>>(
     document: &PsdDocument,
     states: &[RowVisibilityState],
-    target: &MouthFlapTarget,
+    open_layer_names: &[OpenLayerName],
     closed_row_index: usize,
 ) -> Option<OpenCandidate> {
     let closed_descriptor = document.layers.get(closed_row_index)?;
     let (scope_start, scope_end) = exclusive_scope_bounds(document, closed_row_index);
     let mut best_match = None::<OpenCandidate>;
 
-    for (open_priority, open_name) in target.open_layer_names.iter().enumerate() {
+    for (open_priority, open_name) in open_layer_names.iter().enumerate() {
         for open_row_index in scope_start..scope_end {
             if open_row_index == closed_row_index {
                 continue;
@@ -279,7 +363,7 @@ fn find_open_row_in_scope(
 
             let descriptor = &document.layers[open_row_index];
             if descriptor.depth != closed_descriptor.depth
-                || !is_named_exclusive_descriptor(descriptor, open_name)
+                || !is_named_exclusive_descriptor(descriptor, open_name.as_ref())
             {
                 continue;
             }
@@ -313,32 +397,20 @@ fn is_named_exclusive_descriptor(descriptor: &LayerDescriptor, name: &str) -> bo
         && normalized_layer_name(&descriptor.name) == name
 }
 
-fn default_target() -> MouthFlapTarget {
-    MouthFlapTarget {
-        psd_file_name: String::new(),
-        open_layer_names: DEFAULT_MOUTH_OPEN_LAYER_NAMES
-            .iter()
-            .map(|name| (*name).to_string())
-            .collect(),
-        closed_layer_names: DEFAULT_MOUTH_CLOSED_LAYER_NAMES
-            .iter()
-            .map(|name| (*name).to_string())
-            .collect(),
-    }
-}
-
 fn format_missing_pair_diagnostics(
     document: &PsdDocument,
     states: &[RowVisibilityState],
-    target: &MouthFlapTarget,
+    open_layer_names: &[impl AsRef<str>],
+    closed_layer_names: &[impl AsRef<str>],
 ) -> String {
-    let groups = collect_mouth_group_diagnostics(document, states, target);
+    let groups =
+        collect_mouth_group_diagnostics(document, states, open_layer_names, closed_layer_names);
     if groups.is_empty() {
         return format!(
             "No groups containing '{}' were found.\nopen candidates: [{}]\nclosed candidates: [{}]",
             MOUTH_GROUP_LAYER,
-            target.open_layer_names.join(", "),
-            target.closed_layer_names.join(", ")
+            format_name_list(open_layer_names),
+            format_name_list(closed_layer_names)
         );
     }
 
@@ -348,7 +420,8 @@ fn format_missing_pair_diagnostics(
 fn collect_mouth_group_diagnostics(
     document: &PsdDocument,
     states: &[RowVisibilityState],
-    target: &MouthFlapTarget,
+    open_layer_names: &[impl AsRef<str>],
+    closed_layer_names: &[impl AsRef<str>],
 ) -> Vec<String> {
     document
         .layers
@@ -364,7 +437,8 @@ fn collect_mouth_group_diagnostics(
             Some(format_mouth_group_diagnostic(
                 document,
                 states,
-                target,
+                open_layer_names,
+                closed_layer_names,
                 group_open_index,
             ))
         })
@@ -374,13 +448,14 @@ fn collect_mouth_group_diagnostics(
 fn format_mouth_group_diagnostic(
     document: &PsdDocument,
     states: &[RowVisibilityState],
-    target: &MouthFlapTarget,
+    open_layer_names: &[impl AsRef<str>],
+    closed_layer_names: &[impl AsRef<str>],
     group_open_index: usize,
 ) -> String {
     let group = &document.layers[group_open_index];
     let layer_names = direct_exclusive_layer_names_in_group(document, group_open_index);
-    let missing_open = !contains_any_name(&layer_names, &target.open_layer_names);
-    let missing_closed = !contains_any_name(&layer_names, &target.closed_layer_names);
+    let missing_open = !contains_any_name(&layer_names, open_layer_names);
+    let missing_closed = !contains_any_name(&layer_names, closed_layer_names);
     let visible = states
         .get(group_open_index)
         .is_some_and(|state| state.visible);
@@ -393,14 +468,14 @@ fn format_mouth_group_diagnostic(
     if missing_open {
         lines.push(format!(
             "  open candidates [{}] were not found. layers: {}",
-            target.open_layer_names.join(", "),
+            format_name_list(open_layer_names),
             format_layer_name_list(&layer_names)
         ));
     }
     if missing_closed {
         lines.push(format!(
             "  closed candidates [{}] were not found. layers: {}",
-            target.closed_layer_names.join(", "),
+            format_name_list(closed_layer_names),
             format_layer_name_list(&layer_names)
         ));
     }
@@ -437,10 +512,10 @@ fn direct_exclusive_layer_names_in_group(
     layer_names
 }
 
-fn contains_any_name(layer_names: &[String], candidates: &[String]) -> bool {
+fn contains_any_name(layer_names: &[String], candidates: &[impl AsRef<str>]) -> bool {
     candidates
         .iter()
-        .any(|candidate| layer_names.contains(candidate))
+        .any(|candidate| layer_names.iter().any(|name| name == candidate.as_ref()))
 }
 
 fn format_layer_name_list(layer_names: &[String]) -> String {
@@ -449,6 +524,14 @@ fn format_layer_name_list(layer_names: &[String]) -> String {
     } else {
         layer_names.join(", ")
     }
+}
+
+fn format_name_list(values: &[impl AsRef<str>]) -> String {
+    values
+        .iter()
+        .map(|value| value.as_ref())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn normalized_layer_name(name: &str) -> &str {
