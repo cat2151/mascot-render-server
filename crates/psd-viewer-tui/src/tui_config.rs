@@ -81,8 +81,8 @@ pub(crate) struct PsdRuntimeState {
 struct TuiConfigFile {
     version: u32,
     layer_scroll_margin_ratio: f32,
-    #[serde(default, skip_serializing)]
-    eye_blink_targets: Vec<LegacyEyeBlinkTarget>,
+    #[serde(default, skip_serializing, rename = "eye_blink_targets")]
+    _eye_blink_targets: Vec<LegacyEyeBlinkTarget>,
     #[serde(default = "default_mouth_flap_targets")]
     mouth_flap_targets: Vec<MouthFlapTarget>,
 }
@@ -92,7 +92,7 @@ impl Default for TuiConfigFile {
         Self {
             version: TUI_CONFIG_VERSION,
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
-            eye_blink_targets: Vec::new(),
+            _eye_blink_targets: Vec::new(),
             mouth_flap_targets: default_mouth_flap_targets(),
         }
     }
@@ -174,7 +174,7 @@ pub(crate) fn save_tui_config(path: &Path, config: &TuiConfig) -> Result<()> {
         layer_scroll_margin_ratio: sanitize_layer_scroll_margin_ratio(
             config.layer_scroll_margin_ratio,
         ),
-        eye_blink_targets: Vec::new(),
+        _eye_blink_targets: Vec::new(),
         mouth_flap_targets: sanitize_mouth_flap_targets(config.mouth_flap_targets.clone()),
     };
     let toml = toml::to_string_pretty(&file).context("failed to serialize TUI config")?;
