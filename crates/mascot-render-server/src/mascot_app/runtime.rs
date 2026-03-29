@@ -72,17 +72,8 @@ impl App for MascotApp {
             self.eye_blink.current_median_ms(),
         );
         if self.favorite_ensemble.is_some() {
-            self.transparent_hit_test.update(TransparentHitTestUpdate {
-                now,
-                enabled: false,
-                debug_flash_enabled: false,
-                alpha_mask: Arc::clone(&self.open_skin.alpha_mask),
-                image_size: self.open_skin.image_size,
-                image_rect: self
-                    .window_layout
-                    .image_rect(self.base_size, MotionTransform::identity()),
-                pixels_per_point: ctx.pixels_per_point(),
-            });
+            self.transparent_hit_test
+                .update(TransparentHitTestUpdate { now });
 
             let canvas_origin = self
                 .window_layout
@@ -223,19 +214,11 @@ impl App for MascotApp {
                 self.config.always_bend,
             )
         });
-        self.transparent_hit_test.update(TransparentHitTestUpdate {
-            now,
-            enabled: self.transparent_hit_test_enabled(),
-            debug_flash_enabled: self.config.flash_blue_background_on_transparent_input,
-            alpha_mask: Arc::clone(&active_alpha_mask),
-            image_size: active_image_size,
-            image_rect,
-            pixels_per_point: ctx.pixels_per_point(),
-        });
+        self.transparent_hit_test
+            .update(TransparentHitTestUpdate { now });
         let transparent_input_visual_remaining = self
             .transparent_hit_test
-            .transparent_input_visual_remaining(now)
-            .filter(|_| self.config.flash_blue_background_on_transparent_input);
+            .transparent_input_visual_remaining(now);
 
         egui::Area::new("mascot-image".into())
             .fixed_pos(Pos2::ZERO)
@@ -273,10 +256,7 @@ impl App for MascotApp {
                     self.motion.trigger(now);
                 }
 
-                if self.allows_precise_pointer_interaction()
-                    && self.config.flash_blue_background_on_transparent_input
-                    && !self.config.transparent_background_click_through
-                    && response.is_pointer_button_down_on()
+                if response.is_pointer_button_down_on()
                     && response.interact_pointer_pos().is_some_and(|pos| {
                         !captures_logical_point(
                             active_image_size,

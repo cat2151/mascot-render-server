@@ -34,8 +34,6 @@ fn sample_config() -> MascotConfig {
         always_idle_sink_enabled: false,
         always_bend: AlwaysBendConfig::default(),
         favorite_ensemble_enabled: false,
-        transparent_background_click_through: false,
-        flash_blue_background_on_transparent_input: true,
         bounce: Default::default(),
         squash_bounce: Default::default(),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),

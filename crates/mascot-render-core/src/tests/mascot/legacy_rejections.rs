@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn load_mascot_config_rejects_legacy_debug_flash_key() {
+fn load_mascot_config_rejects_removed_transparent_background_click_through_key() {
     let config_path =
         workspace_cache_root().join("test-mascot-legacy-flash/mascot-render-server.toml");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
@@ -16,7 +16,6 @@ fn load_mascot_config_rejects_legacy_debug_flash_key() {
 always_idle_sink = true
 always_bend = true
 transparent_background_click_through = true
-debug_flash_blue_background_on_transparent_input = true
 
 [bounce]
 algorithm = "damped_sine"
@@ -35,7 +34,7 @@ squash_amount = 0.22
 stretch_amount = 0.08
 "#,
     )
-    .expect("should seed mascot config with legacy debug key");
+    .expect("should seed mascot config with removed click-through key");
     fs::write(
         &runtime_state_path,
         r#"{
@@ -51,9 +50,48 @@ stretch_amount = 0.08
     )
     .expect("should seed runtime state");
 
-    let error = load_mascot_config(&config_path).expect_err("legacy debug key should be rejected");
+    let error =
+        load_mascot_config(&config_path).expect_err("removed click-through key should be rejected");
     assert!(
-        format!("{error:#}").contains("debug_flash_blue_background_on_transparent_input"),
+        format!("{error:#}").contains("transparent_background_click_through"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
+fn load_mascot_config_rejects_removed_flash_blue_background_key() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-removed-flash-key/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-removed-flash-key"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-removed-flash-key"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+always_idle_sink = true
+always_bend = true
+flash_blue_background_on_transparent_input = true
+"#,
+    )
+    .expect("should seed mascot config with removed flash key");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/legacy/render.png",
+  "zip_path": "assets/zip/legacy.zip",
+  "psd_path_in_zip": "legacy/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
+
+    let error = load_mascot_config(&config_path).expect_err("removed flash key should be rejected");
+    assert!(
+        format!("{error:#}").contains("flash_blue_background_on_transparent_input"),
         "unexpected error: {error:#}"
     );
 }

@@ -31,8 +31,6 @@ pub(super) fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConf
         always_idle_sink_enabled: false,
         always_bend: AlwaysBendConfig::default(),
         favorite_ensemble_enabled: false,
-        transparent_background_click_through: false,
-        flash_blue_background_on_transparent_input: true,
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
