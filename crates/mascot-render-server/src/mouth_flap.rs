@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use mascot_render_core::{
-    build_mouth_flap_display_diffs, default_mouth_flap_targets, find_mouth_flap_target,
-    load_variation_spec, variation_spec_path, Core, DisplayDiff, MascotConfig, RenderRequest,
+    auto_generate_mouth_flap_target, build_mouth_flap_display_diffs, load_variation_spec,
+    variation_spec_path, Core, DisplayDiff, MascotConfig, RenderRequest,
 };
 
 #[derive(Debug)]
@@ -16,7 +16,6 @@ pub(crate) fn render_mouth_flap_pngs(
     core: &Core,
     config: &MascotConfig,
 ) -> Result<Option<MouthFlapPngs>> {
-    let targets = default_mouth_flap_targets();
     let psd_file_name = config
         .psd_path_in_zip
         .file_name()
@@ -27,10 +26,6 @@ pub(crate) fn render_mouth_flap_pngs(
                 config.psd_path_in_zip.display()
             )
         })?;
-    let Some(target) = find_mouth_flap_target(&targets, psd_file_name) else {
-        return Ok(None);
-    };
-
     let base_variation = load_current_display_diff(config);
     let document = core
         .inspect_psd(&config.zip_path, &config.psd_path_in_zip)
@@ -40,7 +35,17 @@ pub(crate) fn render_mouth_flap_pngs(
                 config.psd_path_in_zip.display()
             )
         })?;
-    let display_diffs = build_mouth_flap_display_diffs(&document, &base_variation, target)
+    let target = match auto_generate_mouth_flap_target(&document, &base_variation) {
+        Ok(target) => target,
+        Err(error) => {
+            eprintln!(
+                "Mouth flap auto-generation skipped for '{}': {}",
+                psd_file_name, error
+            );
+            return Ok(None);
+        }
+    };
+    let display_diffs = build_mouth_flap_display_diffs(&document, &base_variation, &target)
         .map_err(|error| anyhow!(error))
         .with_context(|| {
             format!(

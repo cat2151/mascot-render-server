@@ -2,14 +2,13 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use mascot_render_core::{
-    display_path, find_mouth_flap_target, resolve_mouth_flap_rows, variation_spec_path,
-    DisplayDiff, PsdDocument, PsdEntry, RenderRequest,
+    auto_generate_mouth_flap_target, resolve_mouth_flap_rows, variation_spec_path, DisplayDiff,
+    PsdDocument, PsdEntry, RenderRequest,
 };
 
 use super::support::current_preview_status;
 use super::App;
-use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override};
-use crate::tui_config::tui_config_path;
+use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override, LayerRow};
 
 const MOUTH_FLAP_DURATION: Duration = Duration::from_secs(5);
 const MOUTH_FLAP_INTERVAL: Duration = Duration::from_millis(250);
@@ -139,15 +138,23 @@ impl App {
             .get(&selected_psd_path)
             .cloned()
             .unwrap_or_default();
-        let target = find_mouth_flap_target(&self.mouth_flap_targets, &psd_entry.file_name)
-            .ok_or_else(|| {
+        let target =
+            auto_generate_mouth_flap_target(document, &base_variation).map_err(|error| {
+                let layer_rows = resolve_layer_rows(document, &base_variation);
+                eprintln!(
+                    "{}",
+                    format_auto_mouth_flap_generation_failure_log(
+                        &psd_entry.file_name,
+                        &layer_rows,
+                        &error
+                    )
+                );
                 format!(
-                    "selected PSD '{}' is not configured for mouth flap in {}",
-                    psd_entry.file_name,
-                    display_path(&tui_config_path())
+                    "selected PSD '{}' does not support automatic mouth flap preview: {error}",
+                    psd_entry.file_name
                 )
             })?;
-        let resolved = resolve_mouth_flap_rows(document, &base_variation, target)?;
+        let resolved = resolve_mouth_flap_rows(document, &base_variation, &target)?;
         let frame_context = MouthFlapFrameContext {
             zip_path: &zip_path,
             psd_path_in_zip: &psd_path_in_zip,
@@ -220,6 +227,26 @@ impl App {
             Some(variation_spec_path(&rendered.output_path)),
         ))
     }
+}
+
+fn format_auto_mouth_flap_generation_failure_log(
+    psd_file_name: &str,
+    layer_rows: &[LayerRow],
+    error: &str,
+) -> String {
+    format!(
+        "Failed to auto-generate mouth flap target for PSD '{psd_file_name}'.\nlayer list:\n{}\nreason: {error}",
+        format_mouth_flap_layer_rows(layer_rows)
+    )
+}
+
+fn format_mouth_flap_layer_rows(layer_rows: &[LayerRow]) -> String {
+    layer_rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| format!("  - [{}] {}", index, row.display_label()))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn ensure_named_row_visible(

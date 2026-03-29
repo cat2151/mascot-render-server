@@ -1,20 +1,56 @@
 use std::path::PathBuf;
 
 use crate::{
-    build_mouth_flap_display_diffs, default_mouth_flap_targets, resolve_mouth_flap_rows,
+    auto_generate_mouth_flap_target, build_mouth_flap_display_diffs, resolve_mouth_flap_rows,
     DisplayDiff, LayerDescriptor, LayerKind, LayerVisibilityOverride, MouthFlapTarget, PsdDocument,
 };
 
 #[test]
-fn default_mouth_flap_targets_use_expected_zundamon_layers() {
-    let targets = default_mouth_flap_targets();
+fn auto_generate_mouth_flap_target_prefers_visible_mouth_group() {
+    let document = PsdDocument {
+        zip_path: PathBuf::from("demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo.psd"),
+        file_name: "demo.psd".to_string(),
+        metadata: String::new(),
+        layers: vec![
+            descriptor(15, "*頭_正面向き", LayerKind::GroupOpen, false, 0),
+            descriptor(14, "!口", LayerKind::GroupOpen, true, 1),
+            descriptor(13, "*ほあー", LayerKind::Layer, true, 2),
+            descriptor(12, "*むふ", LayerKind::Layer, false, 2),
+            descriptor(11, "(unnamed)", LayerKind::GroupClose, true, 1),
+            descriptor(10, "(unnamed)", LayerKind::GroupClose, true, 0),
+            descriptor(9, "*頭_上向き", LayerKind::GroupOpen, true, 0),
+            descriptor(8, "!口", LayerKind::GroupOpen, true, 1),
+            descriptor(7, "*ほあー", LayerKind::Layer, true, 2),
+            descriptor(6, "*むん", LayerKind::Layer, false, 2),
+            descriptor(5, "(unnamed)", LayerKind::GroupClose, true, 1),
+            descriptor(4, "(unnamed)", LayerKind::GroupClose, true, 0),
+        ],
+        error: None,
+        log_path: None,
+        default_rendered_png_path: None,
+        render_warnings: Vec::new(),
+    };
+    let base_variation = DisplayDiff {
+        version: 1,
+        visibility_overrides: vec![
+            LayerVisibilityOverride {
+                layer_index: 15,
+                visible: false,
+            },
+            LayerVisibilityOverride {
+                layer_index: 9,
+                visible: true,
+            },
+        ],
+    };
 
-    let target = targets
-        .iter()
-        .find(|target| target.psd_file_name == "ずんだもん立ち絵素材V3.2_基本版.psd")
-        .expect("default V3.2 target should exist");
+    let target =
+        auto_generate_mouth_flap_target(&document, &base_variation).expect("should auto-generate");
+
+    assert_eq!(target.psd_file_name, "demo.psd");
     assert_eq!(target.open_layer_names, vec!["ほあー"]);
-    assert_eq!(target.closed_layer_names, vec!["むふ", "むん", "ん"]);
+    assert_eq!(target.closed_layer_names, vec!["むん"]);
 }
 
 #[test]

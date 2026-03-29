@@ -3,9 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
-use mascot_render_core::{
-    default_mouth_flap_targets, local_data_root, workspace_cache_root, MouthFlapTarget,
-};
+use mascot_render_core::{local_data_root, workspace_cache_root, MouthFlapTarget};
 use serde::{Deserialize, Serialize};
 
 const TUI_CONFIG_PATH: &str = "psd-viewer-tui.toml";
@@ -16,14 +14,12 @@ pub(crate) const DEFAULT_LAYER_SCROLL_MARGIN_RATIO: f32 = 0.25;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TuiConfig {
     pub(crate) layer_scroll_margin_ratio: f32,
-    pub(crate) mouth_flap_targets: Vec<MouthFlapTarget>,
 }
 
 impl Default for TuiConfig {
     fn default() -> Self {
         Self {
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
-            mouth_flap_targets: default_mouth_flap_targets(),
         }
     }
 }
@@ -83,8 +79,8 @@ struct TuiConfigFile {
     layer_scroll_margin_ratio: f32,
     #[serde(default, skip_serializing, rename = "eye_blink_targets")]
     _eye_blink_targets: Vec<LegacyEyeBlinkTarget>,
-    #[serde(default = "default_mouth_flap_targets")]
-    mouth_flap_targets: Vec<MouthFlapTarget>,
+    #[serde(default, skip_serializing, rename = "mouth_flap_targets")]
+    _mouth_flap_targets: Vec<MouthFlapTarget>,
 }
 
 impl Default for TuiConfigFile {
@@ -93,7 +89,7 @@ impl Default for TuiConfigFile {
             version: TUI_CONFIG_VERSION,
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
             _eye_blink_targets: Vec::new(),
-            mouth_flap_targets: default_mouth_flap_targets(),
+            _mouth_flap_targets: Vec::new(),
         }
     }
 }
@@ -152,7 +148,6 @@ pub(crate) fn load_tui_config(path: &Path) -> Result<TuiConfig> {
             layer_scroll_margin_ratio: sanitize_layer_scroll_margin_ratio(
                 file.layer_scroll_margin_ratio,
             ),
-            mouth_flap_targets: sanitize_mouth_flap_targets(file.mouth_flap_targets),
         }),
         Ok(_) => Ok(TuiConfig::default()),
         Err(_) => Ok(TuiConfig::default()),
@@ -180,7 +175,7 @@ pub(crate) fn save_tui_config(path: &Path, config: &TuiConfig) -> Result<()> {
             config.layer_scroll_margin_ratio,
         ),
         _eye_blink_targets: Vec::new(),
-        mouth_flap_targets: sanitize_mouth_flap_targets(config.mouth_flap_targets.clone()),
+        _mouth_flap_targets: Vec::new(),
     };
     let toml = toml::to_string_pretty(&file).context("failed to serialize TUI config")?;
     fs::write(path, toml).with_context(|| format!("failed to write TUI config {}", path.display()))
@@ -255,48 +250,6 @@ fn sanitize_layer_scroll_margin_ratio(ratio: f32) -> f32 {
         return DEFAULT_LAYER_SCROLL_MARGIN_RATIO;
     }
     ratio.clamp(0.0, 0.49)
-}
-
-fn sanitize_mouth_flap_targets(targets: Vec<MouthFlapTarget>) -> Vec<MouthFlapTarget> {
-    targets
-        .into_iter()
-        .filter_map(sanitize_mouth_flap_target)
-        .collect()
-}
-
-fn sanitize_mouth_flap_target(target: MouthFlapTarget) -> Option<MouthFlapTarget> {
-    let psd_file_name = sanitize_psd_file_name(&target.psd_file_name);
-    let open_layer_names = sanitize_layer_name_list(target.open_layer_names);
-    let closed_layer_names = sanitize_layer_name_list(target.closed_layer_names);
-    if psd_file_name.is_empty() || open_layer_names.is_empty() || closed_layer_names.is_empty() {
-        return None;
-    }
-
-    Some(MouthFlapTarget {
-        psd_file_name,
-        open_layer_names,
-        closed_layer_names,
-    })
-}
-
-fn sanitize_layer_name_list(layer_names: Vec<String>) -> Vec<String> {
-    layer_names
-        .into_iter()
-        .map(|name| name.trim().to_string())
-        .filter(|name| !name.is_empty())
-        .collect()
-}
-
-fn sanitize_psd_file_name(psd_file_name: &str) -> String {
-    let trimmed = psd_file_name.trim();
-    if trimmed.is_empty() {
-        return String::new();
-    }
-
-    Path::new(trimmed)
-        .file_name()
-        .map(|value| value.to_string_lossy().into_owned())
-        .unwrap_or_else(|| trimmed.to_string())
 }
 
 fn unix_timestamp() -> u64 {
