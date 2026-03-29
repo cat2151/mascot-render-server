@@ -10,11 +10,13 @@ const ALWAYS_BEND_COLUMNS: usize = 4;
 
 pub(crate) fn sample_always_bend(
     elapsed: Duration,
+    phase_offset_ratio: f32,
     image_rect: Rect,
     config: AlwaysBendConfig,
 ) -> MotionTransform {
     let cycle_nanos = ALWAYS_BEND_CYCLE.as_nanos();
-    let elapsed_in_cycle = elapsed.as_nanos() % cycle_nanos;
+    let phase_offset = ALWAYS_BEND_CYCLE.mul_f32(phase_offset_ratio.rem_euclid(1.0));
+    let elapsed_in_cycle = elapsed.saturating_add(phase_offset).as_nanos() % cycle_nanos;
     let phase = elapsed_in_cycle as f64 * std::f64::consts::TAU / cycle_nanos as f64;
     MotionTransform {
         offset_x: image_rect.width() * config.amplitude_ratio * phase.sin() as f32,

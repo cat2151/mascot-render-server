@@ -14,6 +14,7 @@ pub(super) struct FavoriteEnsembleMemberScene {
     pub(super) base_size: Vec2,
     pub(super) skin: CachedSkin,
     pub(super) motion: MotionState,
+    pub(super) phase_offset_ratio: f32,
 }
 
 pub(super) struct FavoriteEnsembleScene {
@@ -28,10 +29,21 @@ impl FavoriteEnsembleScene {
         always_idle_sink_enabled: bool,
         now: Instant,
     ) -> Self {
+        let member_count = ensemble.members.len();
         let mut members = ensemble
             .members
             .into_iter()
-            .map(|member| member_scene_from_loaded(ctx, member, always_idle_sink_enabled, now))
+            .enumerate()
+            .map(|(member_index, member)| {
+                member_scene_from_loaded(
+                    ctx,
+                    member,
+                    always_idle_sink_enabled,
+                    now,
+                    member_index,
+                    member_count,
+                )
+            })
             .collect::<Vec<_>>();
         members.shrink_to_fit();
 
@@ -88,13 +100,28 @@ fn member_scene_from_loaded(
     member: FavoriteEnsembleMember,
     always_idle_sink_enabled: bool,
     now: Instant,
+    member_index: usize,
+    member_count: usize,
 ) -> FavoriteEnsembleMemberScene {
-    let mut motion = MotionState::new();
+    let phase_offset_ratio = member_phase_offset_ratio(member_index, member_count);
+    let mut motion = MotionState::new_with_idle_phase_offset(phase_offset_ratio);
     motion.set_always_idle_sink_enabled(always_idle_sink_enabled, now);
     FavoriteEnsembleMemberScene {
         origin: Pos2::new(member.canvas_position[0], member.canvas_position[1]),
         base_size: Vec2::new(member.base_size[0], member.base_size[1]),
         skin: cached_skin_from_image(ctx, &member.image),
         motion,
+        phase_offset_ratio,
     }
+}
+
+pub(crate) fn member_phase_offset_ratio(member_index: usize, member_count: usize) -> f32 {
+    if member_count <= 1 {
+        return 0.0;
+    }
+    assert!(
+        member_index < member_count,
+        "member_index must be less than member_count: member_index={member_index}, member_count={member_count}"
+    );
+    member_index as f32 / member_count as f32
 }

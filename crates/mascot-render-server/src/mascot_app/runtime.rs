@@ -114,6 +114,7 @@ impl App for MascotApp {
                                 self.config.always_bend.enabled.then(|| {
                                     always_bend::sample_always_bend(
                                         now - self.always_bend_started_at,
+                                        member.phase_offset_ratio,
                                         image_rect,
                                         self.config.always_bend,
                                     )
@@ -210,6 +211,7 @@ impl App for MascotApp {
         let bend_transform = self.config.always_bend.enabled.then(|| {
             always_bend::sample_always_bend(
                 now - self.always_bend_started_at,
+                0.0,
                 image_rect,
                 self.config.always_bend,
             )

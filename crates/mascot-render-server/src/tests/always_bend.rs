@@ -14,9 +14,11 @@ fn sample_always_bend_swings_left_and_right() {
     let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(240.0, 480.0));
     let config = AlwaysBendConfig::default();
 
-    let resting = always_bend::sample_always_bend(Duration::ZERO, image_rect, config);
-    let right = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect, config);
-    let left = always_bend::sample_always_bend(Duration::from_millis(3_150), image_rect, config);
+    let resting = always_bend::sample_always_bend(Duration::ZERO, 0.0, image_rect, config);
+    let right =
+        always_bend::sample_always_bend(Duration::from_millis(1_050), 0.0, image_rect, config);
+    let left =
+        always_bend::sample_always_bend(Duration::from_millis(3_150), 0.0, image_rect, config);
 
     assert_eq!(resting.offset_x, 0.0);
     assert!(right.offset_x > 0.0);
@@ -31,7 +33,8 @@ fn sample_always_bend_uses_configured_amplitude_ratio() {
         enabled: true,
         amplitude_ratio: 0.05,
     };
-    let bend = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect, config);
+    let bend =
+        always_bend::sample_always_bend(Duration::from_millis(1_050), 0.0, image_rect, config);
     let expected_offset = image_rect.width() * config.amplitude_ratio;
 
     assert!((bend.offset_x - expected_offset).abs() <= FLOAT_TOLERANCE);
@@ -42,6 +45,7 @@ fn always_bend_mesh_moves_upper_center_more_than_lower_center() {
     let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(120.0, 240.0));
     let bend = always_bend::sample_always_bend(
         Duration::from_millis(1_050),
+        0.0,
         image_rect,
         AlwaysBendConfig::default(),
     );
@@ -63,9 +67,11 @@ fn always_bend_mesh_moves_upper_center_more_than_lower_center() {
 fn sample_always_bend_preserves_phase_after_many_cycles() {
     let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(240.0, 480.0));
     let config = AlwaysBendConfig::default();
-    let short = always_bend::sample_always_bend(Duration::from_millis(1_050), image_rect, config);
+    let short =
+        always_bend::sample_always_bend(Duration::from_millis(1_050), 0.0, image_rect, config);
     let long = always_bend::sample_always_bend(
         Duration::from_millis(LONG_RUNNING_PHASE_STABILITY_MS) + Duration::from_millis(1_050),
+        0.0,
         image_rect,
         config,
     );
@@ -77,6 +83,20 @@ fn sample_always_bend_preserves_phase_after_many_cycles() {
     assert_eq!(short.offset_y, 0.0);
     assert_eq!(short.scale_x, 1.0);
     assert_eq!(short.scale_y, 1.0);
+}
+
+#[test]
+fn sample_always_bend_phase_offset_shifts_phase_per_member() {
+    let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(240.0, 480.0));
+    let config = AlwaysBendConfig::default();
+
+    let first = always_bend::sample_always_bend(Duration::ZERO, 0.0, image_rect, config);
+    let second = always_bend::sample_always_bend(Duration::ZERO, 0.25, image_rect, config);
+    let third = always_bend::sample_always_bend(Duration::ZERO, 0.75, image_rect, config);
+
+    assert_eq!(first.offset_x, 0.0);
+    assert!(second.offset_x > 0.0);
+    assert!(third.offset_x < 0.0);
 }
 
 #[test]
