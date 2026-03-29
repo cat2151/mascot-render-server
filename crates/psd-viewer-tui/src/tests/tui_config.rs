@@ -7,7 +7,7 @@ use crate::tui_config::{
     DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
 };
 use mascot_render_core::workspace_cache_root;
-use mascot_render_core::{default_mouth_flap_targets, EyeBlinkTarget, MouthFlapTarget};
+use mascot_render_core::MouthFlapTarget;
 
 #[test]
 fn default_layer_scroll_margin_ratio_is_quarter_height() {
@@ -27,11 +27,6 @@ fn tui_config_round_trips_static_settings() {
         &path,
         &TuiConfig {
             layer_scroll_margin_ratio: 0.33,
-            eye_blink_targets: vec![EyeBlinkTarget {
-                psd_file_name: "blink.psd".to_string(),
-                first_layer_name: "open".to_string(),
-                second_layer_name: "closed".to_string(),
-            }],
             mouth_flap_targets: vec![MouthFlapTarget {
                 psd_file_name: "mouth.psd".to_string(),
                 open_layer_names: vec!["open".to_string()],
@@ -46,17 +41,17 @@ fn tui_config_round_trips_static_settings() {
         loaded,
         TuiConfig {
             layer_scroll_margin_ratio: 0.33,
-            eye_blink_targets: vec![EyeBlinkTarget {
-                psd_file_name: "blink.psd".to_string(),
-                first_layer_name: "open".to_string(),
-                second_layer_name: "closed".to_string(),
-            }],
             mouth_flap_targets: vec![MouthFlapTarget {
                 psd_file_name: "mouth.psd".to_string(),
                 open_layer_names: vec!["open".to_string()],
                 closed_layer_names: vec!["closed".to_string(), "alt".to_string()],
             }],
         }
+    );
+    let raw = fs::read_to_string(&path).expect("should read written TUI config");
+    assert!(
+        !raw.contains("eye_blink_targets"),
+        "TUI config should not write internal eye blink auto-generation targets"
     );
 }
 
@@ -175,29 +170,6 @@ fn tui_runtime_state_with_unknown_field_reports_error() {
 }
 
 #[test]
-fn tui_config_keeps_only_file_name_for_eye_blink_targets() {
-    let path = workspace_cache_root().join("test-tui-config-filename/psd-viewer-tui.toml");
-    let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-config-filename"));
-
-    save_tui_config(
-        &path,
-        &TuiConfig {
-            layer_scroll_margin_ratio: 0.33,
-            eye_blink_targets: vec![EyeBlinkTarget {
-                psd_file_name: "nested/path/blink.psd".to_string(),
-                first_layer_name: "open".to_string(),
-                second_layer_name: "closed".to_string(),
-            }],
-            mouth_flap_targets: default_mouth_flap_targets(),
-        },
-    )
-    .expect("should write TUI config");
-
-    let loaded = load_tui_config(&path).expect("should normalize eye blink target file names");
-    assert_eq!(loaded.eye_blink_targets[0].psd_file_name, "blink.psd");
-}
-
-#[test]
 fn tui_config_keeps_only_file_name_for_mouth_flap_targets() {
     let path = workspace_cache_root().join("test-tui-config-mouth-filename/psd-viewer-tui.toml");
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-config-mouth-filename"));
@@ -206,7 +178,6 @@ fn tui_config_keeps_only_file_name_for_mouth_flap_targets() {
         &path,
         &TuiConfig {
             layer_scroll_margin_ratio: 0.33,
-            eye_blink_targets: Vec::new(),
             mouth_flap_targets: vec![MouthFlapTarget {
                 psd_file_name: "nested/path/mouth.psd".to_string(),
                 open_layer_names: vec!["ほあー".to_string()],
@@ -221,7 +192,7 @@ fn tui_config_keeps_only_file_name_for_mouth_flap_targets() {
 }
 
 #[test]
-fn configured_eye_blink_targets_are_preserved() {
+fn eye_blink_targets_in_tui_config_are_ignored() {
     let path = workspace_cache_root().join("test-tui-config-eye-names/psd-viewer-tui.toml");
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-config-eye-names"));
     fs::create_dir_all(workspace_cache_root().join("test-tui-config-eye-names"))
@@ -237,13 +208,25 @@ layer_scroll_margin_ratio = 0.33
 psd_file_name = "ずんだもん立ち絵素材V3.2_基本版.psd"
 first_layer_name = "普通目"
 second_layer_name = "閉じ目"
+
+[[mouth_flap_targets]]
+psd_file_name = "ずんだもん立ち絵素材V3.2_基本版.psd"
+open_layer_names = ["ほあー"]
+closed_layer_names = ["むふ", "むん", "ん"]
 "#,
     )
     .expect("should seed TUI config");
 
-    let loaded = load_tui_config(&path).expect("should keep configured eye blink targets");
-    assert_eq!(loaded.eye_blink_targets[0].first_layer_name, "普通目");
-    assert_eq!(loaded.eye_blink_targets[0].second_layer_name, "閉じ目");
+    let loaded = load_tui_config(&path).expect("eye blink targets should be ignored");
+    assert_eq!(loaded.layer_scroll_margin_ratio, 0.33);
+    assert_eq!(
+        loaded.mouth_flap_targets,
+        vec![MouthFlapTarget {
+            psd_file_name: "ずんだもん立ち絵素材V3.2_基本版.psd".to_string(),
+            open_layer_names: vec!["ほあー".to_string()],
+            closed_layer_names: vec!["むふ".to_string(), "むん".to_string(), "ん".to_string()],
+        }]
+    );
 }
 
 #[test]

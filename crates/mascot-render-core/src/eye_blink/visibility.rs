@@ -112,7 +112,7 @@ fn resolve_row_visibility(document: &PsdDocument, display_diff: &DisplayDiff) ->
         .collect()
 }
 
-fn resolve_row_states(
+pub(super) fn resolve_row_states(
     document: &PsdDocument,
     display_diff: &DisplayDiff,
 ) -> Vec<RowVisibilityState> {
@@ -291,7 +291,7 @@ fn exclusive_sibling_layer_indices(document: &PsdDocument, row_index: usize) -> 
         .collect()
 }
 
-fn exclusive_scope_bounds(document: &PsdDocument, row_index: usize) -> (usize, usize) {
+pub(super) fn exclusive_scope_bounds(document: &PsdDocument, row_index: usize) -> (usize, usize) {
     let Some(group_open_index) = containing_group_open_index(document, row_index) else {
         return (0, document.layers.len());
     };
@@ -340,7 +340,7 @@ fn matching_group_close_index(document: &PsdDocument, group_open_index: usize) -
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct RowVisibilityState {
-    visible: bool,
-    parent_visible: bool,
+pub(super) struct RowVisibilityState {
+    pub(super) visible: bool,
+    pub(super) parent_visible: bool,
 }

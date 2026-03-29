@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 use mascot_render_core::{
-    build_closed_eye_display_diff, default_eye_blink_targets, find_eye_blink_target,
-    load_variation_spec, variation_spec_path, Core, DisplayDiff, MascotConfig, RenderRequest,
+    auto_generate_eye_blink_target, build_closed_eye_display_diff, load_variation_spec,
+    variation_spec_path, Core, DisplayDiff, MascotConfig, RenderRequest,
 };
 
 use crate::eye_blink_timing::EyeBlinkIntervalGenerator;
@@ -82,7 +82,6 @@ impl EyeBlinkLoop {
 }
 
 pub(crate) fn render_closed_eye_png(core: &Core, config: &MascotConfig) -> Result<Option<PathBuf>> {
-    let targets = default_eye_blink_targets();
     let psd_file_name = config
         .psd_path_in_zip
         .file_name()
@@ -93,10 +92,6 @@ pub(crate) fn render_closed_eye_png(core: &Core, config: &MascotConfig) -> Resul
                 config.psd_path_in_zip.display()
             )
         })?;
-    let Some(target) = find_eye_blink_target(&targets, psd_file_name) else {
-        return Ok(None);
-    };
-
     let base_variation = load_current_display_diff(config);
     let document = core
         .inspect_psd(&config.zip_path, &config.psd_path_in_zip)
@@ -106,7 +101,17 @@ pub(crate) fn render_closed_eye_png(core: &Core, config: &MascotConfig) -> Resul
                 config.psd_path_in_zip.display()
             )
         })?;
-    let closed_display_diff = build_closed_eye_display_diff(&document, &base_variation, target)
+    let target = match auto_generate_eye_blink_target(&document, &base_variation) {
+        Ok(target) => target,
+        Err(error) => {
+            eprintln!(
+                "Eye blink auto-generation skipped for '{}': {}",
+                psd_file_name, error
+            );
+            return Ok(None);
+        }
+    };
+    let closed_display_diff = build_closed_eye_display_diff(&document, &base_variation, &target)
         .map_err(|error| anyhow!(error))
         .with_context(|| {
             format!(
