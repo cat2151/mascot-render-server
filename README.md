@@ -46,8 +46,10 @@ psd-viewer-tui
 ## Configuration
 - mascot-render-server.toml
     - always_idle_sink
+        - Defaults to `true`.
         - If true, a small IdleSink breathing-like motion will be constantly played for UX verification.
     - always_bend
+        - Defaults to `true`.
         - If true, left/right bending for UX verification will be constantly played.
     - bend
         - The bend width can be specified as a ratio to the mascot image width using `amplitude_ratio`. The default is `0.0075`.

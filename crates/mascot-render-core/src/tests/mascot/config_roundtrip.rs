@@ -28,8 +28,9 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert_eq!(loaded.zip_path, target.zip_path);
     assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, target.display_diff_path);
-    assert!(!loaded.always_idle_sink_enabled);
+    assert!(loaded.always_idle_sink_enabled);
     assert_eq!(loaded.always_bend, AlwaysBendConfig::default());
+    assert!(loaded.always_bend.enabled);
     assert!(!loaded.favorite_ensemble_enabled);
     assert_eq!(loaded.bounce.algorithm, BounceAlgorithm::DampedSine);
     assert_eq!(
@@ -50,7 +51,8 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!static_toml.contains("favorite_ensemble_scale ="));
     assert!(!static_toml.contains("transparent_background_click_through ="));
     assert!(!static_toml.contains("flash_blue_background_on_transparent_input ="));
-    assert!(static_toml.contains("always_bend = false"));
+    assert!(static_toml.contains("always_idle_sink = true"));
+    assert!(static_toml.contains("always_bend = true"));
     assert!(static_toml.contains("[bend]"));
     let bend_table = extract_bend_table(&static_toml);
     assert!(bend_table
@@ -131,6 +133,38 @@ always_bend = true
         IdleSinkAnimationConfig::default_for_always_bouncing()
     );
     assert!(runtime_state_path.exists());
+}
+
+#[test]
+fn load_mascot_config_defaults_to_enabled_idle_sink_and_bend() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-default-enabled/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-default-enabled"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-default-enabled"))
+        .expect("should create temp directory");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/default/render.png",
+  "zip_path": "assets/zip/default.zip",
+  "psd_path_in_zip": "default/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
+
+    let loaded = load_mascot_config(&config_path).expect("config should load from defaults");
+
+    assert!(loaded.always_idle_sink_enabled);
+    assert!(loaded.always_bend.enabled);
+    assert_eq!(
+        loaded.always_bend.amplitude_ratio,
+        AlwaysBendConfig::default().amplitude_ratio
+    );
 }
 
 #[test]
