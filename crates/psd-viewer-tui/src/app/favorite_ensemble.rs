@@ -18,7 +18,8 @@ impl App {
     ///
     /// When `sync_runtime` is true, the current runtime target is re-written so
     /// mascot-render-server immediately sees the updated setting. The returned
-    /// boolean indicates whether the caller should request a fresh server sync.
+    /// boolean indicates whether a runtime sync actually happened and the caller
+    /// should request a fresh server sync.
     fn toggle_favorite_ensemble_enabled_with_config_path(
         &mut self,
         config_path: &Path,
@@ -26,11 +27,13 @@ impl App {
     ) -> Result<bool> {
         let next = !load_favorite_ensemble_enabled(config_path)?;
         set_favorite_ensemble_enabled(config_path, next)?;
-        if sync_runtime {
-            self.sync_current_mascot_config()?;
-        }
+        let runtime_synced = if sync_runtime {
+            self.sync_current_mascot_config()?
+        } else {
+            false
+        };
         self.status = favorite_ensemble_status_message(next);
-        Ok(true)
+        Ok(runtime_synced)
     }
 }
 
@@ -45,5 +48,12 @@ impl App {
         config_path: &Path,
     ) -> Result<bool> {
         self.toggle_favorite_ensemble_enabled_with_config_path(config_path, false)
+    }
+
+    pub(crate) fn toggle_favorite_ensemble_enabled_with_sync_for_test(
+        &mut self,
+        config_path: &Path,
+    ) -> Result<bool> {
+        self.toggle_favorite_ensemble_enabled_with_config_path(config_path, true)
     }
 }

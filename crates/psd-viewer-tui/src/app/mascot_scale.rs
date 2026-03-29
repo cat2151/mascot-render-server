@@ -22,21 +22,21 @@ impl App {
         self.adjust_mascot_scale(-MASCOT_SCALE_STEP, "down")
     }
 
-    pub(crate) fn sync_current_mascot_config(&mut self) -> Result<()> {
+    pub(crate) fn sync_current_mascot_config(&mut self) -> Result<bool> {
         self.ensure_mascot_scale_initialized()?;
 
         let Some(png_path) = self.current_preview_png_path.clone() else {
-            return Ok(());
+            return Ok(false);
         };
         let Some(zip_path) = self.selected_zip_entry().map(|zip| zip.zip_path.clone()) else {
-            return Ok(());
+            return Ok(false);
         };
         let Some(psd_path_in_zip) = self
             .current_psd_document
             .as_ref()
             .map(|document| document.psd_path_in_zip.clone())
         else {
-            return Ok(());
+            return Ok(false);
         };
 
         let target = MascotTarget {
@@ -47,7 +47,8 @@ impl App {
             psd_path_in_zip,
             display_diff_path: self.current_variation_spec_path.clone(),
         };
-        write_mascot_config(&mascot_config_path(), &target)
+        write_mascot_config(&mascot_config_path(), &target)?;
+        Ok(true)
     }
 
     fn adjust_mascot_scale(&mut self, delta: f32, direction: &str) -> Result<bool> {
@@ -66,7 +67,7 @@ impl App {
         }
 
         self.persist_mascot_scale(next_scale)?;
-        self.sync_current_mascot_config()?;
+        let _ = self.sync_current_mascot_config()?;
         self.status = format!("Mascot scale: {:.1}% of original.", next_scale * 100.0);
         Ok(true)
     }
@@ -130,7 +131,7 @@ impl App {
         }
 
         self.persist_mascot_scale(scale)?;
-        self.sync_current_mascot_config()?;
+        let _ = self.sync_current_mascot_config()?;
         Ok(true)
     }
 

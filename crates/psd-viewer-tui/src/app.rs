@@ -293,7 +293,7 @@ impl App {
             &psd_path_in_zip,
             &psd_entry,
         )?;
-        self.sync_current_mascot_config()?;
+        let _ = self.sync_current_mascot_config()?;
         self.status = current_preview_status(
             self.current_preview_png_path.as_deref(),
             self.current_variation_spec_path.as_deref(),
@@ -365,7 +365,7 @@ impl App {
         self.current_psd_document = Some(document);
         self.restore_current_psd_mascot_scale()?;
         self.sync_preview_for_variation(&zip_path, &psd_path, &psd_path_in_zip, &psd_entry)?;
-        self.sync_current_mascot_config()?;
+        let _ = self.sync_current_mascot_config()?;
         self.sync_selection_bounds();
         if self.favorites_visible {
             self.update_selected_favorite_preview();

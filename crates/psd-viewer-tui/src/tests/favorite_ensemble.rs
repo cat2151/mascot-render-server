@@ -30,21 +30,40 @@ fn favorite_ensemble_toggle_updates_config_and_status_message() {
 
     let mut app = App::loading(None);
 
-    app.toggle_favorite_ensemble_enabled_for_test(&config_path)
-        .expect("should enable favorite ensemble");
+    assert!(!app
+        .toggle_favorite_ensemble_enabled_for_test(&config_path)
+        .expect("should toggle favorite ensemble without runtime sync"));
     assert!(load_favorite_ensemble_enabled(&config_path).expect("config should load"));
     assert_eq!(
         line_text(app.log_lines()[0].clone()),
         "Message: favorite_ensemble_enabled = true"
     );
 
-    app.toggle_favorite_ensemble_enabled_for_test(&config_path)
-        .expect("should disable favorite ensemble");
+    assert!(!app
+        .toggle_favorite_ensemble_enabled_for_test(&config_path)
+        .expect("should toggle favorite ensemble without runtime sync"));
     assert!(!load_favorite_ensemble_enabled(&config_path).expect("config should load"));
     assert_eq!(
         line_text(app.log_lines()[0].clone()),
         "Message: favorite_ensemble_enabled = false"
     );
+}
+
+#[test]
+fn favorite_ensemble_toggle_with_runtime_sync_returns_false_without_selected_preview() {
+    let root = workspace_cache_root().join("test-psd-viewer-favorite-ensemble-toggle-no-preview");
+    let config_path = root.join("mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(&root);
+    let _ = fs::remove_file(&runtime_state_path);
+    fs::create_dir_all(&root).expect("should create temp directory");
+
+    let mut app = App::loading(None);
+
+    assert!(!app
+        .toggle_favorite_ensemble_enabled_with_sync_for_test(&config_path)
+        .expect("should toggle without runtime sync target"));
+    assert!(load_favorite_ensemble_enabled(&config_path).expect("config should load"));
 }
 
 fn line_text(line: ratatui::text::Line<'static>) -> String {
