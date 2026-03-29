@@ -8,10 +8,17 @@ use mascot_render_core::{
 use super::App;
 
 impl App {
+    /// Toggles `favorite_ensemble_enabled` in mascot-render-server.toml and
+    /// returns whether the current preview should be re-synced to the server.
     pub(crate) fn toggle_favorite_ensemble_enabled(&mut self) -> Result<bool> {
         self.toggle_favorite_ensemble_enabled_with_config_path(&mascot_config_path(), true)
     }
 
+    /// Shared toggle implementation for production and tests.
+    ///
+    /// When `sync_runtime` is true, the current runtime target is re-written so
+    /// mascot-render-server immediately sees the updated setting. The returned
+    /// boolean indicates whether the caller should request a fresh server sync.
     fn toggle_favorite_ensemble_enabled_with_config_path(
         &mut self,
         config_path: &Path,

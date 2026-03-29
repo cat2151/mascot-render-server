@@ -106,10 +106,14 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
     })
 }
 
+/// Loads the current `favorite_ensemble_enabled` flag from the mascot static
+/// config TOML at `config_path`.
 pub fn load_favorite_ensemble_enabled(config_path: &Path) -> Result<bool> {
     Ok(load_mascot_static_config_file(config_path)?.favorite_ensemble_enabled)
 }
 
+/// Updates the `favorite_ensemble_enabled` flag in the mascot static config
+/// TOML at `config_path` while preserving the other static settings.
 pub fn set_favorite_ensemble_enabled(config_path: &Path, enabled: bool) -> Result<()> {
     let mut config = load_mascot_static_config_file(config_path)?;
     config.favorite_ensemble_enabled = enabled;
