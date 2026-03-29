@@ -20,7 +20,7 @@ pub const NORMAL_EYE_LAYER: &str = "普通目";
 pub const CLOSED_EYE_LAYER: &str = "閉じ目";
 pub const CLOSED_EYE_LAYER_ALT_1: &str = "目閉じ2";
 pub const CLOSED_EYE_LAYER_ALT_2: &str = "目閉じ";
-pub const AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS: [&str; 4] = [
+pub const AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS: &[&str] = &[
     CLOSED_EYE_LAYER,
     CLOSED_EYE_LAYER_ALT_1,
     CLOSED_EYE_LAYER_ALT_2,
