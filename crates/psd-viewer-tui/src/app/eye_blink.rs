@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use mascot_render_core::{
-    auto_generate_eye_blink_target, resolve_eye_blink_rows, variation_spec_path, DisplayDiff,
-    EyeBlinkRows, PsdDocument, PsdEntry, RenderRequest,
+    auto_generate_eye_blink_target_with_keywords, resolve_eye_blink_rows, variation_spec_path,
+    DisplayDiff, EyeBlinkRows, PsdDocument, PsdEntry, RenderRequest,
 };
 
 use super::support::current_preview_status;
@@ -131,22 +131,27 @@ impl App {
             .get(&selected_psd_path)
             .cloned()
             .unwrap_or_default();
-        let target =
-            auto_generate_eye_blink_target(document, &base_variation).map_err(|error| {
-                let layer_rows = resolve_layer_rows(document, &base_variation);
-                eprintln!(
-                    "{}",
-                    format_auto_eye_blink_generation_failure_log(
-                        &psd_entry.file_name,
-                        &layer_rows,
-                        &error
-                    )
-                );
-                format!(
-                    "selected PSD '{}' does not support automatic eye blink preview: {error}",
-                    psd_entry.file_name
+        let target = auto_generate_eye_blink_target_with_keywords(
+            document,
+            &base_variation,
+            &self.eye_blink_preferred_open_layer_names,
+            &self.eye_blink_closed_layer_keywords,
+        )
+        .map_err(|error| {
+            let layer_rows = resolve_layer_rows(document, &base_variation);
+            eprintln!(
+                "{}",
+                format_auto_eye_blink_generation_failure_log(
+                    &psd_entry.file_name,
+                    &layer_rows,
+                    &error
                 )
-            })?;
+            );
+            format!(
+                "selected PSD '{}' does not support automatic eye blink preview: {error}",
+                psd_entry.file_name
+            )
+        })?;
         let resolved = resolve_eye_blink_rows(document, &base_variation, &target)?;
         let frame_context = EyeBlinkFrameContext {
             zip_path: &zip_path,

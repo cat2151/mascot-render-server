@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use crate::{
-    auto_generate_eye_blink_target, build_closed_eye_display_diff, resolve_eye_blink_rows,
-    DisplayDiff, LayerDescriptor, LayerKind, PsdDocument,
+    auto_generate_eye_blink_target, auto_generate_eye_blink_target_with_keywords,
+    build_closed_eye_display_diff, resolve_eye_blink_rows, DisplayDiff, LayerDescriptor, LayerKind,
+    PsdDocument,
 };
 
 #[test]
@@ -123,6 +124,35 @@ fn auto_generate_eye_blink_target_falls_back_to_eye_close_layer() {
 
     assert_eq!(target.first_layer_name, "基本目");
     assert_eq!(target.second_layer_name, "目閉じ");
+}
+
+#[test]
+fn auto_generate_eye_blink_target_uses_configured_keywords() {
+    let document = PsdDocument {
+        zip_path: PathBuf::from("demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo.psd"),
+        file_name: "demo.psd".to_string(),
+        metadata: String::new(),
+        layers: vec![
+            descriptor(2, "*通常", LayerKind::Layer, true, 0),
+            descriptor(1, "*まばたき", LayerKind::Layer, false, 0),
+        ],
+        error: None,
+        log_path: None,
+        default_rendered_png_path: None,
+        render_warnings: Vec::new(),
+    };
+
+    let target = auto_generate_eye_blink_target_with_keywords(
+        &document,
+        &DisplayDiff::default(),
+        &["通常".to_string()],
+        &["まばたき".to_string()],
+    )
+    .expect("should match configured keywords");
+
+    assert_eq!(target.first_layer_name, "通常");
+    assert_eq!(target.second_layer_name, "まばたき");
 }
 
 #[test]

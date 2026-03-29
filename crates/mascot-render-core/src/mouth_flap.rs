@@ -21,6 +21,19 @@ pub const MOUTH_CLOSED_LAYER_ALT_1: &str = "むん";
 pub const MOUTH_CLOSED_LAYER_ALT_2: &str = "んむ";
 pub const MOUTH_CLOSED_LAYER_ALT_3: &str = "ん";
 pub const MOUTH_CLOSED_LAYER_ALT_4: &str = "んー";
+pub const DEFAULT_MOUTH_OPEN_LAYER_NAMES: &[&str] = &[
+    MOUTH_OPEN_LAYER,
+    MOUTH_OPEN_LAYER_ALT_1,
+    MOUTH_OPEN_LAYER_ALT_2,
+    MOUTH_OPEN_LAYER_ALT_3,
+];
+pub const DEFAULT_MOUTH_CLOSED_LAYER_NAMES: &[&str] = &[
+    MOUTH_CLOSED_LAYER,
+    MOUTH_CLOSED_LAYER_ALT_1,
+    MOUTH_CLOSED_LAYER_ALT_2,
+    MOUTH_CLOSED_LAYER_ALT_3,
+    MOUTH_CLOSED_LAYER_ALT_4,
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MouthFlapTarget {
@@ -95,34 +108,45 @@ impl PairCandidate {
     }
 }
 
-const DEFAULT_MOUTH_OPEN_LAYER_NAMES: [&str; 4] = [
-    MOUTH_OPEN_LAYER,
-    MOUTH_OPEN_LAYER_ALT_1,
-    MOUTH_OPEN_LAYER_ALT_2,
-    MOUTH_OPEN_LAYER_ALT_3,
-];
-const DEFAULT_MOUTH_CLOSED_LAYER_NAMES: [&str; 5] = [
-    MOUTH_CLOSED_LAYER,
-    MOUTH_CLOSED_LAYER_ALT_1,
-    MOUTH_CLOSED_LAYER_ALT_2,
-    MOUTH_CLOSED_LAYER_ALT_3,
-    MOUTH_CLOSED_LAYER_ALT_4,
-];
-
 pub fn auto_generate_mouth_flap_target(
     document: &PsdDocument,
     base_variation: &DisplayDiff,
 ) -> Result<MouthFlapTarget, String> {
+    auto_generate_mouth_flap_target_with_layer_names(
+        document,
+        base_variation,
+        &DEFAULT_MOUTH_OPEN_LAYER_NAMES
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect::<Vec<_>>(),
+        &DEFAULT_MOUTH_CLOSED_LAYER_NAMES
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect::<Vec<_>>(),
+    )
+}
+
+pub fn auto_generate_mouth_flap_target_with_layer_names(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+    open_layer_names: &[String],
+    closed_layer_names: &[String],
+) -> Result<MouthFlapTarget, String> {
     let states = resolve_row_states(document, base_variation);
+    let target = MouthFlapTarget {
+        psd_file_name: String::new(),
+        open_layer_names: open_layer_names.to_vec(),
+        closed_layer_names: closed_layer_names.to_vec(),
+    };
     let (open_row_index, closed_row_index) =
-        find_named_pair_in_visible_group(document, &states, MOUTH_GROUP_LAYER, &default_target())
+        find_named_pair_in_visible_group(document, &states, MOUTH_GROUP_LAYER, &target)
             .ok_or_else(|| {
                 format!(
                     "PSD '{}' does not contain an auto-detectable mouth flap pair in visible '{}' groups matching open layers [{}] and closed layers [{}]",
                     document.file_name,
                     MOUTH_GROUP_LAYER,
-                    DEFAULT_MOUTH_OPEN_LAYER_NAMES.join(", "),
-                    DEFAULT_MOUTH_CLOSED_LAYER_NAMES.join(", ")
+                    open_layer_names.join(", "),
+                    closed_layer_names.join(", ")
                 )
             })?;
 
@@ -137,8 +161,33 @@ pub fn describe_mouth_flap_auto_generation_failure(
     document: &PsdDocument,
     base_variation: &DisplayDiff,
 ) -> String {
+    describe_mouth_flap_auto_generation_failure_with_layer_names(
+        document,
+        base_variation,
+        &DEFAULT_MOUTH_OPEN_LAYER_NAMES
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect::<Vec<_>>(),
+        &DEFAULT_MOUTH_CLOSED_LAYER_NAMES
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect::<Vec<_>>(),
+    )
+}
+
+pub fn describe_mouth_flap_auto_generation_failure_with_layer_names(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+    open_layer_names: &[String],
+    closed_layer_names: &[String],
+) -> String {
     let states = resolve_row_states(document, base_variation);
-    format_missing_pair_diagnostics(document, &states, &default_target())
+    let target = MouthFlapTarget {
+        psd_file_name: String::new(),
+        open_layer_names: open_layer_names.to_vec(),
+        closed_layer_names: closed_layer_names.to_vec(),
+    };
+    format_missing_pair_diagnostics(document, &states, &target)
 }
 
 pub fn resolve_mouth_flap_rows(
@@ -311,20 +360,6 @@ fn is_named_exclusive_descriptor(descriptor: &LayerDescriptor, name: &str) -> bo
     is_exclusive_kind(descriptor.kind)
         && is_exclusive_name(&descriptor.name)
         && normalized_layer_name(&descriptor.name) == name
-}
-
-fn default_target() -> MouthFlapTarget {
-    MouthFlapTarget {
-        psd_file_name: String::new(),
-        open_layer_names: DEFAULT_MOUTH_OPEN_LAYER_NAMES
-            .iter()
-            .map(|name| (*name).to_string())
-            .collect(),
-        closed_layer_names: DEFAULT_MOUTH_CLOSED_LAYER_NAMES
-            .iter()
-            .map(|name| (*name).to_string())
-            .collect(),
-    }
 }
 
 fn format_missing_pair_diagnostics(

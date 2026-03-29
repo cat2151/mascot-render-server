@@ -26,10 +26,11 @@ pub use api::{
 pub use archive::{display_path, existing_zip_sources};
 pub use core::{Core, CoreConfig};
 pub use eye_blink::{
-    auto_generate_eye_blink_target, build_closed_eye_display_diff, resolve_eye_blink_rows,
-    EyeBlinkRows, EyeBlinkTarget, AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS, BASIC_EYE_LAYER,
-    CLOSED_EYE_LAYER, CLOSED_EYE_LAYER_ALT_1, CLOSED_EYE_LAYER_ALT_2, EYE_SET_LAYER,
-    NORMAL_EYE_LAYER, SMILE_LAYER,
+    auto_generate_eye_blink_target, auto_generate_eye_blink_target_with_keywords,
+    build_closed_eye_display_diff, resolve_eye_blink_rows, EyeBlinkRows, EyeBlinkTarget,
+    AUTO_EYE_BLINK_PREFERRED_OPEN_LAYER_NAMES, AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS,
+    BASIC_EYE_LAYER, CLOSED_EYE_LAYER, CLOSED_EYE_LAYER_ALT_1, CLOSED_EYE_LAYER_ALT_2,
+    EYE_SET_LAYER, NORMAL_EYE_LAYER, SMILE_LAYER,
 };
 pub use layer_name_format::{
     is_exclusive_kind, is_exclusive_name, is_mandatory_kind, is_mandatory_name, is_toggleable_kind,
@@ -48,9 +49,11 @@ pub use mascot_motion::{
 };
 pub use model::{LayerKind, LayerNode, PsdEntry, ZipEntry};
 pub use mouth_flap::{
-    auto_generate_mouth_flap_target, build_mouth_flap_display_diffs,
-    describe_mouth_flap_auto_generation_failure, resolve_mouth_flap_rows, MouthFlapDisplayDiffs,
-    MouthFlapRows, MouthFlapTarget, MOUTH_CLOSED_LAYER, MOUTH_CLOSED_LAYER_ALT_1,
+    auto_generate_mouth_flap_target, auto_generate_mouth_flap_target_with_layer_names,
+    build_mouth_flap_display_diffs, describe_mouth_flap_auto_generation_failure,
+    describe_mouth_flap_auto_generation_failure_with_layer_names, resolve_mouth_flap_rows,
+    MouthFlapDisplayDiffs, MouthFlapRows, MouthFlapTarget, DEFAULT_MOUTH_CLOSED_LAYER_NAMES,
+    DEFAULT_MOUTH_OPEN_LAYER_NAMES, MOUTH_CLOSED_LAYER, MOUTH_CLOSED_LAYER_ALT_1,
     MOUTH_CLOSED_LAYER_ALT_2, MOUTH_CLOSED_LAYER_ALT_3, MOUTH_CLOSED_LAYER_ALT_4,
     MOUTH_GROUP_LAYER, MOUTH_OPEN_LAYER, MOUTH_OPEN_LAYER_ALT_1, MOUTH_OPEN_LAYER_ALT_2,
     MOUTH_OPEN_LAYER_ALT_3,

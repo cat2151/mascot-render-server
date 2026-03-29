@@ -2,9 +2,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use mascot_render_core::{
-    auto_generate_mouth_flap_target, describe_mouth_flap_auto_generation_failure,
-    resolve_mouth_flap_rows, variation_spec_path, DisplayDiff, PsdDocument, PsdEntry,
-    RenderRequest,
+    auto_generate_mouth_flap_target_with_layer_names,
+    describe_mouth_flap_auto_generation_failure_with_layer_names, resolve_mouth_flap_rows,
+    variation_spec_path, DisplayDiff, PsdDocument, PsdEntry, RenderRequest,
 };
 
 use super::support::current_preview_status;
@@ -143,6 +143,8 @@ impl App {
             document,
             &base_variation,
             &psd_entry.file_name,
+            &self.mouth_flap_open_layer_names,
+            &self.mouth_flap_closed_layer_names,
         ) {
             Ok(target) => target,
             Err((diagnostic, message)) => {
@@ -236,12 +238,25 @@ fn auto_generate_mouth_flap_target_with_diagnostic(
     document: &PsdDocument,
     base_variation: &DisplayDiff,
     psd_file_name: &str,
+    open_layer_names: &[String],
+    closed_layer_names: &[String],
 ) -> Result<mascot_render_core::MouthFlapTarget, (String, String)> {
-    auto_generate_mouth_flap_target(document, base_variation).map_err(|error| {
+    auto_generate_mouth_flap_target_with_layer_names(
+        document,
+        base_variation,
+        open_layer_names,
+        closed_layer_names,
+    )
+    .map_err(|error| {
         (
             format_mouth_flap_diagnostic(
                 psd_file_name,
-                &describe_mouth_flap_auto_generation_failure(document, base_variation),
+                &describe_mouth_flap_auto_generation_failure_with_layer_names(
+                    document,
+                    base_variation,
+                    open_layer_names,
+                    closed_layer_names,
+                ),
                 &error,
             ),
             format!(

@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
 use crate::{
-    auto_generate_mouth_flap_target, build_mouth_flap_display_diffs,
-    describe_mouth_flap_auto_generation_failure, resolve_mouth_flap_rows, DisplayDiff,
-    LayerDescriptor, LayerKind, LayerVisibilityOverride, MouthFlapTarget, PsdDocument,
+    auto_generate_mouth_flap_target, auto_generate_mouth_flap_target_with_layer_names,
+    build_mouth_flap_display_diffs, describe_mouth_flap_auto_generation_failure,
+    resolve_mouth_flap_rows, DisplayDiff, LayerDescriptor, LayerKind, LayerVisibilityOverride,
+    MouthFlapTarget, PsdDocument,
 };
 
 #[test]
@@ -201,6 +202,37 @@ fn auto_generate_mouth_flap_target_supports_closed_fallback_with_long_n() {
 
     assert_eq!(target.open_layer_names, vec!["お"]);
     assert_eq!(target.closed_layer_names, vec!["んー"]);
+}
+
+#[test]
+fn auto_generate_mouth_flap_target_uses_configured_layer_names() {
+    let document = PsdDocument {
+        zip_path: PathBuf::from("demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo.psd"),
+        file_name: "demo.psd".to_string(),
+        metadata: String::new(),
+        layers: vec![
+            descriptor(4, "!口", LayerKind::GroupOpen, true, 0),
+            descriptor(3, "*あ", LayerKind::Layer, true, 1),
+            descriptor(2, "*ん", LayerKind::Layer, false, 1),
+            descriptor(1, "(unnamed)", LayerKind::GroupClose, true, 0),
+        ],
+        error: None,
+        log_path: None,
+        default_rendered_png_path: None,
+        render_warnings: Vec::new(),
+    };
+
+    let target = auto_generate_mouth_flap_target_with_layer_names(
+        &document,
+        &DisplayDiff::new(),
+        &["あ".to_string()],
+        &["ん".to_string()],
+    )
+    .expect("should resolve configured layer names");
+
+    assert_eq!(target.open_layer_names, vec!["あ"]);
+    assert_eq!(target.closed_layer_names, vec!["ん"]);
 }
 
 #[test]
