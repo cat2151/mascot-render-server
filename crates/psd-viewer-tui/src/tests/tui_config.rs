@@ -208,12 +208,30 @@ layer_scroll_margin_ratio = 0.33
 psd_file_name = "ずんだもん立ち絵素材V3.2_基本版.psd"
 first_layer_name = "普通目"
 second_layer_name = "閉じ目"
+
+[[mouth_flap_targets]]
+psd_file_name = "ずんだもん立ち絵素材V3.2_基本版.psd"
+open_layer_names = ["ほあー"]
+closed_layer_names = ["むふ", "むん", "ん"]
 "#,
     )
     .expect("should seed TUI config");
 
     let loaded = load_tui_config(&path).expect("eye blink targets should be ignored");
-    assert_eq!(loaded, TuiConfig::default());
+    let default = TuiConfig::default();
+    assert_eq!(loaded.layer_scroll_margin_ratio, 0.33);
+    assert_eq!(
+        loaded.mouth_flap_targets,
+        vec![MouthFlapTarget {
+            psd_file_name: "ずんだもん立ち絵素材V3.2_基本版.psd".to_string(),
+            open_layer_names: vec!["ほあー".to_string()],
+            closed_layer_names: vec!["むふ".to_string(), "むん".to_string(), "ん".to_string()],
+        }]
+    );
+    assert_ne!(
+        loaded.layer_scroll_margin_ratio,
+        default.layer_scroll_margin_ratio
+    );
 }
 
 #[test]
