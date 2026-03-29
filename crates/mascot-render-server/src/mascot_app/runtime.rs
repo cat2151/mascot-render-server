@@ -276,6 +276,9 @@ impl App for MascotApp {
                 if self.transparent_input_flash_enabled()
                     && response.is_pointer_button_down_on()
                     && response.interact_pointer_pos().is_some_and(|pos| {
+                        // Blue flash is visual feedback for transparent input,
+                        // so it stays enabled even when click-through hit testing
+                        // is unavailable during always-bend animation.
                         !captures_logical_point(
                             active_image_size,
                             image_rect,
