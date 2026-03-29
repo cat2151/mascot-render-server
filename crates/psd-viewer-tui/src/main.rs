@@ -114,6 +114,10 @@ fn is_log_overlay_close_key(key: &crossterm::event::KeyEvent, log_overlay_visibl
     log_overlay_visible && key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Esc)
 }
 
+fn is_help_overlay_close_key(key: &crossterm::event::KeyEvent, help_overlay_visible: bool) -> bool {
+    help_overlay_visible && key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Esc)
+}
+
 fn is_favorite_save_key(
     key: &crossterm::event::KeyEvent,
     focus: app::FocusPane,
@@ -222,6 +226,9 @@ fn run_app(
                 let help_overlay_visible = app.is_help_overlay_visible();
                 if help_overlay_visible {
                     match key.code {
+                        _ if is_help_overlay_close_key(&key, true) => {
+                            app.toggle_help_overlay();
+                        }
                         KeyCode::Char('?') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                             app.toggle_help_overlay();
                         }

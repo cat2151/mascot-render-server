@@ -27,6 +27,23 @@ fn question_mark_toggles_help_overlay_visibility() {
 }
 
 #[test]
+fn footer_help_line_mentions_esc_when_help_overlay_is_visible() {
+    let mut app = App::loading(None);
+    app.toggle_favorites_view();
+    app.toggle_help_overlay();
+
+    assert!(app.is_help_overlay_visible());
+    assert!(
+        line_text(app.help_line()).contains("Esc: close help"),
+        "footer should describe Esc as closing help while help overlay is visible"
+    );
+    assert!(
+        !line_text(app.help_line()).contains("Esc: close favorites"),
+        "footer should prioritize the currently active Esc action"
+    );
+}
+
+#[test]
 fn log_overlay_closes_help_and_updates_footer_label() {
     let mut app = App::loading(None);
     app.toggle_help_overlay();
@@ -68,7 +85,7 @@ fn help_overlay_includes_all_shortcuts() {
         .map(line_text)
         .collect::<Vec<_>>();
 
-    assert_eq!(lines[0], "Press ? to close help.");
+    assert_eq!(lines[0], "Press ? or Esc to close help.");
     assert!(
         lines.contains(&"Space/Enter: toggle selected layer".to_string()),
         "help overlay should describe layer toggling"

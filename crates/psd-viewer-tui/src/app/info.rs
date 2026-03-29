@@ -119,7 +119,9 @@ impl App {
         } else {
             "help"
         };
-        let esc_action_text = if self.log_overlay.is_some() {
+        let esc_action_text = if self.help_overlay_visible {
+            " | Esc: close help"
+        } else if self.log_overlay.is_some() {
             " | Esc: close log"
         } else if self.favorites_visible {
             " | Esc: close favorites"
@@ -133,7 +135,7 @@ impl App {
 
     pub(crate) fn help_overlay_lines(&self) -> Vec<Line<'static>> {
         vec![
-            Line::from("Press ? to close help."),
+            Line::from("Press ? or Esc to close help."),
             Line::from(""),
             Line::from("q: quit"),
             Line::from("j/k or Up/Down: move selection"),
