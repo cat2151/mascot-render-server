@@ -340,3 +340,39 @@ fn idle_sink_phase_offset_changes_idle_phase_per_motion() {
     assert!(shifted_transform.scale_x > 1.0);
     assert!(shifted_transform.scale_y < 1.0);
 }
+
+#[test]
+fn idle_sink_phase_offset_keeps_looping_without_snapping_to_rest() {
+    let mut motion = MotionState::new_with_idle_phase_offset(0.25);
+    let now = Instant::now();
+    let idle_sink = IdleSinkAnimationConfig {
+        duration_ms: 400,
+        ..IdleSinkAnimationConfig::default_for_always_bouncing()
+    };
+
+    motion.set_always_idle_sink_enabled(true, now);
+
+    let before_cycle_end = motion.sample(
+        now + Duration::from_millis(399),
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        idle_sink,
+    );
+    let at_cycle_end = motion.sample(
+        now + Duration::from_millis(400),
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        idle_sink,
+    );
+    let next_cycle = motion.sample(
+        now + Duration::from_millis(401),
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        idle_sink,
+    );
+
+    assert_ne!(before_cycle_end, MotionTransform::identity());
+    assert_ne!(at_cycle_end, MotionTransform::identity());
+    assert_ne!(next_cycle, MotionTransform::identity());
+    assert!(motion.is_active());
+}

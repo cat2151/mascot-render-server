@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 mod sampling;
 
 const ANIMATION_FRAME_INTERVAL: Duration = Duration::from_millis(16);
+// Prevents modulo-by-zero if a duration ever collapses to 0ns after conversion.
+const MIN_LOOP_DURATION_NANOS: u128 = 1;
 pub const IDLE_SINK_LIFT_SCALE_X_RATIO: f32 = 0.35;
 const DEFAULT_ALWAYS_BEND_AMPLITUDE_RATIO: f32 = 0.0075;
 
@@ -281,44 +283,46 @@ impl MotionState {
         always_idle_sink: IdleSinkAnimationConfig,
     ) -> MotionTransform {
         self.ensure_idle_animation(now);
-        let Some(active) = self.active else {
+        let Some(original_active) = self.active else {
             return MotionTransform::identity();
         };
 
-        let (duration, transform) = match active.kind {
-            AnimationKind::Bounce => (
-                Duration::from_millis(bounce.duration_ms.max(1)),
-                sampling::sample_bounce(now, active.started_at, bounce),
+        let duration =
+            Self::animation_duration(original_active, bounce, squash_bounce, always_idle_sink);
+        let rebased_active = Self::loops_while_idle(original_active)
+            .then(|| Self::rebased_looping_idle_active(now, original_active, duration));
+        let current_active = rebased_active.unwrap_or(original_active);
+
+        let transform = match current_active.kind {
+            AnimationKind::Bounce => {
+                sampling::sample_bounce(now, current_active.started_at, bounce)
+            }
+            AnimationKind::SquashBounce => {
+                sampling::sample_squash_bounce(now, current_active.started_at, squash_bounce)
+            }
+            AnimationKind::IdleSink => sampling::sample_idle_sink(
+                now,
+                current_active.started_at,
+                always_idle_sink,
+                self.idle_phase_offset_ratio,
             ),
-            AnimationKind::SquashBounce => (
-                Duration::from_millis(squash_bounce.duration_ms.max(1)),
-                sampling::sample_squash_bounce(now, active.started_at, squash_bounce),
-            ),
-            AnimationKind::IdleSink => (
-                Duration::from_millis(always_idle_sink.duration_ms.max(1)),
-                sampling::sample_idle_sink(
-                    now,
-                    active.started_at,
-                    always_idle_sink,
-                    self.idle_phase_offset_ratio,
-                ),
-            ),
-            AnimationKind::Shake => (
-                active.shake_duration,
-                sampling::sample_shake(
-                    now,
-                    active.started_at,
-                    active.shake_amplitude_px,
-                    active.shake_seed,
-                    active.shake_frame_interval,
-                ),
+            AnimationKind::Shake => sampling::sample_shake(
+                now,
+                current_active.started_at,
+                current_active.shake_amplitude_px,
+                current_active.shake_seed,
+                current_active.shake_frame_interval,
             ),
         };
 
-        if now.duration_since(active.started_at) >= duration {
+        if now.duration_since(current_active.started_at) >= duration {
             self.active = None;
             self.ensure_idle_animation(now);
             return MotionTransform::identity();
+        }
+
+        if let Some(rebased_active) = rebased_active {
+            self.active = Some(rebased_active);
         }
 
         transform
@@ -402,6 +406,49 @@ impl MotionState {
             ))
             .unwrap_or(Duration::ZERO);
         Some(remaining.min(next_frame))
+    }
+
+    fn animation_duration(
+        active: ActiveAnimation,
+        bounce: BounceAnimationConfig,
+        squash_bounce: SquashBounceAnimationConfig,
+        always_idle_sink: IdleSinkAnimationConfig,
+    ) -> Duration {
+        match active.kind {
+            AnimationKind::Bounce => Duration::from_millis(bounce.duration_ms.max(1)),
+            AnimationKind::SquashBounce => Duration::from_millis(squash_bounce.duration_ms.max(1)),
+            AnimationKind::IdleSink => Duration::from_millis(always_idle_sink.duration_ms.max(1)),
+            AnimationKind::Shake => active.shake_duration,
+        }
+    }
+
+    fn loops_while_idle(active: ActiveAnimation) -> bool {
+        active.idle && active.kind == AnimationKind::IdleSink
+    }
+
+    fn rebased_looping_idle_active(
+        now: Instant,
+        mut active: ActiveAnimation,
+        duration: Duration,
+    ) -> ActiveAnimation {
+        let cycle_elapsed =
+            Self::looping_cycle_elapsed(now.duration_since(active.started_at), duration);
+        active.started_at = now.checked_sub(cycle_elapsed).unwrap_or(now);
+        active
+    }
+
+    fn looping_cycle_elapsed(elapsed: Duration, duration: Duration) -> Duration {
+        if elapsed < duration {
+            return elapsed;
+        }
+
+        let duration_nanos = duration.as_nanos().max(MIN_LOOP_DURATION_NANOS);
+        let cycle_elapsed_nanos = elapsed.as_nanos() % duration_nanos;
+        let seconds = u64::try_from(cycle_elapsed_nanos / 1_000_000_000).expect(
+            "idle sink cycle elapsed seconds must fit in u64; this may indicate an unexpectedly huge idle animation duration or a timing bug",
+        );
+        let subsec_nanos = (cycle_elapsed_nanos % 1_000_000_000) as u32;
+        Duration::new(seconds, subsec_nanos)
     }
 
     fn min_repaint_after(left: Option<Duration>, right: Option<Duration>) -> Option<Duration> {

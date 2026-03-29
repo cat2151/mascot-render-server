@@ -119,5 +119,9 @@ pub(crate) fn member_phase_offset_ratio(member_index: usize, member_count: usize
     if member_count <= 1 {
         return 0.0;
     }
+    assert!(
+        member_index < member_count,
+        "member_index must be less than member_count: member_index={member_index}, member_count={member_count}"
+    );
     member_index as f32 / member_count as f32
 }
