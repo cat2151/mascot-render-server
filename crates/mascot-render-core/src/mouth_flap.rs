@@ -1,10 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 use crate::api::{DisplayDiff, LayerDescriptor, PsdDocument};
-use crate::eye_blink::{
-    PSD_ZUNDAMON_111, PSD_ZUNDAMON_23, PSD_ZUNDAMON_V32_BASIC, PSD_ZUNDAMON_V32_FULL,
-    PSD_ZUNDAMON_V32_UPWARD,
-};
 use crate::layer_name_format::{
     is_exclusive_kind, is_exclusive_name, is_mandatory_kind, is_mandatory_name,
 };
@@ -40,13 +36,6 @@ pub struct MouthFlapRows {
 pub struct MouthFlapDisplayDiffs {
     pub open: DisplayDiff,
     pub closed: DisplayDiff,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MouthFlapDefaultTarget {
-    pub psd_file_name: &'static str,
-    pub open_layer_names: &'static [&'static str],
-    pub closed_layer_names: &'static [&'static str],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,60 +97,28 @@ const DEFAULT_MOUTH_CLOSED_LAYER_NAMES: [&str; 3] = [
     MOUTH_CLOSED_LAYER_ALT_2,
 ];
 
-pub const DEFAULT_MOUTH_FLAP_TARGETS: [MouthFlapDefaultTarget; 5] = [
-    MouthFlapDefaultTarget {
-        psd_file_name: PSD_ZUNDAMON_23,
-        open_layer_names: &DEFAULT_MOUTH_OPEN_LAYER_NAMES,
-        closed_layer_names: &DEFAULT_MOUTH_CLOSED_LAYER_NAMES,
-    },
-    MouthFlapDefaultTarget {
-        psd_file_name: PSD_ZUNDAMON_111,
-        open_layer_names: &DEFAULT_MOUTH_OPEN_LAYER_NAMES,
-        closed_layer_names: &DEFAULT_MOUTH_CLOSED_LAYER_NAMES,
-    },
-    MouthFlapDefaultTarget {
-        psd_file_name: PSD_ZUNDAMON_V32_BASIC,
-        open_layer_names: &DEFAULT_MOUTH_OPEN_LAYER_NAMES,
-        closed_layer_names: &DEFAULT_MOUTH_CLOSED_LAYER_NAMES,
-    },
-    MouthFlapDefaultTarget {
-        psd_file_name: PSD_ZUNDAMON_V32_FULL,
-        open_layer_names: &DEFAULT_MOUTH_OPEN_LAYER_NAMES,
-        closed_layer_names: &DEFAULT_MOUTH_CLOSED_LAYER_NAMES,
-    },
-    MouthFlapDefaultTarget {
-        psd_file_name: PSD_ZUNDAMON_V32_UPWARD,
-        open_layer_names: &DEFAULT_MOUTH_OPEN_LAYER_NAMES,
-        closed_layer_names: &DEFAULT_MOUTH_CLOSED_LAYER_NAMES,
-    },
-];
+pub fn auto_generate_mouth_flap_target(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+) -> Result<MouthFlapTarget, String> {
+    let states = resolve_row_states(document, base_variation);
+    let (open_row_index, closed_row_index) =
+        find_named_pair_in_visible_group(document, &states, MOUTH_GROUP_LAYER, &default_target())
+            .ok_or_else(|| {
+                format!(
+                    "PSD '{}' does not contain an auto-detectable mouth flap pair in visible '{}' groups matching open layers [{}] and closed layers [{}]",
+                    document.file_name,
+                    MOUTH_GROUP_LAYER,
+                    DEFAULT_MOUTH_OPEN_LAYER_NAMES.join(", "),
+                    DEFAULT_MOUTH_CLOSED_LAYER_NAMES.join(", ")
+                )
+            })?;
 
-pub fn default_mouth_flap_targets() -> Vec<MouthFlapTarget> {
-    DEFAULT_MOUTH_FLAP_TARGETS
-        .iter()
-        .map(|target| MouthFlapTarget {
-            psd_file_name: target.psd_file_name.to_string(),
-            open_layer_names: target
-                .open_layer_names
-                .iter()
-                .map(|name| (*name).to_string())
-                .collect(),
-            closed_layer_names: target
-                .closed_layer_names
-                .iter()
-                .map(|name| (*name).to_string())
-                .collect(),
-        })
-        .collect()
-}
-
-pub fn find_mouth_flap_target<'a>(
-    targets: &'a [MouthFlapTarget],
-    psd_file_name: &str,
-) -> Option<&'a MouthFlapTarget> {
-    targets
-        .iter()
-        .find(|target| target.psd_file_name == psd_file_name)
+    Ok(MouthFlapTarget {
+        psd_file_name: document.file_name.clone(),
+        open_layer_names: vec![row_label(document, open_row_index)],
+        closed_layer_names: vec![row_label(document, closed_row_index)],
+    })
 }
 
 pub fn resolve_mouth_flap_rows(
@@ -334,6 +291,20 @@ fn is_named_exclusive_descriptor(descriptor: &LayerDescriptor, name: &str) -> bo
     is_exclusive_kind(descriptor.kind)
         && is_exclusive_name(&descriptor.name)
         && normalized_layer_name(&descriptor.name) == name
+}
+
+fn default_target() -> MouthFlapTarget {
+    MouthFlapTarget {
+        psd_file_name: String::new(),
+        open_layer_names: DEFAULT_MOUTH_OPEN_LAYER_NAMES
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect(),
+        closed_layer_names: DEFAULT_MOUTH_CLOSED_LAYER_NAMES
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect(),
+    }
 }
 
 fn normalized_layer_name(name: &str) -> &str {

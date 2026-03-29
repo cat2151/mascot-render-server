@@ -7,7 +7,6 @@ use crate::tui_config::{
     DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
 };
 use mascot_render_core::workspace_cache_root;
-use mascot_render_core::MouthFlapTarget;
 
 #[test]
 fn default_layer_scroll_margin_ratio_is_quarter_height() {
@@ -27,11 +26,6 @@ fn tui_config_round_trips_static_settings() {
         &path,
         &TuiConfig {
             layer_scroll_margin_ratio: 0.33,
-            mouth_flap_targets: vec![MouthFlapTarget {
-                psd_file_name: "mouth.psd".to_string(),
-                open_layer_names: vec!["open".to_string()],
-                closed_layer_names: vec!["closed".to_string(), "alt".to_string()],
-            }],
         },
     )
     .expect("should write TUI config");
@@ -41,17 +35,16 @@ fn tui_config_round_trips_static_settings() {
         loaded,
         TuiConfig {
             layer_scroll_margin_ratio: 0.33,
-            mouth_flap_targets: vec![MouthFlapTarget {
-                psd_file_name: "mouth.psd".to_string(),
-                open_layer_names: vec!["open".to_string()],
-                closed_layer_names: vec!["closed".to_string(), "alt".to_string()],
-            }],
         }
     );
     let raw = fs::read_to_string(&path).expect("should read written TUI config");
     assert!(
         !raw.contains("eye_blink_targets"),
         "TUI config should not write internal eye blink auto-generation targets"
+    );
+    assert!(
+        !raw.contains("mouth_flap_targets"),
+        "TUI config should not write internal mouth flap auto-generation targets"
     );
 }
 
@@ -170,28 +163,6 @@ fn tui_runtime_state_with_unknown_field_reports_error() {
 }
 
 #[test]
-fn tui_config_keeps_only_file_name_for_mouth_flap_targets() {
-    let path = workspace_cache_root().join("test-tui-config-mouth-filename/psd-viewer-tui.toml");
-    let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-config-mouth-filename"));
-
-    save_tui_config(
-        &path,
-        &TuiConfig {
-            layer_scroll_margin_ratio: 0.33,
-            mouth_flap_targets: vec![MouthFlapTarget {
-                psd_file_name: "nested/path/mouth.psd".to_string(),
-                open_layer_names: vec!["ほあー".to_string()],
-                closed_layer_names: vec!["むふ".to_string(), "むん".to_string()],
-            }],
-        },
-    )
-    .expect("should write TUI config");
-
-    let loaded = load_tui_config(&path).expect("should normalize mouth flap target file names");
-    assert_eq!(loaded.mouth_flap_targets[0].psd_file_name, "mouth.psd");
-}
-
-#[test]
 fn eye_blink_targets_in_tui_config_are_ignored() {
     let path = workspace_cache_root().join("test-tui-config-eye-names/psd-viewer-tui.toml");
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-config-eye-names"));
@@ -219,18 +190,10 @@ closed_layer_names = ["むふ", "むん", "ん"]
 
     let loaded = load_tui_config(&path).expect("eye blink targets should be ignored");
     assert_eq!(loaded.layer_scroll_margin_ratio, 0.33);
-    assert_eq!(
-        loaded.mouth_flap_targets,
-        vec![MouthFlapTarget {
-            psd_file_name: "ずんだもん立ち絵素材V3.2_基本版.psd".to_string(),
-            open_layer_names: vec!["ほあー".to_string()],
-            closed_layer_names: vec!["むふ".to_string(), "むん".to_string(), "ん".to_string()],
-        }]
-    );
 }
 
 #[test]
-fn configured_mouth_flap_targets_are_preserved() {
+fn mouth_flap_targets_in_tui_config_are_ignored() {
     let path = workspace_cache_root().join("test-tui-config-mouth-names/psd-viewer-tui.toml");
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-tui-config-mouth-names"));
     fs::create_dir_all(workspace_cache_root().join("test-tui-config-mouth-names"))
@@ -250,15 +213,8 @@ closed_layer_names = ["むふ", "むん", "ん"]
     )
     .expect("should seed TUI config");
 
-    let loaded = load_tui_config(&path).expect("should keep configured mouth flap targets");
-    assert_eq!(
-        loaded.mouth_flap_targets[0].open_layer_names,
-        vec!["ほあー"]
-    );
-    assert_eq!(
-        loaded.mouth_flap_targets[0].closed_layer_names,
-        vec!["むふ", "むん", "ん"]
-    );
+    let loaded = load_tui_config(&path).expect("mouth flap targets should be ignored");
+    assert_eq!(loaded.layer_scroll_margin_ratio, 0.33);
 }
 
 #[test]

@@ -13,12 +13,6 @@ use visibility::{
     find_named_exclusive_pair, resolve_row_states, row_label, RowVisibilityState,
 };
 
-pub const PSD_ZUNDAMON_23: &str = "ずんだもん立ち絵素材2.3.psd";
-pub const PSD_ZUNDAMON_111: &str = "ずんだもん立ち絵素材改ver1.1.1.psd";
-pub const PSD_ZUNDAMON_V32_BASIC: &str = "ずんだもん立ち絵素材V3.2_基本版.psd";
-pub const PSD_ZUNDAMON_V32_FULL: &str = "ずんだもん立ち絵素材V3.2_全部詰め版.psd";
-pub const PSD_ZUNDAMON_V32_UPWARD: &str = "ずんだもん立ち絵素材V3.2_上向き版.psd";
-
 pub const EYE_SET_LAYER: &str = "目セット";
 pub const SMILE_LAYER: &str = "にっこり";
 pub const BASIC_EYE_LAYER: &str = "基本目";

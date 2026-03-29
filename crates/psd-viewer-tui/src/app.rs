@@ -21,8 +21,8 @@ use anyhow::Result;
 use ratatui::style::Color;
 
 use mascot_render_core::{
-    default_mouth_flap_targets, display_path, variation_png_path, variation_spec_path, Core,
-    CoreConfig, DisplayDiff, MouthFlapTarget, PsdDocument, PsdEntry, RenderRequest, ZipEntry,
+    display_path, variation_png_path, variation_spec_path, Core, CoreConfig, DisplayDiff,
+    PsdDocument, PsdEntry, RenderRequest, ZipEntry,
 };
 
 use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override, LayerRow};
@@ -66,7 +66,6 @@ pub(crate) struct App {
     help_overlay_visible: bool,
     eye_blink: Option<EyeBlinkAnimation>,
     mouth_flap: Option<MouthFlapAnimation>,
-    mouth_flap_targets: Vec<MouthFlapTarget>,
     tui_runtime_state: TuiRuntimeState,
     mascot_scale: Option<f32>,
     layer_scroll_margin_ratio: f32,
@@ -110,7 +109,6 @@ impl App {
             help_overlay_visible: false,
             eye_blink: None,
             mouth_flap: None,
-            mouth_flap_targets: default_mouth_flap_targets(),
             tui_runtime_state: TuiRuntimeState::default(),
             mascot_scale: None,
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
