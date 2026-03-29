@@ -119,13 +119,15 @@ impl App {
         } else {
             "help"
         };
-        let esc_action = if self.log_overlay.is_some() {
-            "close log"
+        let esc_action_text = if self.log_overlay.is_some() {
+            " | Esc: close log"
+        } else if self.favorites_visible {
+            " | Esc: close favorites"
         } else {
-            "close favorites"
+            ""
         };
         Line::from(format!(
-            "q: quit | ?: {help_action} | Esc: {esc_action} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | f: favorite | v: favorites | e: ensemble | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
+            "q: quit | ?: {help_action}{esc_action_text} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | f: favorite | v: favorites | e: ensemble | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
         ))
     }
 

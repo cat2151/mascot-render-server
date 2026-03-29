@@ -377,12 +377,8 @@ fn format_mouth_group_diagnostic(
 ) -> String {
     let group = &document.layers[group_open_index];
     let layer_names = direct_exclusive_layer_names_in_group(document, group_open_index);
-    let normalized_names = layer_names
-        .iter()
-        .map(|name| normalized_layer_name(name))
-        .collect::<Vec<_>>();
-    let missing_open = !contains_any_name(&normalized_names, &target.open_layer_names);
-    let missing_closed = !contains_any_name(&normalized_names, &target.closed_layer_names);
+    let missing_open = !contains_any_name(&layer_names, &target.open_layer_names);
+    let missing_closed = !contains_any_name(&layer_names, &target.closed_layer_names);
     let visible = states
         .get(group_open_index)
         .is_some_and(|state| state.visible);
@@ -439,10 +435,10 @@ fn direct_exclusive_layer_names_in_group(
     layer_names
 }
 
-fn contains_any_name(layer_names: &[&str], candidates: &[String]) -> bool {
+fn contains_any_name(layer_names: &[String], candidates: &[String]) -> bool {
     candidates
         .iter()
-        .any(|candidate| layer_names.contains(&candidate.as_str()))
+        .any(|candidate| layer_names.contains(candidate))
 }
 
 fn format_layer_name_list(layer_names: &[String]) -> String {

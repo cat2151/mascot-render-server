@@ -39,6 +39,24 @@ fn log_overlay_closes_help_and_updates_footer_label() {
 
     app.clear_log_overlay();
     assert!(!app.is_log_overlay_visible());
+    assert!(!line_text(app.help_line()).contains("Esc:"));
+}
+
+#[test]
+fn footer_help_line_shows_esc_only_when_something_can_close() {
+    let mut app = App::loading(None);
+
+    assert!(
+        !line_text(app.help_line()).contains("Esc:"),
+        "footer should hide Esc when neither favorites nor log overlay is visible"
+    );
+
+    app.toggle_favorites_view();
+    assert!(line_text(app.help_line()).contains("Esc: close favorites"));
+
+    app.toggle_favorites_view();
+    app.show_log_overlay("mouth flap diagnostic");
+    assert!(line_text(app.help_line()).contains("Esc: close log"));
 }
 
 #[test]
