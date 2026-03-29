@@ -3,12 +3,31 @@ use std::time::{Duration, Instant};
 use eframe::egui::{Pos2, Rect};
 
 use crate::transparent_hit_test::{
-    captures_client_point, captures_logical_point, TransparentHitTestUpdate,
-    TransparentHitTestWindow,
+    captures_logical_point, TransparentHitTestUpdate, TransparentHitTestWindow,
 };
 
 fn alpha_mask(values: &[u8]) -> Vec<u8> {
     values.to_vec()
+}
+
+fn captures_client_point(
+    image_size: [u32; 2],
+    image_rect: Rect,
+    pixels_per_point: f32,
+    alpha_mask: &[u8],
+    client_point: [i32; 2],
+    alpha_threshold: u8,
+) -> bool {
+    captures_logical_point(
+        image_size,
+        image_rect,
+        alpha_mask,
+        Pos2::new(
+            client_point[0] as f32 / pixels_per_point,
+            client_point[1] as f32 / pixels_per_point,
+        ),
+        alpha_threshold,
+    )
 }
 
 #[test]

@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 const TRANSPARENT_INPUT_DEBUG_FLASH_DURATION: Duration = Duration::from_secs(1);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct TransparentHitTestUpdate {
     pub now: Instant,
 }
@@ -43,39 +43,6 @@ impl TransparentHitTestWindow {
             Some(Instant::now() + TRANSPARENT_INPUT_DEBUG_FLASH_DURATION);
     }
 }
-
-#[cfg(test)]
-pub(crate) fn captures_client_point(
-    image_size: [u32; 2],
-    image_rect: Rect,
-    pixels_per_point: f32,
-    alpha_mask: &[u8],
-    client_point: [i32; 2],
-    alpha_threshold: u8,
-) -> bool {
-    let [width, height] = image_size;
-    if width == 0 || height == 0 {
-        return false;
-    }
-    if alpha_mask.len() != (width as usize * height as usize) {
-        return false;
-    }
-    if image_rect.width() <= 0.0 || image_rect.height() <= 0.0 || pixels_per_point <= 0.0 {
-        return false;
-    }
-    let logical_point = Pos2::new(
-        client_point[0] as f32 / pixels_per_point,
-        client_point[1] as f32 / pixels_per_point,
-    );
-    captures_logical_point(
-        image_size,
-        image_rect,
-        alpha_mask,
-        logical_point,
-        alpha_threshold,
-    )
-}
-
 pub fn captures_logical_point(
     image_size: [u32; 2],
     image_rect: Rect,
