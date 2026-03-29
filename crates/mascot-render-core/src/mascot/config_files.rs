@@ -26,8 +26,8 @@ pub(super) struct MascotStaticConfigFile {
 impl Default for MascotStaticConfigFile {
     fn default() -> Self {
         Self {
-            always_idle_sink_enabled: false,
-            always_bend: false,
+            always_idle_sink_enabled: true,
+            always_bend: true,
             bend: BendConfig::default(),
             favorite_ensemble_enabled: false,
             bounce: BounceAnimationConfig::default(),

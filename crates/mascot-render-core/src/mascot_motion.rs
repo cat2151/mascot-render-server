@@ -129,7 +129,7 @@ pub struct AlwaysBendConfig {
 impl Default for AlwaysBendConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             amplitude_ratio: DEFAULT_ALWAYS_BEND_AMPLITUDE_RATIO,
         }
     }

@@ -46,8 +46,10 @@ psd-viewer-tui
 ## 設定
 - mascot-render-server.toml
     - always_idle_sink
+        - 初期値は `true` です。
         - trueにすると、UX検証用に小さな IdleSink 呼吸風モーションを常時再生します。
     - always_bend
+        - 初期値は `true` です。
         - trueにすると、UX検証用の左右 bend を常時再生します。
     - bend
         - `amplitude_ratio` で bend 幅をマスコット画像幅に対する比率で指定できます。デフォルトは `0.0075` です。
