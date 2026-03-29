@@ -98,8 +98,13 @@ impl Default for TuiConfigFile {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Debug, Deserialize, Default)]
+#[serde(default)]
+/// Legacy read-only shape for deprecated `[[eye_blink_targets]]` entries.
+///
+/// These entries are accepted only so older `psd-viewer-tui.toml` files can
+/// still load without dropping unrelated settings. They are ignored by the
+/// application and never written back out.
 struct LegacyEyeBlinkTarget {
     psd_file_name: String,
     first_layer_name: String,

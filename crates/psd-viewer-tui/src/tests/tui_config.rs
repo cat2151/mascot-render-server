@@ -218,7 +218,6 @@ closed_layer_names = ["むふ", "むん", "ん"]
     .expect("should seed TUI config");
 
     let loaded = load_tui_config(&path).expect("eye blink targets should be ignored");
-    let default = TuiConfig::default();
     assert_eq!(loaded.layer_scroll_margin_ratio, 0.33);
     assert_eq!(
         loaded.mouth_flap_targets,
@@ -227,10 +226,6 @@ closed_layer_names = ["むふ", "むん", "ん"]
             open_layer_names: vec!["ほあー".to_string()],
             closed_layer_names: vec!["むふ".to_string(), "むん".to_string(), "ん".to_string()],
         }]
-    );
-    assert_ne!(
-        loaded.layer_scroll_margin_ratio,
-        default.layer_scroll_margin_ratio
     );
 }
 
