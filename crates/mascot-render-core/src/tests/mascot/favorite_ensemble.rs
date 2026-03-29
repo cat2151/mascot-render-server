@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn load_mascot_config_disables_favorite_ensemble_while_psd_viewer_tui_is_active() {
+fn load_mascot_config_keeps_favorite_ensemble_enabled_while_psd_viewer_tui_is_active() {
     let (config_path, activity_path) =
         seed_favorite_ensemble_config("test-mascot-active-psd-viewer-tui");
     fs::write(&activity_path, crate::unix_timestamp().to_string())
@@ -9,38 +9,30 @@ fn load_mascot_config_disables_favorite_ensemble_while_psd_viewer_tui_is_active(
 
     let loaded = load_mascot_config(&config_path).expect("config should load");
 
+    assert!(loaded.favorite_ensemble_enabled);
+}
+
+#[test]
+fn favorite_ensemble_enabled_setting_can_be_toggled_in_static_config() {
+    let (config_path, _activity_path) =
+        seed_favorite_ensemble_config("test-mascot-toggle-favorite-ensemble");
+
+    assert!(load_favorite_ensemble_enabled(&config_path).expect("config should load"));
+
+    set_favorite_ensemble_enabled(&config_path, false).expect("should disable favorite ensemble");
+    assert!(!load_favorite_ensemble_enabled(&config_path).expect("config should reload"));
     assert!(
-        !loaded.favorite_ensemble_enabled,
-        "psd-viewer-tui activity should temporarily disable favorite ensemble"
+        !load_mascot_config(&config_path)
+            .expect("full config should reload")
+            .favorite_ensemble_enabled
     );
+
+    set_favorite_ensemble_enabled(&config_path, true).expect("should enable favorite ensemble");
+    assert!(load_favorite_ensemble_enabled(&config_path).expect("config should reload"));
 }
 
 #[test]
-fn load_mascot_config_reenables_favorite_ensemble_after_psd_viewer_tui_activity_ends() {
-    let (config_path, activity_path) =
-        seed_favorite_ensemble_config("test-mascot-ended-psd-viewer-tui");
-    fs::write(&activity_path, crate::unix_timestamp().to_string())
-        .expect("should write psd-viewer-tui heartbeat");
-
-    let active = load_mascot_config(&config_path).expect("config should load while active");
-    assert!(!active.favorite_ensemble_enabled);
-
-    fs::remove_file(&activity_path).expect("should remove psd-viewer-tui heartbeat");
-    let inactive =
-        load_mascot_config(&config_path).expect("config should reload after heartbeat removal");
-    assert!(inactive.favorite_ensemble_enabled);
-
-    fs::write(
-        &activity_path,
-        crate::unix_timestamp().saturating_sub(10).to_string(),
-    )
-    .expect("should write stale psd-viewer-tui heartbeat");
-    let stale = load_mascot_config(&config_path).expect("config should load with stale heartbeat");
-    assert!(stale.favorite_ensemble_enabled);
-}
-
-#[test]
-fn load_mascot_config_ignores_invalid_psd_viewer_tui_heartbeats() {
+fn load_mascot_config_ignores_psd_viewer_tui_heartbeat_when_favorite_ensemble_is_enabled() {
     let cases = vec![
         (String::new(), "empty"),
         ("not-a-timestamp".to_string(), "invalid"),
@@ -55,9 +47,6 @@ fn load_mascot_config_ignores_invalid_psd_viewer_tui_heartbeats() {
         let loaded = load_mascot_config(&config_path)
             .unwrap_or_else(|error| panic!("{label} heartbeat should be ignored: {error:#}"));
 
-        assert!(
-            loaded.favorite_ensemble_enabled,
-            "{label} heartbeat should not disable favorite ensemble"
-        );
+        assert!(loaded.favorite_ensemble_enabled);
     }
 }

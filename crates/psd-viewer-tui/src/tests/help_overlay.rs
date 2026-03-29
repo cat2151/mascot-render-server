@@ -48,6 +48,10 @@ fn help_overlay_includes_all_shortcuts() {
         lines.contains(&"v: open/close favorites list, Esc: close favorites list".to_string()),
         "help overlay should describe favorites list toggle"
     );
+    assert!(
+        lines.contains(&"e: toggle favorite ensemble true/false".to_string()),
+        "help overlay should describe favorite ensemble toggle"
+    );
 }
 
 #[test]
@@ -59,8 +63,8 @@ fn footer_help_line_mentions_space_and_enter_for_toggle() {
         "footer should describe both Space and Enter as toggle keys"
     );
     assert!(
-        line_text(app.help_line()).contains("f: favorite | v: favorites"),
-        "footer should describe favorites shortcuts"
+        line_text(app.help_line()).contains("f: favorite | v: favorites | e: ensemble"),
+        "footer should describe favorites and ensemble shortcuts"
     );
 }
 
