@@ -55,10 +55,6 @@ psd-viewer-tui
         - always_idle_sink 専用の IdleSink 呼吸設定です。
         - デフォルトでは通常の squash_bounce より穏やかに沈み込み・持ち上がり、まばたき interval の中央値のゆらぎに合わせて少しずつテンポが変わります。
         - `sink_amount` と `lift_amount` で、呼気側と吸気側の pose を個別に調整できます。
-    - transparent_background_click_through
-        - trueにすると、非常に重たくなるかわりに、「なにもない空間をドラッグして混乱」を減らせます。
-    - flash_blue_background_on_transparent_input
-        - trueにすると、なにもない空間をクリックやドラッグしようとしたときに1秒ブルーバックにして知らせます。
 
 ## アーキテクチャ
 - モジュラー

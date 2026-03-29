@@ -31,8 +31,6 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!loaded.always_idle_sink_enabled);
     assert_eq!(loaded.always_bend, AlwaysBendConfig::default());
     assert!(!loaded.favorite_ensemble_enabled);
-    assert!(!loaded.transparent_background_click_through);
-    assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.bounce.algorithm, BounceAlgorithm::DampedSine);
     assert_eq!(
         loaded.squash_bounce.algorithm,
@@ -50,7 +48,8 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!static_toml.contains("version ="));
     assert!(!static_toml.contains("updated_at ="));
     assert!(!static_toml.contains("favorite_ensemble_scale ="));
-    assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
+    assert!(!static_toml.contains("transparent_background_click_through ="));
+    assert!(!static_toml.contains("flash_blue_background_on_transparent_input ="));
     assert!(static_toml.contains("always_bend = false"));
     assert!(static_toml.contains("[bend]"));
     assert!(static_toml.contains("[idle_sink]"));
@@ -84,7 +83,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
 }
 
 #[test]
-fn load_mascot_config_defaults_flash_blue_background_when_key_is_missing() {
+fn load_mascot_config_reads_current_static_settings_without_removed_keys() {
     let config_path =
         workspace_cache_root().join("test-mascot-default-flash/mascot-render-server.toml");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
@@ -98,10 +97,9 @@ fn load_mascot_config_defaults_flash_blue_background_when_key_is_missing() {
         r#"
 always_idle_sink = true
 always_bend = true
-transparent_background_click_through = false
 "#,
     )
-    .expect("should seed mascot config without flash setting");
+    .expect("should seed mascot config without removed settings");
     fs::write(
         &runtime_state_path,
         r#"{
@@ -123,7 +121,6 @@ transparent_background_click_through = false
         AlwaysBendConfig::default().amplitude_ratio
     );
     assert!(!loaded.favorite_ensemble_enabled);
-    assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(
         loaded.always_idle_sink,
         IdleSinkAnimationConfig::default_for_always_bouncing()
@@ -147,8 +144,6 @@ fn writing_mascot_config_preserves_current_static_sections() {
 always_idle_sink = true
 always_bend = true
 favorite_ensemble_enabled = true
-transparent_background_click_through = true
-flash_blue_background_on_transparent_input = true
 
 [bend]
 amplitude_ratio = 0.02
@@ -199,8 +194,6 @@ stretch_amount = 0.08
         }
     );
     assert!(loaded.favorite_ensemble_enabled);
-    assert!(loaded.transparent_background_click_through);
-    assert!(loaded.flash_blue_background_on_transparent_input);
     assert_eq!(loaded.bounce.duration_ms, 1200);
     assert_eq!(loaded.squash_bounce.squash_amount, 0.22);
     assert_eq!(
@@ -218,7 +211,8 @@ stretch_amount = 0.08
     assert!(static_toml.contains("[bend]"));
     assert!(static_toml.contains("amplitude_ratio = 0.02"));
     assert!(static_toml.contains("favorite_ensemble_enabled = true"));
-    assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
+    assert!(!static_toml.contains("transparent_background_click_through ="));
+    assert!(!static_toml.contains("flash_blue_background_on_transparent_input ="));
     assert!(!static_toml.contains("[idle_sink]"));
     assert!(!static_toml.contains("[head_hitbox]"));
     let runtime_json =

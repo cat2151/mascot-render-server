@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
-use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{Context, Result};
@@ -8,7 +7,7 @@ use eframe::egui::{self, Pos2, Rect, Vec2};
 use eframe::CreationContext;
 use mascot_render_core::{
     load_mascot_config, mascot_runtime_state_path, psd_viewer_tui_activity_path, Core, CoreConfig,
-    MascotConfig, MascotImageData, MotionState, MotionTransform,
+    MascotConfig, MascotImageData, MotionState,
 };
 use mascot_render_server::window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
@@ -82,29 +81,11 @@ pub(crate) struct MascotApp {
     pending_restored_anchor_position: Option<Pos2>,
 }
 
-pub(crate) fn allows_precise_pointer_interaction(config: &MascotConfig) -> bool {
-    !config.always_bend.enabled
-}
-
-pub(crate) fn transparent_hit_test_enabled(config: &MascotConfig) -> bool {
-    config.transparent_background_click_through
-        && !config.favorite_ensemble_enabled
-        && allows_precise_pointer_interaction(config)
-}
-
 pub(crate) fn click_interaction_hit_test(image_rect: Rect, pointer_pos: Pos2) -> bool {
     image_rect.contains(pointer_pos)
 }
 
 impl MascotApp {
-    pub(crate) fn transparent_hit_test_enabled(&self) -> bool {
-        transparent_hit_test_enabled(&self.config)
-    }
-
-    pub(crate) fn allows_precise_pointer_interaction(&self) -> bool {
-        allows_precise_pointer_interaction(&self.config)
-    }
-
     pub(crate) fn new(
         cc: &CreationContext<'_>,
         config_path: PathBuf,
@@ -150,11 +131,8 @@ impl MascotApp {
             });
         let mut skin_cache = MascotSkinCache::new(SKIN_CACHE_CAPACITY);
         skin_cache.insert(image.path.clone(), open_skin.clone());
-        let transparent_hit_test =
-            TransparentHitTestWindow::try_install(cc).unwrap_or_else(|error| {
-                eprintln!("transparent background click-through is disabled: {error:#}");
-                TransparentHitTestWindow::disabled()
-            });
+        let transparent_hit_test = TransparentHitTestWindow::try_install(cc)
+            .expect("transparent hit test state should initialize");
         let history_path = window_history_path(&config);
         let window_history_modified_at = path_modified_at(&history_path);
 
@@ -204,14 +182,6 @@ impl MascotApp {
         app.refresh_window_layout(&cc.egui_ctx, app.window_layout);
         app.transparent_hit_test.update(TransparentHitTestUpdate {
             now: Instant::now(),
-            enabled: app.transparent_hit_test_enabled(),
-            debug_flash_enabled: app.config.flash_blue_background_on_transparent_input,
-            alpha_mask: Arc::clone(&app.open_skin.alpha_mask),
-            image_size: app.open_skin.image_size,
-            image_rect: app
-                .window_layout
-                .image_rect(app.base_size, MotionTransform::identity()),
-            pixels_per_point: cc.egui_ctx.pixels_per_point(),
         });
         app
     }

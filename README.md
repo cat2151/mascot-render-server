@@ -55,10 +55,6 @@ psd-viewer-tui
         - IdleSink breathing settings specific to `always_idle_sink`.
         - By default, it sinks and rises more gently than normal `squash_bounce`, and the tempo gradually changes in sync with the fluctuations in the median blink interval.
         - With `sink_amount` and `lift_amount`, you can individually adjust the poses for the exhale and inhale sides.
-    - transparent_background_click_through
-        - If `true`, it becomes very heavy, but in return, it reduces "confusion from dragging empty space".
-    - flash_blue_background_on_transparent_input
-        - If `true`, when you try to click or drag empty space, it will display a blue background for 1 second to notify you.
 
 ## Architecture
 - Modular

@@ -42,8 +42,6 @@ pub struct MascotConfig {
     pub always_idle_sink_enabled: bool,
     pub always_bend: AlwaysBendConfig,
     pub favorite_ensemble_enabled: bool,
-    pub transparent_background_click_through: bool,
-    pub flash_blue_background_on_transparent_input: bool,
     pub bounce: BounceAnimationConfig,
     pub squash_bounce: SquashBounceAnimationConfig,
     pub always_idle_sink: IdleSinkAnimationConfig,
@@ -108,9 +106,6 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
             amplitude_ratio: static_config.bend.amplitude_ratio,
         },
         favorite_ensemble_enabled,
-        transparent_background_click_through: static_config.transparent_background_click_through,
-        flash_blue_background_on_transparent_input: static_config
-            .flash_blue_background_on_transparent_input,
         bounce: static_config.bounce,
         squash_bounce: static_config.squash_bounce,
         always_idle_sink: static_config.always_idle_sink,

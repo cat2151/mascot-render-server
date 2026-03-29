@@ -5,8 +5,6 @@ mod motion_timeline;
 mod transparent_hit_test;
 pub mod window_history;
 mod window_layout;
-mod window_region;
-mod window_region_sync;
 
 #[cfg(test)]
 mod eye_blink;
