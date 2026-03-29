@@ -226,8 +226,8 @@ fn auto_generate_mouth_flap_target_uses_configured_layer_names() {
     let target = auto_generate_mouth_flap_target_with_layer_names(
         &document,
         &DisplayDiff::new(),
-        &["あ".to_string()],
-        &["ん".to_string()],
+        &["あ"],
+        &["ん"],
     )
     .expect("should resolve configured layer names");
 

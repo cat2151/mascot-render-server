@@ -48,46 +48,52 @@ pub fn auto_generate_eye_blink_target(
     document: &PsdDocument,
     base_variation: &DisplayDiff,
 ) -> Result<EyeBlinkTarget, String> {
-    auto_generate_eye_blink_target_with_keywords(
+    auto_generate_eye_blink_target_with_keyword_slices(
         document,
         base_variation,
-        &AUTO_EYE_BLINK_PREFERRED_OPEN_LAYER_NAMES
-            .iter()
-            .map(|name| (*name).to_string())
-            .collect::<Vec<_>>(),
-        &AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS
-            .iter()
-            .map(|name| (*name).to_string())
-            .collect::<Vec<_>>(),
+        AUTO_EYE_BLINK_PREFERRED_OPEN_LAYER_NAMES,
+        AUTO_EYE_BLINK_SECOND_LAYER_KEYWORDS,
     )
 }
 
-pub fn auto_generate_eye_blink_target_with_keywords(
+pub fn auto_generate_eye_blink_target_with_keywords<
+    OpenLayerName: AsRef<str>,
+    ClosedLayerKeyword: AsRef<str>,
+>(
     document: &PsdDocument,
     base_variation: &DisplayDiff,
-    preferred_open_layer_names: &[String],
-    closed_layer_keywords: &[String],
+    preferred_open_layer_names: &[OpenLayerName],
+    closed_layer_keywords: &[ClosedLayerKeyword],
+) -> Result<EyeBlinkTarget, String> {
+    auto_generate_eye_blink_target_with_keyword_slices(
+        document,
+        base_variation,
+        preferred_open_layer_names,
+        closed_layer_keywords,
+    )
+}
+
+fn auto_generate_eye_blink_target_with_keyword_slices<
+    OpenLayerName: AsRef<str>,
+    ClosedLayerKeyword: AsRef<str>,
+>(
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+    preferred_open_layer_names: &[OpenLayerName],
+    closed_layer_keywords: &[ClosedLayerKeyword],
 ) -> Result<EyeBlinkTarget, String> {
     let states = resolve_row_states(document, base_variation);
-    let preferred_open_layer_names = preferred_open_layer_names
-        .iter()
-        .map(String::as_str)
-        .collect::<Vec<_>>();
-    let closed_layer_keywords = closed_layer_keywords
-        .iter()
-        .map(String::as_str)
-        .collect::<Vec<_>>();
     let (open_row_index, closed_row_index) = find_auto_eye_blink_pair(
         document,
         &states,
-        &preferred_open_layer_names,
-        &closed_layer_keywords,
+        preferred_open_layer_names,
+        closed_layer_keywords,
     )
     .ok_or_else(|| {
         format!(
             "PSD '{}' does not contain an auto-detectable eye blink pair matching keywords: {}",
             document.file_name,
-            closed_layer_keywords.join(", ")
+            format_name_list(closed_layer_keywords)
         )
     })?;
 
@@ -141,11 +147,11 @@ pub fn resolve_eye_blink_rows(
     })
 }
 
-fn find_auto_eye_blink_pair(
+fn find_auto_eye_blink_pair<OpenLayerName: AsRef<str>, ClosedLayerKeyword: AsRef<str>>(
     document: &PsdDocument,
     states: &[RowVisibilityState],
-    preferred_open_layer_names: &[&str],
-    closed_layer_keywords: &[&str],
+    preferred_open_layer_names: &[OpenLayerName],
+    closed_layer_keywords: &[ClosedLayerKeyword],
 ) -> Option<(usize, usize)> {
     let mut best_match = None;
 
@@ -185,12 +191,12 @@ fn find_auto_eye_blink_pair(
     best_match.map(|(_, open_row_index, closed_row_index)| (open_row_index, closed_row_index))
 }
 
-fn find_auto_open_row(
+fn find_auto_open_row<OpenLayerName: AsRef<str>, ClosedLayerKeyword: AsRef<str>>(
     document: &PsdDocument,
     states: &[RowVisibilityState],
     closed_row_index: usize,
-    preferred_open_layer_names: &[&str],
-    closed_layer_keywords: &[&str],
+    preferred_open_layer_names: &[OpenLayerName],
+    closed_layer_keywords: &[ClosedLayerKeyword],
 ) -> Option<(usize, usize, AutoOpenScore)> {
     let closed_descriptor = document.layers.get(closed_row_index)?;
     let (scope_start, scope_end) = exclusive_scope_bounds(document, closed_row_index);
@@ -219,7 +225,7 @@ fn find_auto_open_row(
             visible_penalty: usize::from(!states.get(row_index).is_some_and(|state| state.visible)),
             preferred_name_rank: preferred_open_layer_names
                 .iter()
-                .position(|name| *name == normalized_name)
+                .position(|name| name.as_ref() == normalized_name)
                 .unwrap_or(preferred_open_layer_names.len()),
             distance: row_index.abs_diff(closed_row_index),
         };
@@ -234,7 +240,7 @@ fn find_auto_open_row(
 
 fn is_auto_eye_blink_second_layer(
     descriptor: &LayerDescriptor,
-    closed_layer_keywords: &[&str],
+    closed_layer_keywords: &[impl AsRef<str>],
 ) -> bool {
     is_exclusive_kind(descriptor.kind)
         && is_exclusive_name(&descriptor.name)
@@ -247,11 +253,11 @@ fn is_auto_eye_blink_second_layer(
 
 fn auto_eye_blink_second_keyword_rank(
     normalized_name: &str,
-    closed_layer_keywords: &[&str],
+    closed_layer_keywords: &[impl AsRef<str>],
 ) -> Option<usize> {
     closed_layer_keywords
         .iter()
-        .position(|keyword| normalized_name.contains(keyword))
+        .position(|keyword| normalized_name.contains(keyword.as_ref()))
 }
 
 fn normalize_eye_blink_layer_name(name: &str) -> &str {
@@ -263,4 +269,12 @@ struct AutoOpenScore {
     visible_penalty: usize,
     preferred_name_rank: usize,
     distance: usize,
+}
+
+fn format_name_list(values: &[impl AsRef<str>]) -> String {
+    values
+        .iter()
+        .map(|value| value.as_ref())
+        .collect::<Vec<_>>()
+        .join(", ")
 }

@@ -146,8 +146,8 @@ fn auto_generate_eye_blink_target_uses_configured_keywords() {
     let target = auto_generate_eye_blink_target_with_keywords(
         &document,
         &DisplayDiff::default(),
-        &["通常".to_string()],
-        &["まばたき".to_string()],
+        &["通常"],
+        &["まばたき"],
     )
     .expect("should match configured keywords");
 
