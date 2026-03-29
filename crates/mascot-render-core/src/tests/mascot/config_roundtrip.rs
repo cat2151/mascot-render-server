@@ -33,7 +33,6 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!loaded.favorite_ensemble_enabled);
     assert!(!loaded.transparent_background_click_through);
     assert!(loaded.flash_blue_background_on_transparent_input);
-    assert_eq!(loaded.head_hitbox, HeadHitbox::default());
     assert_eq!(loaded.bounce.algorithm, BounceAlgorithm::DampedSine);
     assert_eq!(
         loaded.squash_bounce.algorithm,
@@ -55,6 +54,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(static_toml.contains("always_bend = false"));
     assert!(static_toml.contains("[bend]"));
     assert!(static_toml.contains("[idle_sink]"));
+    assert!(!static_toml.contains("[head_hitbox]"));
     let idle_sink_table = extract_idle_sink_table(&static_toml);
     assert_eq!(
         idle_sink_table
@@ -153,12 +153,6 @@ flash_blue_background_on_transparent_input = true
 [bend]
 amplitude_ratio = 0.02
 
-[head_hitbox]
-x = 0.3
-y = 0.1
-width = 0.2
-height = 0.2
-
 [bounce]
 algorithm = "damped_sine"
 duration_ms = 1200
@@ -207,7 +201,6 @@ stretch_amount = 0.08
     assert!(loaded.favorite_ensemble_enabled);
     assert!(loaded.transparent_background_click_through);
     assert!(loaded.flash_blue_background_on_transparent_input);
-    assert_eq!(loaded.head_hitbox.x, 0.3);
     assert_eq!(loaded.bounce.duration_ms, 1200);
     assert_eq!(loaded.squash_bounce.squash_amount, 0.22);
     assert_eq!(
@@ -227,6 +220,7 @@ stretch_amount = 0.08
     assert!(static_toml.contains("favorite_ensemble_enabled = true"));
     assert!(static_toml.contains("flash_blue_background_on_transparent_input = true"));
     assert!(!static_toml.contains("[idle_sink]"));
+    assert!(!static_toml.contains("[head_hitbox]"));
     let runtime_json =
         fs::read_to_string(&runtime_state_path).expect("should write mascot runtime JSON");
     assert!(runtime_json.contains("\"png_path\""));

@@ -11,7 +11,7 @@ use mascot_render_server::{
 use crate::always_bend;
 use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 
-use super::{keyboard_scale_steps, scroll_scale_steps, MascotApp};
+use super::{click_interaction_hit_test, keyboard_scale_steps, scroll_scale_steps, MascotApp};
 
 impl App for MascotApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
@@ -71,7 +71,6 @@ impl App for MascotApp {
             self.config.always_idle_sink,
             self.eye_blink.current_median_ms(),
         );
-        let precise_pointer_interaction = self.allows_precise_pointer_interaction();
         if self.favorite_ensemble.is_some() {
             self.transparent_hit_test.update(TransparentHitTestUpdate {
                 now,
@@ -144,11 +143,9 @@ impl App for MascotApp {
                             }
 
                             if !handled_click
-                                && precise_pointer_interaction
                                 && response.clicked()
-                                && pointer_pos.is_some_and(|pos| {
-                                    self.config.head_hitbox.contains(image_rect, pos)
-                                })
+                                && pointer_pos
+                                    .is_some_and(|pos| click_interaction_hit_test(image_rect, pos))
                             {
                                 member.motion.trigger(now);
                                 handled_click = true;
@@ -268,11 +265,10 @@ impl App for MascotApp {
                     );
                 }
 
-                if self.allows_precise_pointer_interaction()
-                    && response.clicked()
+                if response.clicked()
                     && response
                         .interact_pointer_pos()
-                        .is_some_and(|pos| self.config.head_hitbox.contains(image_rect, pos))
+                        .is_some_and(|pos| click_interaction_hit_test(image_rect, pos))
                 {
                     self.motion.trigger(now);
                 }

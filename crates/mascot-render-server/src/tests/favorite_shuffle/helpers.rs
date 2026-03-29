@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::favorite_shuffle::FavoriteEntry;
 use mascot_render_core::{
-    AlwaysBendConfig, BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, MascotConfig,
+    AlwaysBendConfig, BounceAnimationConfig, IdleSinkAnimationConfig, MascotConfig,
     SquashBounceAnimationConfig,
 };
 
@@ -33,7 +33,6 @@ pub(super) fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConf
         favorite_ensemble_enabled: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,
-        head_hitbox: HeadHitbox::default(),
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),

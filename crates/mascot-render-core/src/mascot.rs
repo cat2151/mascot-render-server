@@ -8,8 +8,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use image::ImageReader;
 
 use crate::mascot_motion::{
-    AlwaysBendConfig, BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig,
-    SquashBounceAnimationConfig,
+    AlwaysBendConfig, BounceAnimationConfig, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
 };
 pub use crate::mascot_paths::{
     mascot_config_path, mascot_runtime_state_path, psd_viewer_tui_activity_path, unix_timestamp,
@@ -45,7 +44,6 @@ pub struct MascotConfig {
     pub favorite_ensemble_enabled: bool,
     pub transparent_background_click_through: bool,
     pub flash_blue_background_on_transparent_input: bool,
-    pub head_hitbox: HeadHitbox,
     pub bounce: BounceAnimationConfig,
     pub squash_bounce: SquashBounceAnimationConfig,
     pub always_idle_sink: IdleSinkAnimationConfig,
@@ -113,7 +111,6 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
         transparent_background_click_through: static_config.transparent_background_click_through,
         flash_blue_background_on_transparent_input: static_config
             .flash_blue_background_on_transparent_input,
-        head_hitbox: static_config.head_hitbox,
         bounce: static_config.bounce,
         squash_bounce: static_config.squash_bounce,
         always_idle_sink: static_config.always_idle_sink,

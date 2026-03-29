@@ -6,8 +6,7 @@ use crate::{
     default_mascot_scale_for_screen_height, load_mascot_config, mascot_config_path,
     mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path,
     psd_viewer_tui_activity_path, workspace_cache_root, workspace_path, write_mascot_config,
-    AlwaysBendConfig, BounceAlgorithm, HeadHitbox, IdleSinkAnimationConfig, MascotTarget,
-    SquashAlgorithm,
+    AlwaysBendConfig, BounceAlgorithm, IdleSinkAnimationConfig, MascotTarget, SquashAlgorithm,
 };
 
 mod cli_and_paths;

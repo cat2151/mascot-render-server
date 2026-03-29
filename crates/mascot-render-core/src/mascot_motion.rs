@@ -1,6 +1,5 @@
 use std::time::{Duration, Instant};
 
-use eframe::egui::{Pos2, Rect};
 use serde::{Deserialize, Serialize};
 
 mod sampling;
@@ -28,41 +27,6 @@ pub enum SquashAlgorithm {
 pub enum IdleAlgorithm {
     #[default]
     IdleSink,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct HeadHitbox {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
-impl Default for HeadHitbox {
-    fn default() -> Self {
-        Self {
-            x: 0.18,
-            y: 0.02,
-            width: 0.64,
-            height: 0.42,
-        }
-    }
-}
-
-impl HeadHitbox {
-    pub fn contains(self, image_rect: Rect, pointer_pos: Pos2) -> bool {
-        if !image_rect.contains(pointer_pos) {
-            return false;
-        }
-
-        let normalized_x = (pointer_pos.x - image_rect.min.x) / image_rect.width().max(1.0);
-        let normalized_y = (pointer_pos.y - image_rect.min.y) / image_rect.height().max(1.0);
-        normalized_x >= self.x
-            && normalized_x <= self.x + self.width
-            && normalized_y >= self.y
-            && normalized_y <= self.y + self.height
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

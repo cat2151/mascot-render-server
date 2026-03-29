@@ -3,12 +3,14 @@ use std::time::Duration;
 
 use eframe::egui::{pos2, Rect, TextureId};
 use mascot_render_core::{
-    AlwaysBendConfig, BounceAnimationConfig, HeadHitbox, IdleSinkAnimationConfig, MascotConfig,
+    AlwaysBendConfig, BounceAnimationConfig, IdleSinkAnimationConfig, MascotConfig,
     SquashBounceAnimationConfig,
 };
 
 use crate::always_bend;
-use crate::mascot_app::{allows_precise_pointer_interaction, transparent_hit_test_enabled};
+use crate::mascot_app::{
+    allows_precise_pointer_interaction, click_interaction_hit_test, transparent_hit_test_enabled,
+};
 
 const LONG_RUNNING_PHASE_STABILITY_MS: u64 = 4_200 * 10_000; // About 11.7 hours of complete bend cycles.
 const FLOAT_TOLERANCE: f32 = 1e-6;
@@ -102,6 +104,16 @@ fn always_bend_disables_precise_pointer_hit_testing() {
     assert!(!allows_precise_pointer_interaction(&bent_config));
 }
 
+#[test]
+fn click_interaction_uses_full_image_rect() {
+    let image_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(240.0, 480.0));
+    let body_point = pos2(20.0, 430.0);
+    let outside_point = pos2(-1.0, 430.0);
+
+    assert!(click_interaction_hit_test(image_rect, body_point));
+    assert!(!click_interaction_hit_test(image_rect, outside_point));
+}
+
 fn sample_config() -> MascotConfig {
     MascotConfig {
         png_path: PathBuf::from("cache/demo/render.png"),
@@ -115,7 +127,6 @@ fn sample_config() -> MascotConfig {
         favorite_ensemble_enabled: false,
         transparent_background_click_through: false,
         flash_blue_background_on_transparent_input: true,
-        head_hitbox: HeadHitbox::default(),
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
