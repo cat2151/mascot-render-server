@@ -135,7 +135,7 @@ fn format_layer_name_list(layer_names: &[String]) -> String {
     }
 }
 
-fn format_name_list(values: &[impl AsRef<str>]) -> String {
+pub(super) fn format_name_list(values: &[impl AsRef<str>]) -> String {
     values
         .iter()
         .map(|value| value.as_ref())

@@ -11,7 +11,7 @@ mod diagnostics;
 #[path = "mouth_flap/visibility.rs"]
 mod visibility;
 
-use diagnostics::format_missing_pair_diagnostics;
+use diagnostics::{format_missing_pair_diagnostics, format_name_list};
 use visibility::{ensure_named_row_visible, resolve_row_states, row_label, RowVisibilityState};
 
 pub const MOUTH_GROUP_LAYER: &str = "口";
@@ -398,14 +398,6 @@ fn is_named_exclusive_descriptor(descriptor: &LayerDescriptor, name: &str) -> bo
     is_exclusive_kind(descriptor.kind)
         && is_exclusive_name(&descriptor.name)
         && normalized_layer_name(&descriptor.name) == name
-}
-
-fn format_name_list(values: &[impl AsRef<str>]) -> String {
-    values
-        .iter()
-        .map(|value| value.as_ref())
-        .collect::<Vec<_>>()
-        .join(", ")
 }
 
 fn normalized_layer_name(name: &str) -> &str {
