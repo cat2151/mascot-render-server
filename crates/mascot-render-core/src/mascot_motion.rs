@@ -3,6 +3,8 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 
 mod sampling;
+#[cfg(test)]
+mod test_support;
 
 const ANIMATION_FRAME_INTERVAL: Duration = Duration::from_millis(16);
 // Prevents modulo-by-zero if a duration ever collapses to 0ns after conversion.
@@ -480,22 +482,6 @@ impl MotionState {
             mouth_flap: None,
             random_state: seed,
             idle_phase_offset_ratio: phase_offset_ratio.rem_euclid(1.0),
-        }
-    }
-}
-
-#[cfg(test)]
-impl MotionState {
-    pub(crate) fn new_with_seed(seed: u64) -> Self {
-        Self::with_seed_and_idle_phase_offset(seed, 0.0)
-    }
-
-    pub(crate) fn next_animation_name(&self) -> &'static str {
-        match self.next_kind.unwrap_or(AnimationKind::Bounce) {
-            AnimationKind::Bounce => "bounce",
-            AnimationKind::SquashBounce => "squash_bounce",
-            AnimationKind::IdleSink => "idle_sink",
-            AnimationKind::Shake => "shake",
         }
     }
 }
