@@ -2,6 +2,7 @@ mod favorite_shuffle;
 mod mascot_control;
 mod mascot_skin_cache;
 mod motion_timeline;
+mod server_log;
 mod transparent_hit_test;
 pub mod window_history;
 mod window_layout;
@@ -21,6 +22,7 @@ pub use mascot_control::{
 };
 pub use mascot_skin_cache::MascotSkinCache;
 pub use motion_timeline::{apply_motion_timeline_request, validate_motion_timeline_request};
+pub use server_log::{init_server_log, log_server_error, log_server_info};
 pub use transparent_hit_test::captures_logical_point;
 pub use transparent_hit_test::TransparentHitTestUpdate;
 pub use transparent_hit_test::TransparentHitTestWindow;

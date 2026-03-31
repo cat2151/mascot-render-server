@@ -46,7 +46,8 @@ use mascot_render_server::window_history::{
     load_window_position, outer_position_for_anchor, window_history_path,
 };
 use mascot_render_server::{
-    start_mascot_control_server_with_notify, AlphaBounds, MascotWindowLayout,
+    init_server_log, log_server_error, log_server_info, start_mascot_control_server_with_notify,
+    AlphaBounds, MascotWindowLayout,
 };
 
 use app_support::{alpha_mask, content_bounds, size_vec, window_title};
@@ -65,6 +66,12 @@ fn main() -> Result<()> {
             return Ok(());
         }
     };
+    let log_path = init_server_log()?;
+    log_server_info(format!(
+        "trigger=startup mascot-render-server を起動します: config_path={} log_path={}",
+        config_path.display(),
+        log_path.display()
+    ));
     let config = load_mascot_config(&config_path)?;
     let core = Core::new(CoreConfig::default());
     let favorite_ensemble = if config.favorite_ensemble_enabled {
@@ -110,10 +117,10 @@ fn main() -> Result<()> {
     let saved_window_position = match load_window_position(&history_path) {
         Ok(position) => position,
         Err(error) => {
-            eprintln!(
+            log_server_error(format!(
                 "failed to load mascot window history {}: {error:#}",
                 history_path.display()
-            );
+            ));
             None
         }
     };

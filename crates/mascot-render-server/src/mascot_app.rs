@@ -5,6 +5,7 @@ use std::time::{Duration, Instant, SystemTime};
 use anyhow::{Context, Result};
 use eframe::egui::{self, Pos2, Rect, Vec2};
 use eframe::CreationContext;
+use mascot_render_client::{MotionTimelineKind, MotionTimelineRequest};
 use mascot_render_core::{
     load_mascot_config, mascot_runtime_state_path, psd_viewer_tui_activity_path, Core, CoreConfig,
     MascotConfig, MascotImageData, MotionState,
@@ -13,8 +14,9 @@ use mascot_render_server::window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
 };
 use mascot_render_server::{
-    apply_motion_timeline_request, AlphaBounds, FavoriteShufflePlaylist, MascotControlCommand,
-    MascotSkinCache, MascotWindowLayout, TransparentHitTestUpdate, TransparentHitTestWindow,
+    apply_motion_timeline_request, log_server_error, log_server_info, AlphaBounds,
+    FavoriteShufflePlaylist, MascotControlCommand, MascotSkinCache, MascotWindowLayout,
+    TransparentHitTestUpdate, TransparentHitTestWindow,
 };
 
 use crate::app_support::{
@@ -176,10 +178,10 @@ impl MascotApp {
                 .set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);
         }
         if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
-            eprintln!("{error:#}");
+            log_server_error(format!("{error:#}"));
         }
         if let Err(error) = app.refresh_mouth_flap_skins(&cc.egui_ctx) {
-            eprintln!("{error:#}");
+            log_server_error(format!("{error:#}"));
         }
         app.refresh_window_layout(&cc.egui_ctx, app.window_layout);
         app.transparent_hit_test.update(TransparentHitTestUpdate {
@@ -194,20 +196,42 @@ impl MascotApp {
                 MascotControlCommand::Show => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    log_server_info(
+                        "trigger=control_command action=show サーバウィンドウを表示しました",
+                    );
                 }
                 MascotControlCommand::Hide => {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                    log_server_info(
+                        "trigger=control_command action=hide サーバウィンドウを非表示にしました",
+                    );
                 }
                 MascotControlCommand::ChangeSkin(png_path) => {
-                    self.change_skin(ctx, &png_path)?;
+                    self.change_skin(ctx, &png_path).with_context(|| {
+                        format!(
+                            "failed to apply mascot change-skin command: requested_png_path={}",
+                            png_path.display()
+                        )
+                    })?;
                 }
                 MascotControlCommand::PlayTimeline(request) => {
+                    let timeline_summary = describe_motion_timeline_request(&request);
                     apply_motion_timeline_request(
                         &mut self.motion,
                         self.window_layout,
                         Instant::now(),
                         request,
-                    )?;
+                    )
+                    .with_context(|| {
+                        format!(
+                            "failed to apply mascot motion timeline command: {}",
+                            timeline_summary
+                        )
+                    })?;
+                    log_server_info(format!(
+                        "trigger=control_command action=timeline {}",
+                        timeline_summary
+                    ));
                 }
             }
             ctx.request_repaint();
@@ -218,14 +242,33 @@ impl MascotApp {
 
     fn change_skin(&mut self, ctx: &egui::Context, png_path: &Path) -> Result<()> {
         if self.config.favorite_ensemble_enabled {
+            log_server_info(format!(
+                "trigger=control_command action=change_skin skin変更をスキップしました: favorite_ensemble_enabled=true requested_png_path={}",
+                png_path.display()
+            ));
             return Ok(());
         }
         if self.config.png_path == png_path {
+            log_server_info(format!(
+                "trigger=control_command action=change_skin skin変更をスキップしました: requested_png_path={} は現在の skin と同じです",
+                png_path.display()
+            ));
             return Ok(());
         }
 
+        let previous_png_path = self.config.png_path.clone();
+        log_server_info(format!(
+            "trigger=control_command action=change_skin skin変更を開始しました: from={} to={}",
+            previous_png_path.display(),
+            png_path.display()
+        ));
         let previous_layout = self.window_layout;
-        self.open_skin = self.load_skin(ctx, png_path)?;
+        self.open_skin = self.load_skin(ctx, png_path).with_context(|| {
+            format!(
+                "failed to load requested mascot skin image {}",
+                png_path.display()
+            )
+        })?;
         self.base_size = size_vec(
             self.open_skin.image_size[0],
             self.open_skin.image_size[1],
@@ -233,9 +276,23 @@ impl MascotApp {
         );
         self.config.png_path = png_path.to_path_buf();
         self.eye_blink.reset(Instant::now());
-        self.refresh_closed_eye_skin(ctx)?;
-        self.refresh_mouth_flap_skins(ctx)?;
+        self.refresh_closed_eye_skin(ctx).with_context(|| {
+            format!(
+                "failed to refresh closed-eye skin after changing to {}",
+                png_path.display()
+            )
+        })?;
+        self.refresh_mouth_flap_skins(ctx).with_context(|| {
+            format!(
+                "failed to refresh mouth-flap skins after changing to {}",
+                png_path.display()
+            )
+        })?;
         self.refresh_window_layout(ctx, previous_layout);
+        log_server_info(format!(
+            "trigger=control_command action=change_skin skin変更しました: png_path={}",
+            png_path.display()
+        ));
         Ok(())
     }
 
@@ -340,10 +397,10 @@ impl MascotApp {
             let saved_window_position = match load_window_position(&next_history_path) {
                 Ok(saved_window_position) => saved_window_position,
                 Err(error) => {
-                    eprintln!(
-                        "warning: failed to load mascot window history {}: {error:#}",
+                    log_server_error(format!(
+                        "failed to load mascot window history {}: {error:#}",
                         next_history_path.display()
-                    );
+                    ));
                     None
                 }
             };
@@ -379,6 +436,39 @@ impl MascotApp {
     /// anchor can be corrected by the platform-specific inner→outer offset.
     pub(crate) fn apply_pending_restored_anchor_position(&mut self, ctx: &egui::Context) {
         layout::apply_pending_restored_anchor_position(self, ctx);
+    }
+}
+
+fn describe_motion_timeline_request(request: &MotionTimelineRequest) -> String {
+    let mut shake_steps = 0usize;
+    let mut mouth_flap_steps = 0usize;
+
+    for step in &request.steps {
+        match step.kind {
+            MotionTimelineKind::Shake => shake_steps += 1,
+            MotionTimelineKind::MouthFlap => mouth_flap_steps += 1,
+        }
+    }
+
+    if mouth_flap_steps > 0 && shake_steps == 0 {
+        format!(
+            "口パクしました: steps={} mouth_flap_steps={}",
+            request.steps.len(),
+            mouth_flap_steps
+        )
+    } else if shake_steps > 0 && mouth_flap_steps == 0 {
+        format!(
+            "揺れモーションを開始しました: steps={} shake_steps={}",
+            request.steps.len(),
+            shake_steps
+        )
+    } else {
+        format!(
+            "モーションタイムラインを開始しました: steps={} shake_steps={} mouth_flap_steps={}",
+            request.steps.len(),
+            shake_steps,
+            mouth_flap_steps
+        )
     }
 }
 

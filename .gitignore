@@ -28,6 +28,8 @@ target
 # Runtime caches and persisted state
 /cache/
 /crates/*/cache/
+/logs/
+/crates/*/logs/
 /log/
 /crates/*/log/
 /mascot-render-server.toml
