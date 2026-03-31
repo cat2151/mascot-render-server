@@ -398,7 +398,7 @@ impl MascotApp {
                 Ok(saved_window_position) => saved_window_position,
                 Err(error) => {
                     log_server_error(format!(
-                        "warning: failed to load mascot window history {}: {error:#}",
+                        "failed to load mascot window history {}: {error:#}",
                         next_history_path.display()
                     ));
                     None

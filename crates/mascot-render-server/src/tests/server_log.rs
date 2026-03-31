@@ -1,5 +1,8 @@
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
+use std::sync::{Arc, Barrier};
+use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::server_log::append_log_record_for_test;
@@ -49,6 +52,49 @@ fn append_log_record_prefixes_each_multiline_line() {
         "unexpected log contents: {log_contents}"
     );
 
+    remove_test_log_dir(&log_path);
+}
+
+#[test]
+fn append_log_record_serializes_concurrent_writes() {
+    let log_path = unique_test_log_path("append-log-record-concurrent");
+    let start = Arc::new(Barrier::new(5));
+    let mut handles = Vec::new();
+
+    for index in 0..4 {
+        let log_path = log_path.clone();
+        let start = Arc::clone(&start);
+        handles.push(thread::spawn(move || {
+            start.wait();
+            append_log_record_for_test(&log_path, "INFO", &format!("message-{index}"))
+                .expect("concurrent server log write should succeed");
+        }));
+    }
+
+    start.wait();
+    for handle in handles {
+        handle.join().expect("worker thread should complete");
+    }
+
+    let log_contents =
+        fs::read_to_string(&log_path).expect("server log should be readable after writing");
+    let mut lines = log_contents.lines().collect::<Vec<_>>();
+    lines.sort_unstable();
+
+    assert_eq!(lines.len(), 4, "unexpected log contents: {log_contents}");
+    for index in 0..4 {
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.ends_with(&format!("INFO message-{index}"))),
+            "missing message-{index} in log contents: {log_contents}"
+        );
+    }
+
+    remove_test_log_dir(&log_path);
+}
+
+fn remove_test_log_dir(log_path: &Path) {
     fs::remove_dir_all(
         log_path
             .parent()

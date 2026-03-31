@@ -1,11 +1,13 @@
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 
 const SERVER_LOG_PATH: &str = "logs/server.log";
+static SERVER_LOG_WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn init_server_log() -> Result<PathBuf> {
     let path = server_log_path();
@@ -52,6 +54,9 @@ fn ensure_server_log_exists(path: &Path) -> Result<()> {
 }
 
 fn append_log_record(path: &Path, level: &str, message: &str) -> Result<()> {
+    let _guard = server_log_write_lock()
+        .lock()
+        .expect("server log write lock should not be poisoned");
     if let Some(parent) = path.parent() {
         create_dir_all(parent).with_context(|| {
             format!("failed to create server log directory {}", parent.display())
@@ -67,6 +72,10 @@ fn append_log_record(path: &Path, level: &str, message: &str) -> Result<()> {
     file.flush()
         .with_context(|| format!("failed to flush server log {}", path.display()))?;
     Ok(())
+}
+
+fn server_log_write_lock() -> &'static Mutex<()> {
+    SERVER_LOG_WRITE_LOCK.get_or_init(|| Mutex::new(()))
 }
 
 fn format_log_record(level: &str, message: &str) -> String {
