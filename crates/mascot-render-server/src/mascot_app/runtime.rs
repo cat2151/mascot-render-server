@@ -5,7 +5,7 @@ use eframe::egui::{self, Color32, Pos2, Rect};
 use eframe::App;
 use mascot_render_core::MotionTransform;
 use mascot_render_server::{
-    captures_logical_point, transformed_image_rect, TransparentHitTestUpdate,
+    captures_logical_point, log_server_error, transformed_image_rect, TransparentHitTestUpdate,
 };
 
 use crate::always_bend;
@@ -20,7 +20,7 @@ impl App for MascotApp {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Err(error) = self.apply_control_commands(ctx) {
-            eprintln!("{error:#}");
+            log_server_error(format!("{error:#}"));
         }
 
         if let Err(error) = self.favorite_shuffle.update(
@@ -29,20 +29,20 @@ impl App for MascotApp {
             &self.config,
             Instant::now(),
         ) {
-            eprintln!("{error:#}");
+            log_server_error(format!("{error:#}"));
         }
 
         if let Err(error) = self.reload_config_if_needed(ctx) {
-            eprintln!("{error:#}");
+            log_server_error(format!("{error:#}"));
         }
         self.apply_pending_restored_anchor_position(ctx);
 
         let now = Instant::now();
         if let Err(error) = self.sync_window_history(ctx, now) {
-            eprintln!("{error:#}");
+            log_server_error(format!("{error:#}"));
         }
         if let Err(error) = self.persist_pending_scale_if_due(now) {
-            eprintln!("{error:#}");
+            log_server_error(format!("{error:#}"));
         }
         if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -59,7 +59,7 @@ impl App for MascotApp {
             )
         });
         if let Err(error) = self.apply_scale_steps(ctx, now, keyboard_steps) {
-            eprintln!("{error:#}");
+            log_server_error(format!("{error:#}"));
         }
         let blink_closed = self.closed_skin.is_some() && self.eye_blink.is_closed(now);
         let mouth_flap_open = mouth_flap_skin_state(
@@ -160,7 +160,7 @@ impl App for MascotApp {
             if interaction {
                 let scroll_steps = ctx.input(|input| scroll_scale_steps(input.raw_scroll_delta.y));
                 if let Err(error) = self.apply_scale_steps(ctx, now, scroll_steps) {
-                    eprintln!("{error:#}");
+                    log_server_error(format!("{error:#}"));
                 }
             }
 
@@ -285,7 +285,7 @@ impl App for MascotApp {
                     let scroll_steps =
                         ctx.input(|input| scroll_scale_steps(input.raw_scroll_delta.y));
                     if let Err(error) = self.apply_scale_steps(ctx, now, scroll_steps) {
-                        eprintln!("{error:#}");
+                        log_server_error(format!("{error:#}"));
                     }
                 }
             });
@@ -320,11 +320,11 @@ impl App for MascotApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         if let Some(scale) = self.pending_persisted_scale {
             if let Err(error) = self.persist_pending_scale(scale) {
-                eprintln!("{error:#}");
+                log_server_error(format!("{error:#}"));
             }
         }
         if let Err(error) = self.window_history.flush() {
-            eprintln!("{error:#}");
+            log_server_error(format!("{error:#}"));
         }
     }
 }

@@ -16,8 +16,9 @@ use mascot_render_client::{
     show_mascot_render_server, wait_for_mascot_render_server_healthcheck_at, ChangeSkinRequest,
     MotionTimelineRequest,
 };
+use serde::Serialize;
 
-use crate::validate_motion_timeline_request;
+use crate::{log_server_error, log_server_info, validate_motion_timeline_request};
 
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
@@ -134,24 +135,34 @@ fn accept_loop(
 ) {
     loop {
         match listener.accept() {
-            Ok((mut stream, _peer)) => {
+            Ok((mut stream, peer)) => {
                 if let Err(error) = stream.set_read_timeout(Some(IO_TIMEOUT)) {
-                    eprintln!("failed to set mascot control read timeout: {error}");
+                    log_server_error(format!(
+                        "trigger=http_request peer={peer} failed to set mascot control read timeout: {error}"
+                    ));
                     continue;
                 }
                 if let Err(error) = stream.set_write_timeout(Some(IO_TIMEOUT)) {
-                    eprintln!("failed to set mascot control write timeout: {error}");
+                    log_server_error(format!(
+                        "trigger=http_request peer={peer} failed to set mascot control write timeout: {error}"
+                    ));
                     continue;
                 }
-                if let Err(error) = handle_connection(&mut stream, &command_tx, notify.as_ref()) {
-                    eprintln!("mascot control connection error: {error:#}");
+                if let Err(error) =
+                    handle_connection(&mut stream, peer, &command_tx, notify.as_ref())
+                {
+                    log_server_error(format!(
+                        "trigger=http_request peer={peer} mascot control connection error: {error:#}"
+                    ));
                 }
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                 thread::sleep(ACCEPT_POLL_INTERVAL);
             }
             Err(error) => {
-                eprintln!("mascot control accept error: {error}");
+                log_server_error(format!(
+                    "trigger=http_accept mascot control accept error: {error}"
+                ));
                 thread::sleep(ACCEPT_POLL_INTERVAL);
             }
         }
@@ -160,48 +171,78 @@ fn accept_loop(
 
 fn handle_connection(
     stream: &mut TcpStream,
+    peer: SocketAddr,
     command_tx: &Sender<MascotControlCommand>,
     notify: Option<&Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<()> {
     let response = match read_http_request(stream) {
-        Ok(request) => route_request(request, command_tx, notify)
-            .unwrap_or_else(|error| HttpResponse::internal_server_error(error.to_string())),
-        Err(error) => HttpResponse::bad_request(error.to_string()),
+        Ok(request) => match route_request(peer, request, command_tx, notify) {
+            Ok(response) => response,
+            Err(error) => {
+                log_server_error(format!(
+                    "trigger=http_request peer={peer} request handling failed: {error:#}"
+                ));
+                HttpResponse::internal_server_error(error.to_string())
+            }
+        },
+        Err(error) => {
+            log_server_error(format!(
+                "trigger=http_request peer={peer} failed to read HTTP request: {error:#}"
+            ));
+            HttpResponse::bad_request(error.to_string())
+        }
     };
 
     write_http_response(stream, &response)
 }
 
 fn route_request(
+    peer: SocketAddr,
     request: HttpRequest,
     command_tx: &Sender<MascotControlCommand>,
     notify: Option<&Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<HttpResponse> {
-    match (
-        request.method.as_str(),
-        canonical_path(&request.path).as_str(),
-    ) {
+    let path = canonical_path(&request.path);
+    match (request.method.as_str(), path.as_str()) {
         ("GET", "/health") => Ok(HttpResponse::ok_text("ok")),
         ("POST", "/show") => {
+            log_server_info(format!(
+                "trigger=http_request peer={peer} action=show show request を受け取りました"
+            ));
             command_tx
                 .send(MascotControlCommand::Show)
                 .context("failed to enqueue mascot show command")?;
+            log_server_info(format!(
+                "trigger=http_request peer={peer} action=show show command を UI に送信しました"
+            ));
             notify_ui(notify);
             Ok(HttpResponse::ok_text("ok"))
         }
         ("POST", "/hide") => {
+            log_server_info(format!(
+                "trigger=http_request peer={peer} action=hide hide request を受け取りました"
+            ));
             command_tx
                 .send(MascotControlCommand::Hide)
                 .context("failed to enqueue mascot hide command")?;
+            log_server_info(format!(
+                "trigger=http_request peer={peer} action=hide hide command を UI に送信しました"
+            ));
             notify_ui(notify);
             Ok(HttpResponse::ok_text("ok"))
         }
         ("POST", "/change-skin") => {
             let request: ChangeSkinRequest = serde_json::from_slice(&request.body)
                 .context("failed to parse mascot change-skin request JSON")?;
+            log_received_request(peer, "change_skin", &request)?;
+            let png_path = request.png_path.clone();
             command_tx
                 .send(MascotControlCommand::ChangeSkin(request.png_path))
                 .context("failed to enqueue mascot change-skin command")?;
+            log_server_info(format!(
+                "trigger=http_request peer={peer} action=change_skin skin変更 command を UI に送信しました: png_path={}",
+                png_path.display()
+            ));
             notify_ui(notify);
             Ok(HttpResponse::ok_text("ok"))
         }
@@ -209,9 +250,13 @@ fn route_request(
             let request: MotionTimelineRequest = serde_json::from_slice(&request.body)
                 .context("failed to parse mascot motion timeline request JSON")?;
             validate_motion_timeline_request(&request)?;
+            log_received_request(peer, "timeline", &request)?;
             command_tx
                 .send(MascotControlCommand::PlayTimeline(request))
                 .context("failed to enqueue mascot motion timeline command")?;
+            log_server_info(format!(
+                "trigger=http_request peer={peer} action=timeline motion timeline command を UI に送信しました"
+            ));
             notify_ui(notify);
             Ok(HttpResponse::ok_text("ok"))
         }
@@ -367,6 +412,15 @@ fn mascot_render_server_binary_name() -> &'static str {
     } else {
         "mascot-render-server"
     }
+}
+
+fn log_received_request<T: Serialize>(peer: SocketAddr, action: &str, request: &T) -> Result<()> {
+    let request_json = serde_json::to_string_pretty(request)
+        .context("failed to format mascot control request for log output")?;
+    log_server_info(format!(
+        "trigger=http_request peer={peer} action={action} request を受け取りました\nrequest:\n{request_json}"
+    ));
+    Ok(())
 }
 
 impl HttpResponse {
