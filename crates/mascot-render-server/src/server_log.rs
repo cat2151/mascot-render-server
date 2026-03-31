@@ -52,7 +52,11 @@ fn ensure_server_log_exists(path: &Path) -> Result<()> {
 }
 
 fn append_log_record(path: &Path, level: &str, message: &str) -> Result<()> {
-    ensure_server_log_exists(path)?;
+    if let Some(parent) = path.parent() {
+        create_dir_all(parent).with_context(|| {
+            format!("failed to create server log directory {}", parent.display())
+        })?;
+    }
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)

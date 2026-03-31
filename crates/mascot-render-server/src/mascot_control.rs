@@ -234,7 +234,7 @@ fn route_request(
         ("POST", "/change-skin") => {
             let request: ChangeSkinRequest = serde_json::from_slice(&request.body)
                 .context("failed to parse mascot change-skin request JSON")?;
-            log_received_request(peer, "change_skin", &request)?;
+            log_received_request(peer, "change_skin", &request);
             let png_path = request.png_path.clone();
             command_tx
                 .send(MascotControlCommand::ChangeSkin(request.png_path))
@@ -250,7 +250,7 @@ fn route_request(
             let request: MotionTimelineRequest = serde_json::from_slice(&request.body)
                 .context("failed to parse mascot motion timeline request JSON")?;
             validate_motion_timeline_request(&request)?;
-            log_received_request(peer, "timeline", &request)?;
+            log_received_request(peer, "timeline", &request);
             command_tx
                 .send(MascotControlCommand::PlayTimeline(request))
                 .context("failed to enqueue mascot motion timeline command")?;
@@ -414,13 +414,20 @@ fn mascot_render_server_binary_name() -> &'static str {
     }
 }
 
-fn log_received_request<T: Serialize>(peer: SocketAddr, action: &str, request: &T) -> Result<()> {
-    let request_json = serde_json::to_string_pretty(request)
-        .context("failed to format mascot control request for log output")?;
-    log_server_info(format!(
-        "trigger=http_request peer={peer} action={action} request を受け取りました\nrequest:\n{request_json}"
-    ));
-    Ok(())
+fn log_received_request<T: Serialize>(peer: SocketAddr, action: &str, request: &T) {
+    match serde_json::to_string_pretty(request) {
+        Ok(request_json) => log_server_info(format!(
+            "trigger=http_request peer={peer} action={action} request を受け取りました\nrequest:\n{request_json}"
+        )),
+        Err(error) => {
+            log_server_error(format!(
+                "trigger=http_request peer={peer} action={action} request の pretty JSON 整形に失敗しました: {error:#}"
+            ));
+            log_server_info(format!(
+                "trigger=http_request peer={peer} action={action} request を受け取りました"
+            ));
+        }
+    }
 }
 
 impl HttpResponse {
