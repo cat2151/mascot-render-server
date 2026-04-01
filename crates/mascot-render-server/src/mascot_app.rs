@@ -1,11 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Instant, SystemTime};
 
 use anyhow::{Context, Result};
 use eframe::egui::{self, Pos2, Rect, Vec2};
 use eframe::CreationContext;
-use mascot_render_client::{MotionTimelineKind, MotionTimelineRequest};
 use mascot_render_core::{
     load_mascot_config, mascot_runtime_state_path, psd_viewer_tui_activity_path, Core, CoreConfig,
     MascotConfig, MascotImageData, MotionState,
@@ -26,6 +25,8 @@ use crate::eye_blink::EyeBlinkLoop;
 use crate::favorite_ensemble::favorites_path as favorite_ensemble_path;
 use crate::mascot_scale::{effective_scale, keyboard_scale_steps, scroll_scale_steps};
 use crate::SKIN_CACHE_CAPACITY;
+#[path = "mascot_app/config.rs"]
+mod config;
 #[path = "mascot_app/ensemble.rs"]
 mod ensemble;
 #[path = "mascot_app/layout.rs"]
@@ -37,23 +38,18 @@ mod scale;
 #[path = "mascot_app/skins.rs"]
 mod skins;
 #[cfg(test)]
+pub(crate) use config::should_reload_config_for_test;
+use config::{
+    active_config_scale, active_display_scale, describe_motion_timeline_request,
+    should_reload_config, ReloadInputs,
+};
+#[cfg(test)]
 pub(crate) use ensemble::member_phase_offset_ratio;
 use ensemble::FavoriteEnsembleScene;
 #[cfg(test)]
 pub(crate) use ensemble::{member_eye_blink_elapsed, member_eye_blink_seed};
 #[cfg(test)]
 pub(crate) use runtime::mouth_flap_skin_state_for_test;
-
-const EFFECTIVE_CONFIG_POLL_INTERVAL: Duration = Duration::from_secs(1);
-
-#[derive(Clone, Copy)]
-struct ReloadInputs {
-    config_modified_at: Option<SystemTime>,
-    runtime_state_modified_at: Option<SystemTime>,
-    favorite_ensemble_modified_at: Option<SystemTime>,
-    psd_viewer_tui_activity_modified_at: Option<SystemTime>,
-    window_history_modified_at: Option<SystemTime>,
-}
 
 pub(crate) struct MascotApp {
     config_path: PathBuf,
@@ -440,56 +436,6 @@ impl MascotApp {
         layout::apply_pending_restored_anchor_position(self, ctx);
     }
 }
-
-fn describe_motion_timeline_request(request: &MotionTimelineRequest) -> String {
-    let mut shake_steps = 0usize;
-    let mut mouth_flap_steps = 0usize;
-
-    for step in &request.steps {
-        match step.kind {
-            MotionTimelineKind::Shake => shake_steps += 1,
-            MotionTimelineKind::MouthFlap => mouth_flap_steps += 1,
-        }
-    }
-
-    if mouth_flap_steps > 0 && shake_steps == 0 {
-        format!(
-            "口パクしました: steps={} mouth_flap_steps={}",
-            request.steps.len(),
-            mouth_flap_steps
-        )
-    } else if shake_steps > 0 && mouth_flap_steps == 0 {
-        format!(
-            "揺れモーションを開始しました: steps={} shake_steps={}",
-            request.steps.len(),
-            shake_steps
-        )
-    } else {
-        format!(
-            "モーションタイムラインを開始しました: steps={} shake_steps={} mouth_flap_steps={}",
-            request.steps.len(),
-            shake_steps,
-            mouth_flap_steps
-        )
-    }
-}
-
-fn active_config_scale(config: &MascotConfig) -> Option<f32> {
-    if config.favorite_ensemble_enabled {
-        config.favorite_ensemble_scale
-    } else {
-        config.scale
-    }
-}
-
-fn active_display_scale(config: &MascotConfig, width: u32, height: u32) -> f32 {
-    if config.favorite_ensemble_enabled {
-        config.favorite_ensemble_scale.unwrap_or(1.0)
-    } else {
-        effective_scale(width, height, config.scale)
-    }
-}
-
 fn ensemble_window_layout(
     base_size: Vec2,
     image_size: [u32; 2],
@@ -502,46 +448,5 @@ fn ensemble_window_layout(
         config.bounce,
         config.squash_bounce,
         config.always_idle_sink,
-    )
-}
-
-fn should_reload_config(
-    current: ReloadInputs,
-    next: ReloadInputs,
-    last_effective_config_check_at: Instant,
-    now: Instant,
-) -> bool {
-    current.config_modified_at != next.config_modified_at
-        || current.runtime_state_modified_at != next.runtime_state_modified_at
-        || current.favorite_ensemble_modified_at != next.favorite_ensemble_modified_at
-        || current.psd_viewer_tui_activity_modified_at != next.psd_viewer_tui_activity_modified_at
-        || current.window_history_modified_at != next.window_history_modified_at
-        || now.duration_since(last_effective_config_check_at) >= EFFECTIVE_CONFIG_POLL_INTERVAL
-}
-
-#[cfg(test)]
-pub(crate) fn should_reload_config_for_test(
-    current: [Option<SystemTime>; 5],
-    next: [Option<SystemTime>; 5],
-    last_effective_config_check_at: Instant,
-    now: Instant,
-) -> bool {
-    should_reload_config(
-        ReloadInputs {
-            config_modified_at: current[0],
-            runtime_state_modified_at: current[1],
-            favorite_ensemble_modified_at: current[2],
-            psd_viewer_tui_activity_modified_at: current[3],
-            window_history_modified_at: current[4],
-        },
-        ReloadInputs {
-            config_modified_at: next[0],
-            runtime_state_modified_at: next[1],
-            favorite_ensemble_modified_at: next[2],
-            psd_viewer_tui_activity_modified_at: next[3],
-            window_history_modified_at: next[4],
-        },
-        last_effective_config_check_at,
-        now,
     )
 }
