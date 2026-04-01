@@ -1,6 +1,6 @@
 #![cfg_attr(test, allow(dead_code))]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
@@ -32,6 +32,17 @@ impl EyeBlinkLoop {
             phase: BlinkPhase::Open { until: now },
         };
         blink.reset(now);
+        blink
+    }
+
+    pub(crate) fn new_with_seed_and_elapsed(now: Instant, seed: u64, elapsed: Duration) -> Self {
+        let started_at = now.checked_sub(elapsed).unwrap_or(now);
+        let mut blink = Self {
+            interval_generator: EyeBlinkIntervalGenerator::new_with_seed(started_at, seed),
+            phase: BlinkPhase::Open { until: started_at },
+        };
+        blink.reset(started_at);
+        blink.advance(now);
         blink
     }
 
@@ -82,26 +93,33 @@ impl EyeBlinkLoop {
 }
 
 pub(crate) fn render_closed_eye_png(core: &Core, config: &MascotConfig) -> Result<Option<PathBuf>> {
-    let psd_file_name = config
-        .psd_path_in_zip
+    render_closed_eye_png_with_display_diff(
+        core,
+        &config.zip_path,
+        &config.psd_path_in_zip,
+        &load_current_display_diff(config),
+    )
+}
+
+pub(crate) fn render_closed_eye_png_with_display_diff(
+    core: &Core,
+    zip_path: &Path,
+    psd_path_in_zip: &Path,
+    base_variation: &DisplayDiff,
+) -> Result<Option<PathBuf>> {
+    let psd_file_name = psd_path_in_zip
         .file_name()
         .and_then(|value| value.to_str())
-        .ok_or_else(|| {
-            anyhow!(
-                "invalid PSD file name in '{}'",
-                config.psd_path_in_zip.display()
-            )
-        })?;
-    let base_variation = load_current_display_diff(config);
+        .ok_or_else(|| anyhow!("invalid PSD file name in '{}'", psd_path_in_zip.display()))?;
     let document = core
-        .inspect_psd(&config.zip_path, &config.psd_path_in_zip)
+        .inspect_psd(zip_path, psd_path_in_zip)
         .with_context(|| {
             format!(
                 "failed to inspect PSD '{}' for eye blink",
-                config.psd_path_in_zip.display()
+                psd_path_in_zip.display()
             )
         })?;
-    let target = match auto_generate_eye_blink_target(&document, &base_variation) {
+    let target = match auto_generate_eye_blink_target(&document, base_variation) {
         Ok(target) => target,
         Err(error) => {
             eprintln!(
@@ -111,7 +129,7 @@ pub(crate) fn render_closed_eye_png(core: &Core, config: &MascotConfig) -> Resul
             return Ok(None);
         }
     };
-    let closed_display_diff = build_closed_eye_display_diff(&document, &base_variation, &target)
+    let closed_display_diff = build_closed_eye_display_diff(&document, base_variation, &target)
         .map_err(|error| anyhow!(error))
         .with_context(|| {
             format!(
@@ -121,8 +139,8 @@ pub(crate) fn render_closed_eye_png(core: &Core, config: &MascotConfig) -> Resul
         })?;
     let rendered = core
         .render_png(RenderRequest {
-            zip_path: config.zip_path.clone(),
-            psd_path_in_zip: config.psd_path_in_zip.clone(),
+            zip_path: zip_path.to_path_buf(),
+            psd_path_in_zip: psd_path_in_zip.to_path_buf(),
             display_diff: closed_display_diff,
         })
         .with_context(|| format!("failed to render closed-eye PNG for '{}'", psd_file_name))?;

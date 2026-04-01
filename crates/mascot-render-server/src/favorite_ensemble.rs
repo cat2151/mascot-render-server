@@ -9,6 +9,8 @@ use mascot_render_core::{
 use mascot_render_server::alpha_bounds_from_mask;
 use serde::{Deserialize, Serialize};
 
+use crate::eye_blink::render_closed_eye_png_with_display_diff;
+
 const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";
 const FAVORITE_ENSEMBLE_CONTENT_BOUNDS_ALPHA_THRESHOLD: u8 = 1;
@@ -37,6 +39,7 @@ pub(crate) struct FavoriteEnsembleLayoutEntry {
 #[derive(Debug)]
 pub(crate) struct FavoriteEnsembleMember {
     pub(crate) image: MascotImageData,
+    pub(crate) closed_image: Option<MascotImageData>,
     pub(crate) base_size: [f32; 2],
     pub(crate) canvas_position: [f32; 2],
 }
@@ -56,6 +59,7 @@ struct FavoritesFile {
 struct RenderedFavorite {
     entry: FavoriteEnsembleEntry,
     image: MascotImageData,
+    closed_image: Option<MascotImageData>,
     base_size: [f32; 2],
 }
 
@@ -249,7 +253,7 @@ fn render_favorite(core: &Core, entry: FavoriteEnsembleEntry) -> Result<Rendered
         .render_png(RenderRequest {
             zip_path: entry.zip_path.clone(),
             psd_path_in_zip: entry.psd_path_in_zip.clone(),
-            display_diff,
+            display_diff: display_diff.clone(),
         })
         .with_context(|| {
             format!(
@@ -268,6 +272,24 @@ fn render_favorite(core: &Core, entry: FavoriteEnsembleEntry) -> Result<Rendered
     })?;
     Ok(RenderedFavorite {
         base_size: mascot_window_size(image.width, image.height, entry.mascot_scale),
+        closed_image: render_closed_eye_png_with_display_diff(
+            core,
+            &entry.zip_path,
+            &entry.psd_path_in_zip,
+            &display_diff,
+        )?
+        .filter(|path| path != &rendered.output_path)
+        .map(|path| {
+            load_mascot_image(&path).with_context(|| {
+                format!(
+                    "failed to load favorite ensemble closed-eye PNG {} :: {} from {}",
+                    entry.zip_path.display(),
+                    entry.psd_path_in_zip.display(),
+                    path.display()
+                )
+            })
+        })
+        .transpose()?,
         entry,
         image,
     })
@@ -309,6 +331,7 @@ fn build_favorite_ensemble(rendered: Vec<RenderedFavorite>) -> FavoriteEnsemble 
                 FavoriteEnsembleMember {
                     canvas_position: [x - min_x, y - min_y],
                     base_size: favorite.base_size,
+                    closed_image: favorite.closed_image,
                     image: favorite.image,
                 }
             })

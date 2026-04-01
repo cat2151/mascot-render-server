@@ -2,9 +2,12 @@ use crate::favorite_ensemble::{
     fill_missing_positions, pack_positions_from_right, patch_favorite_ensemble_positions_toml,
     scaled_content_x_bounds, FavoriteEnsembleEntry, FavoriteEnsembleLayoutEntry,
 };
-use crate::mascot_app::member_phase_offset_ratio;
+use crate::mascot_app::{
+    member_eye_blink_elapsed, member_eye_blink_seed, member_phase_offset_ratio,
+};
 use mascot_render_core::{LayerVisibilityOverride, MascotImageData};
 use std::path::PathBuf;
+use std::time::Duration;
 
 #[test]
 fn favorite_ensemble_packs_entries_from_right_edge_without_visible_horizontal_gaps() {
@@ -177,6 +180,26 @@ fn favorite_ensemble_member_phase_offsets_are_evenly_distributed() {
     assert_eq!(member_phase_offset_ratio(0, 3), 0.0);
     assert_eq!(member_phase_offset_ratio(1, 3), 1.0 / 3.0);
     assert_eq!(member_phase_offset_ratio(2, 3), 2.0 / 3.0);
+}
+
+#[test]
+fn favorite_ensemble_member_eye_blink_elapsed_is_staggered() {
+    assert_eq!(member_eye_blink_elapsed(0, 1), Duration::ZERO);
+    assert_eq!(member_eye_blink_elapsed(0, 3), Duration::ZERO);
+    assert_eq!(
+        member_eye_blink_elapsed(1, 3),
+        Duration::from_secs_f32(1.0 / 3.0)
+    );
+    assert_eq!(
+        member_eye_blink_elapsed(2, 3),
+        Duration::from_secs_f32(2.0 / 3.0)
+    );
+}
+
+#[test]
+fn favorite_ensemble_member_eye_blink_seeds_are_distinct_per_member() {
+    assert_ne!(member_eye_blink_seed(0, 3), member_eye_blink_seed(1, 3));
+    assert_ne!(member_eye_blink_seed(1, 3), member_eye_blink_seed(2, 3));
 }
 
 fn sample_favorite_entry(mascot_scale: Option<f32>) -> FavoriteEnsembleEntry {

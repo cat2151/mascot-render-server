@@ -44,7 +44,11 @@ pub(crate) struct EyeBlinkIntervalGenerator {
 
 impl EyeBlinkIntervalGenerator {
     pub(crate) fn new(now: Instant) -> Self {
-        Self::new_with_seed(now, seed_from_clock(), EyeBlinkTimingConfig::default())
+        Self::new_with_seed(now, seed_from_clock())
+    }
+
+    pub(crate) fn new_with_seed(now: Instant, seed: u64) -> Self {
+        Self::new_with_seed_and_config(now, seed, EyeBlinkTimingConfig::default())
     }
 
     pub(crate) fn next_interval_ms(&mut self, now: Instant) -> u64 {
@@ -103,10 +107,10 @@ impl EyeBlinkIntervalGenerator {
 
     #[cfg(test)]
     pub(crate) fn new_for_test(now: Instant, seed: u64) -> Self {
-        Self::new_with_seed(now, seed, EyeBlinkTimingConfig::default())
+        Self::new_with_seed(now, seed)
     }
 
-    fn new_with_seed(now: Instant, seed: u64, config: EyeBlinkTimingConfig) -> Self {
+    fn new_with_seed_and_config(now: Instant, seed: u64, config: EyeBlinkTimingConfig) -> Self {
         let mut generator = Self {
             rng_state: seed,
             config,
