@@ -202,15 +202,14 @@ fn log_eye_blink_auto_generation_skip_once(zip_path: &Path, psd_path_in_zip: &Pa
     let mut logged_psds = logged_psds
         .lock()
         .expect("eye blink skip log state should be lockable");
-    if !logged_psds.insert(key) {
-        return;
+    if logged_psds.insert(key) {
+        eprintln!(
+            "Eye blink auto-generation skipped: zip_path={} psd_path_in_zip={} reason={}",
+            zip_path.display(),
+            psd_path_in_zip.display(),
+            error
+        );
     }
-    eprintln!(
-        "Eye blink auto-generation skipped: zip_path={} psd_path_in_zip={} reason={}",
-        zip_path.display(),
-        psd_path_in_zip.display(),
-        error
-    );
 }
 
 fn load_current_display_diff(config: &MascotConfig) -> DisplayDiff {
