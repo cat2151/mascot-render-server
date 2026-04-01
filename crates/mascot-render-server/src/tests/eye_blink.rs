@@ -23,3 +23,26 @@ fn eye_blink_loop_reopens_after_two_hundred_milliseconds() {
     assert!(blink.is_closed(first_deadline));
     assert!(!blink.is_closed(first_deadline + Duration::from_millis(200)));
 }
+
+#[test]
+fn eye_blink_loop_elapsed_offset_shifts_initial_deadline() {
+    let now = Instant::now();
+    let blink = EyeBlinkLoop::new_with_seed_and_elapsed(now, 7, Duration::ZERO);
+    let shifted_blink = EyeBlinkLoop::new_with_seed_and_elapsed(now, 7, Duration::from_millis(500));
+
+    assert_eq!(
+        shifted_blink.current_deadline_for_test() + Duration::from_millis(500),
+        blink.current_deadline_for_test()
+    );
+}
+
+#[test]
+fn eye_blink_loop_deadline_after_matches_current_deadline() {
+    let now = Instant::now();
+    let mut blink = EyeBlinkLoop::new_for_test(now, 11);
+
+    assert_eq!(
+        blink.deadline_after(now),
+        blink.current_deadline_for_test().duration_since(now)
+    );
+}

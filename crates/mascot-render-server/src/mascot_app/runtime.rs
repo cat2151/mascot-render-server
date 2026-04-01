@@ -98,6 +98,12 @@ impl App for MascotApp {
                         let mut handled_click = false;
 
                         for member in favorite_ensemble.members.iter_mut() {
+                            let blink_closed =
+                                member.closed_skin.is_some() && member.eye_blink.is_closed(now);
+                            let always_idle_sink = always_idle_sink_for_blink_median(
+                                self.config.always_idle_sink,
+                                member.eye_blink.current_median_ms(),
+                            );
                             let member_transform = member.motion.sample(
                                 now,
                                 self.config.bounce,
@@ -109,6 +115,11 @@ impl App for MascotApp {
                             let image_rect =
                                 transformed_image_rect(member_base_size, member_transform)
                                     .translate(member_origin);
+                            let active_skin = if blink_closed {
+                                member.closed_skin.as_ref().unwrap_or(&member.open_skin)
+                            } else {
+                                &member.open_skin
+                            };
 
                             if let Some(bend_transform) =
                                 self.config.always_bend.enabled.then(|| {
@@ -121,13 +132,13 @@ impl App for MascotApp {
                                 })
                             {
                                 painter.add(egui::Shape::mesh(always_bend::mesh(
-                                    member.skin.texture.id(),
+                                    active_skin.texture.id(),
                                     image_rect,
                                     bend_transform,
                                 )));
                             } else {
                                 painter.image(
-                                    member.skin.texture.id(),
+                                    active_skin.texture.id(),
                                     image_rect,
                                     Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
                                     Color32::WHITE,
@@ -166,13 +177,13 @@ impl App for MascotApp {
 
             let repaint_after = self
                 .favorite_ensemble
-                .as_ref()
+                .as_mut()
                 .expect("favorite_ensemble should still exist")
                 .repaint_after(
                     now,
                     self.config.bounce,
                     self.config.squash_bounce,
-                    always_idle_sink,
+                    self.config.always_idle_sink,
                 )
                 .unwrap_or_else(|| Duration::from_millis(250));
             let repaint_after = self

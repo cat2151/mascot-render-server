@@ -1,17 +1,20 @@
 #![cfg_attr(test, allow(dead_code))]
 
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 use mascot_render_core::{
     auto_generate_eye_blink_target, build_closed_eye_display_diff, load_variation_spec,
-    variation_spec_path, Core, DisplayDiff, MascotConfig, RenderRequest,
+    variation_spec_path, Core, DisplayDiff, MascotConfig, PsdDocument, RenderRequest,
 };
 
 use crate::eye_blink_timing::EyeBlinkIntervalGenerator;
 
 const CLOSED_MS: u64 = 200;
+static EYE_BLINK_SKIP_LOGGED_PSDS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
 
 #[derive(Debug)]
 pub(crate) struct EyeBlinkLoop {
@@ -35,6 +38,17 @@ impl EyeBlinkLoop {
         blink
     }
 
+    pub(crate) fn new_with_seed_and_elapsed(now: Instant, seed: u64, elapsed: Duration) -> Self {
+        let started_at = now.checked_sub(elapsed).unwrap_or(now);
+        let mut blink = Self {
+            interval_generator: EyeBlinkIntervalGenerator::new_with_seed(started_at, seed),
+            phase: BlinkPhase::Open { until: started_at },
+        };
+        blink.reset(started_at);
+        blink.advance(now);
+        blink
+    }
+
     pub(crate) fn reset(&mut self, now: Instant) {
         self.phase = BlinkPhase::Open {
             until: now + self.next_open_duration(now),
@@ -51,6 +65,13 @@ impl EyeBlinkLoop {
         self.current_deadline()
             .saturating_duration_since(now)
             .min(fallback)
+    }
+
+    /// Returns the time until the next blink phase transition without applying
+    /// an external repaint cap.
+    pub(crate) fn deadline_after(&mut self, now: Instant) -> Duration {
+        self.advance(now);
+        self.current_deadline().saturating_duration_since(now)
     }
 
     pub(crate) fn current_median_ms(&self) -> f64 {
@@ -82,36 +103,70 @@ impl EyeBlinkLoop {
 }
 
 pub(crate) fn render_closed_eye_png(core: &Core, config: &MascotConfig) -> Result<Option<PathBuf>> {
-    let psd_file_name = config
-        .psd_path_in_zip
+    render_closed_eye_png_with_display_diff(
+        core,
+        &config.zip_path,
+        &config.psd_path_in_zip,
+        &load_current_display_diff(config),
+    )
+}
+
+pub(crate) fn render_closed_eye_png_with_display_diff(
+    core: &Core,
+    zip_path: &Path,
+    psd_path_in_zip: &Path,
+    base_variation: &DisplayDiff,
+) -> Result<Option<PathBuf>> {
+    let psd_file_name = psd_path_in_zip
         .file_name()
         .and_then(|value| value.to_str())
-        .ok_or_else(|| {
-            anyhow!(
-                "invalid PSD file name in '{}'",
-                config.psd_path_in_zip.display()
-            )
-        })?;
-    let base_variation = load_current_display_diff(config);
+        .ok_or_else(|| anyhow!("invalid PSD file name in '{}'", psd_path_in_zip.display()))?;
     let document = core
-        .inspect_psd(&config.zip_path, &config.psd_path_in_zip)
+        .inspect_psd(zip_path, psd_path_in_zip)
         .with_context(|| {
             format!(
                 "failed to inspect PSD '{}' for eye blink",
-                config.psd_path_in_zip.display()
+                psd_path_in_zip.display()
             )
         })?;
-    let target = match auto_generate_eye_blink_target(&document, &base_variation) {
+    let Some(closed_display_diff) = build_closed_eye_display_diff_with_document(
+        zip_path,
+        psd_path_in_zip,
+        &document,
+        base_variation,
+    )?
+    else {
+        return Ok(None);
+    };
+    render_closed_eye_png_with_closed_display_diff(
+        core,
+        zip_path,
+        psd_path_in_zip,
+        psd_file_name,
+        closed_display_diff,
+    )
+}
+
+/// Builds the closed-eye display diff from an already inspected PSD document so
+/// callers can reuse the inspection result.
+pub(crate) fn build_closed_eye_display_diff_with_document(
+    zip_path: &Path,
+    psd_path_in_zip: &Path,
+    document: &PsdDocument,
+    base_variation: &DisplayDiff,
+) -> Result<Option<DisplayDiff>> {
+    let target = match auto_generate_eye_blink_target(document, base_variation) {
         Ok(target) => target,
         Err(error) => {
-            eprintln!(
-                "Eye blink auto-generation skipped for '{}': {}",
-                psd_file_name, error
-            );
+            log_eye_blink_auto_generation_skip_once(zip_path, psd_path_in_zip, &error);
             return Ok(None);
         }
     };
-    let closed_display_diff = build_closed_eye_display_diff(&document, &base_variation, &target)
+    let psd_file_name = psd_path_in_zip
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| anyhow!("invalid PSD file name in '{}'", psd_path_in_zip.display()))?;
+    let closed_display_diff = build_closed_eye_display_diff(document, base_variation, &target)
         .map_err(|error| anyhow!(error))
         .with_context(|| {
             format!(
@@ -119,15 +174,42 @@ pub(crate) fn render_closed_eye_png(core: &Core, config: &MascotConfig) -> Resul
                 psd_file_name
             )
         })?;
+    Ok(Some(closed_display_diff))
+}
+
+// Renders the closed-eye PNG from a prebuilt closed-eye display diff.
+fn render_closed_eye_png_with_closed_display_diff(
+    core: &Core,
+    zip_path: &Path,
+    psd_path_in_zip: &Path,
+    psd_file_name: &str,
+    closed_display_diff: DisplayDiff,
+) -> Result<Option<PathBuf>> {
     let rendered = core
         .render_png(RenderRequest {
-            zip_path: config.zip_path.clone(),
-            psd_path_in_zip: config.psd_path_in_zip.clone(),
+            zip_path: zip_path.to_path_buf(),
+            psd_path_in_zip: psd_path_in_zip.to_path_buf(),
             display_diff: closed_display_diff,
         })
         .with_context(|| format!("failed to render closed-eye PNG for '{}'", psd_file_name))?;
 
     Ok(Some(rendered.output_path))
+}
+
+fn log_eye_blink_auto_generation_skip_once(zip_path: &Path, psd_path_in_zip: &Path, error: &str) {
+    let key = format!("{}::{}", zip_path.display(), psd_path_in_zip.display());
+    let logged_psds = EYE_BLINK_SKIP_LOGGED_PSDS.get_or_init(|| Mutex::new(HashSet::new()));
+    let mut logged_psds = logged_psds
+        .lock()
+        .expect("eye blink skip log state should be lockable");
+    if logged_psds.insert(key) {
+        eprintln!(
+            "Eye blink auto-generation skipped: zip_path={} psd_path_in_zip={} reason={}",
+            zip_path.display(),
+            psd_path_in_zip.display(),
+            error
+        );
+    }
 }
 
 fn load_current_display_diff(config: &MascotConfig) -> DisplayDiff {
