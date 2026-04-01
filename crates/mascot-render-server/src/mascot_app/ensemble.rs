@@ -102,11 +102,10 @@ impl FavoriteEnsembleScene {
                         member.eye_blink.current_median_ms(),
                     ),
                 );
-                let eye_blink_repaint_after = member.closed_skin.as_ref().map(|_| {
-                    member
-                        .eye_blink
-                        .repaint_after(now, Duration::from_millis(250))
-                });
+                let eye_blink_repaint_after = member
+                    .closed_skin
+                    .as_ref()
+                    .map(|_| member.eye_blink.deadline_after(now));
                 match (motion_repaint_after, eye_blink_repaint_after) {
                     (Some(motion_repaint_after), Some(eye_blink_repaint_after)) => {
                         Some(motion_repaint_after.min(eye_blink_repaint_after))

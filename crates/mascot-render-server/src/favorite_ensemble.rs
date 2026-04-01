@@ -9,7 +9,7 @@ use mascot_render_core::{
 use mascot_render_server::alpha_bounds_from_mask;
 use serde::{Deserialize, Serialize};
 
-use crate::eye_blink::render_closed_eye_png_with_display_diff;
+use crate::eye_blink::build_closed_eye_display_diff_with_document;
 
 const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";
@@ -270,22 +270,46 @@ fn render_favorite(core: &Core, entry: FavoriteEnsembleEntry) -> Result<Rendered
             rendered.output_path.display()
         )
     })?;
+    let document = core
+        .inspect_psd(&entry.zip_path, &entry.psd_path_in_zip)
+        .with_context(|| {
+            format!(
+                "failed to inspect favorite ensemble PSD {} :: {} for eye blink",
+                entry.zip_path.display(),
+                entry.psd_path_in_zip.display()
+            )
+        })?;
     Ok(RenderedFavorite {
         base_size: mascot_window_size(image.width, image.height, entry.mascot_scale),
-        closed_image: render_closed_eye_png_with_display_diff(
-            core,
+        closed_image: build_closed_eye_display_diff_with_document(
             &entry.zip_path,
             &entry.psd_path_in_zip,
+            &document,
             &display_diff,
         )?
-        .filter(|path| path != &rendered.output_path)
-        .map(|path| {
-            load_mascot_image(&path).with_context(|| {
+        .map(|closed_display_diff| {
+            core.render_png(RenderRequest {
+                zip_path: entry.zip_path.clone(),
+                psd_path_in_zip: entry.psd_path_in_zip.clone(),
+                display_diff: closed_display_diff,
+            })
+            .with_context(|| {
+                format!(
+                    "failed to render favorite ensemble closed-eye PNG {} :: {}",
+                    entry.zip_path.display(),
+                    entry.psd_path_in_zip.display()
+                )
+            })
+        })
+        .transpose()?
+        .filter(|rendered_closed| rendered_closed.output_path != rendered.output_path)
+        .map(|rendered_closed| {
+            load_mascot_image(&rendered_closed.output_path).with_context(|| {
                 format!(
                     "failed to load favorite ensemble closed-eye PNG {} :: {} from {}",
                     entry.zip_path.display(),
                     entry.psd_path_in_zip.display(),
-                    path.display()
+                    rendered_closed.output_path.display()
                 )
             })
         })

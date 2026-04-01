@@ -35,3 +35,14 @@ fn eye_blink_loop_elapsed_offset_shifts_initial_deadline() {
         blink.current_deadline_for_test()
     );
 }
+
+#[test]
+fn eye_blink_loop_deadline_after_matches_current_deadline() {
+    let now = Instant::now();
+    let mut blink = EyeBlinkLoop::new_for_test(now, 11);
+
+    assert_eq!(
+        blink.deadline_after(now),
+        blink.current_deadline_for_test().duration_since(now)
+    );
+}
