@@ -13,6 +13,8 @@ use crate::eye_blink::build_closed_eye_display_diff_with_document;
 #[path = "favorite_ensemble/sanitize.rs"]
 mod sanitize;
 use sanitize::sanitize_favorites;
+#[cfg(test)]
+pub(crate) use sanitize::sanitize_favorites_for_test;
 
 const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";

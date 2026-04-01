@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use super::FavoriteEnsembleEntry;
 
 pub(super) fn sanitize_favorites(
@@ -22,9 +20,10 @@ pub(super) fn sanitize_favorites(
         favorite.mascot_scale = sanitize_scale(favorite.mascot_scale);
         favorite.favorite_ensemble_position =
             sanitize_position(favorite.favorite_ensemble_position);
-        if let Some(index) = sanitized.iter().position(|saved: &FavoriteEnsembleEntry| {
-            favorite_identity(saved) == favorite_identity(&favorite)
-        }) {
+        if let Some(index) = sanitized
+            .iter()
+            .position(|saved: &FavoriteEnsembleEntry| same_favorite_identity(saved, &favorite))
+        {
             sanitized[index] = favorite;
         } else {
             sanitized.push(favorite);
@@ -33,16 +32,17 @@ pub(super) fn sanitize_favorites(
     sanitized
 }
 
-fn favorite_identity(favorite: &FavoriteEnsembleEntry) -> (&Path, &Path, Vec<(usize, bool)>) {
-    (
-        favorite.zip_path.as_path(),
-        favorite.psd_path_in_zip.as_path(),
-        favorite
+fn same_favorite_identity(left: &FavoriteEnsembleEntry, right: &FavoriteEnsembleEntry) -> bool {
+    left.zip_path == right.zip_path
+        && left.psd_path_in_zip == right.psd_path_in_zip
+        && left.visibility_overrides.len() == right.visibility_overrides.len()
+        && left
             .visibility_overrides
             .iter()
-            .map(|layer| (layer.layer_index, layer.visible))
-            .collect(),
-    )
+            .zip(&right.visibility_overrides)
+            .all(|(left, right)| {
+                left.layer_index == right.layer_index && left.visible == right.visible
+            })
 }
 
 fn sanitize_scale(scale: Option<f32>) -> Option<f32> {
@@ -51,4 +51,11 @@ fn sanitize_scale(scale: Option<f32>) -> Option<f32> {
 
 fn sanitize_position(position: Option<[f32; 2]>) -> Option<[f32; 2]> {
     position.filter(|[x, y]| x.is_finite() && y.is_finite())
+}
+
+#[cfg(test)]
+pub(crate) fn sanitize_favorites_for_test(
+    favorites: Vec<FavoriteEnsembleEntry>,
+) -> Vec<FavoriteEnsembleEntry> {
+    sanitize_favorites(favorites)
 }
