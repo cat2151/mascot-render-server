@@ -1,6 +1,7 @@
 use crate::favorite_ensemble::{
     fill_missing_positions, pack_positions_from_right, patch_favorite_ensemble_positions_toml,
-    scaled_content_x_bounds, FavoriteEnsembleEntry, FavoriteEnsembleLayoutEntry,
+    sanitize_favorites_for_test, scaled_content_x_bounds, FavoriteEnsembleEntry,
+    FavoriteEnsembleLayoutEntry,
 };
 use crate::mascot_app::{
     member_eye_blink_elapsed, member_eye_blink_seed, member_phase_offset_ratio,
@@ -200,6 +201,50 @@ fn favorite_ensemble_member_eye_blink_elapsed_is_staggered() {
 fn favorite_ensemble_member_eye_blink_seeds_are_distinct_per_member() {
     assert_ne!(member_eye_blink_seed(0, 3), member_eye_blink_seed(1, 3));
     assert_ne!(member_eye_blink_seed(1, 3), member_eye_blink_seed(2, 3));
+}
+
+#[test]
+fn favorite_ensemble_sanitize_deduplicates_equivalent_visibility_overrides() {
+    let sanitized = sanitize_favorites_for_test(vec![
+        FavoriteEnsembleEntry {
+            zip_path: PathBuf::from("dummy-a.zip"),
+            psd_path_in_zip: PathBuf::from("dummy/body.psd"),
+            psd_file_name: "body.psd".to_string(),
+            visibility_overrides: vec![
+                LayerVisibilityOverride {
+                    layer_index: 1,
+                    visible: true,
+                },
+                LayerVisibilityOverride {
+                    layer_index: 3,
+                    visible: false,
+                },
+            ],
+            mascot_scale: Some(1.0),
+            favorite_ensemble_position: Some([10.0, 20.0]),
+        },
+        FavoriteEnsembleEntry {
+            zip_path: PathBuf::from("dummy-a.zip"),
+            psd_path_in_zip: PathBuf::from("dummy/body.psd"),
+            psd_file_name: "body.psd".to_string(),
+            visibility_overrides: vec![
+                LayerVisibilityOverride {
+                    layer_index: 1,
+                    visible: true,
+                },
+                LayerVisibilityOverride {
+                    layer_index: 3,
+                    visible: false,
+                },
+            ],
+            mascot_scale: Some(2.0),
+            favorite_ensemble_position: Some([30.0, 40.0]),
+        },
+    ]);
+
+    assert_eq!(sanitized.len(), 1);
+    assert_eq!(sanitized[0].mascot_scale, Some(2.0));
+    assert_eq!(sanitized[0].favorite_ensemble_position, Some([30.0, 40.0]));
 }
 
 fn sample_favorite_entry(mascot_scale: Option<f32>) -> FavoriteEnsembleEntry {
