@@ -76,6 +76,8 @@ pub(crate) fn patch_favorite_ensemble_positions_toml(
         else {
             continue;
         };
+        // Only backfill entries missing favorite_ensemble_position, preserving
+        // user-adjusted coordinates.
         if entry
             .get("favorite_ensemble_position")
             .and_then(toml::Value::as_array)
