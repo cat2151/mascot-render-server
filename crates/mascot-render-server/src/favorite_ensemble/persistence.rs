@@ -4,7 +4,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use super::sanitize_favorites;
+use super::sanitize::sanitize_favorites;
 use super::FavoriteEnsembleEntry;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]

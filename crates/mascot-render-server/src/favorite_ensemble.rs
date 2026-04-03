@@ -15,7 +15,6 @@ mod persistence;
 mod sanitize;
 pub(crate) use persistence::patch_favorite_ensemble_positions_toml;
 use persistence::{load_favorites, patch_favorite_ensemble_positions};
-use sanitize::sanitize_favorites;
 #[cfg(test)]
 pub(crate) use sanitize::sanitize_favorites_for_test;
 
