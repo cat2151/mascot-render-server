@@ -13,6 +13,7 @@ use crate::eye_blink::build_closed_eye_display_diff_with_document;
 mod persistence;
 #[path = "favorite_ensemble/sanitize.rs"]
 mod sanitize;
+#[cfg(test)]
 pub(crate) use persistence::patch_favorite_ensemble_positions_toml;
 use persistence::{load_favorites, patch_favorite_ensemble_positions};
 #[cfg(test)]
