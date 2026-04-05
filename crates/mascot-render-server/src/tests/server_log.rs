@@ -5,7 +5,11 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::server_log::append_log_record_for_test;
+use mascot_render_core::local_data_root;
+
+use crate::server_log::{
+    append_log_record_for_test, post_request_log_path_for_test, server_log_path_for_test,
+};
 
 #[test]
 fn append_log_record_creates_parent_directory_and_writes_message() {
@@ -92,6 +96,22 @@ fn append_log_record_serializes_concurrent_writes() {
     }
 
     remove_test_log_dir(&log_path);
+}
+
+#[test]
+fn post_request_log_path_lives_under_local_data_root_logs_directory() {
+    assert_eq!(
+        post_request_log_path_for_test(),
+        local_data_root().join("logs").join("post-request.log")
+    );
+}
+
+#[test]
+fn server_log_path_lives_under_local_data_root_logs_directory() {
+    assert_eq!(
+        server_log_path_for_test(),
+        local_data_root().join("logs").join("server.log")
+    );
 }
 
 fn remove_test_log_dir(log_path: &Path) {
