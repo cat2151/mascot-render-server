@@ -28,9 +28,18 @@ pub fn log_server_error(message: impl AsRef<str>) {
 }
 
 pub fn log_post_request(message: impl AsRef<str>) {
+    log_post_request_with_level("INFO", message.as_ref());
+}
+
+pub fn log_post_request_error(message: impl AsRef<str>) {
     let message = message.as_ref();
+    eprintln!("{message}");
+    log_post_request_with_level("ERROR", message);
+}
+
+fn log_post_request_with_level(level: &str, message: &str) {
     let path = post_request_log_path();
-    if let Err(error) = append_log_record(&path, "INFO", message) {
+    if let Err(error) = append_log_record(&path, level, message) {
         eprintln!("{message}");
         eprintln!(
             "failed to append post request log {}: {error:#}",
@@ -50,7 +59,9 @@ fn log_server(level: &str, message: &str, already_printed_to_stderr: bool) {
 }
 
 fn server_log_path() -> PathBuf {
-    PathBuf::from(SERVER_LOG_PATH)
+    std::env::current_dir()
+        .map(|path| path.join(SERVER_LOG_PATH))
+        .unwrap_or_else(|_| PathBuf::from(SERVER_LOG_PATH))
 }
 
 fn post_request_log_path() -> PathBuf {
@@ -127,4 +138,9 @@ pub(crate) fn append_log_record_for_test(path: &Path, level: &str, message: &str
 #[cfg(test)]
 pub(crate) fn post_request_log_path_for_test() -> PathBuf {
     post_request_log_path()
+}
+
+#[cfg(test)]
+pub(crate) fn server_log_path_for_test() -> PathBuf {
+    server_log_path()
 }

@@ -19,7 +19,8 @@ use mascot_render_client::{
 use serde::Serialize;
 
 use crate::{
-    log_post_request, log_server_error, log_server_info, validate_motion_timeline_request,
+    log_post_request, log_post_request_error, log_server_error, log_server_info,
+    validate_motion_timeline_request,
 };
 
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -422,9 +423,11 @@ fn log_received_request<T: Serialize>(peer: SocketAddr, action: &str, request: &
             "trigger=http_request peer={peer} action={action} request を受け取りました\nrequest:\n{request_json}"
         )),
         Err(error) => {
-            log_server_error(format!(
+            let message = format!(
                 "trigger=http_request peer={peer} action={action} request の pretty JSON 整形に失敗しました: {error:#}"
-            ));
+            );
+            log_server_error(&message);
+            log_post_request_error(&message);
             log_post_request(format!(
                 "trigger=http_request peer={peer} action={action} request を受け取りました"
             ));
