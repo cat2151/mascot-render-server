@@ -107,13 +107,10 @@ fn post_request_log_path_lives_under_local_data_root_logs_directory() {
 }
 
 #[test]
-fn server_log_path_is_resolved_from_current_working_directory() {
+fn server_log_path_lives_under_local_data_root_logs_directory() {
     assert_eq!(
         server_log_path_for_test(),
-        std::env::current_dir()
-            .expect("current dir should be available")
-            .join("logs")
-            .join("server.log")
+        local_data_root().join("logs").join("server.log")
     );
 }
 

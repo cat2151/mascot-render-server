@@ -65,9 +65,7 @@ fn log_server(level: &str, message: &str, already_printed_to_stderr: bool) {
 }
 
 fn server_log_path() -> PathBuf {
-    std::env::current_dir()
-        .map(|path| path.join(SERVER_LOG_PATH))
-        .unwrap_or_else(|_| PathBuf::from(SERVER_LOG_PATH))
+    local_data_root().join(SERVER_LOG_PATH)
 }
 
 fn post_request_log_path() -> PathBuf {
