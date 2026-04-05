@@ -18,7 +18,9 @@ use mascot_render_client::{
 };
 use serde::Serialize;
 
-use crate::{log_server_error, log_server_info, validate_motion_timeline_request};
+use crate::{
+    log_post_request, log_server_error, log_server_info, validate_motion_timeline_request,
+};
 
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
@@ -206,7 +208,7 @@ fn route_request(
     match (request.method.as_str(), path.as_str()) {
         ("GET", "/health") => Ok(HttpResponse::ok_text("ok")),
         ("POST", "/show") => {
-            log_server_info(format!(
+            log_post_request(format!(
                 "trigger=http_request peer={peer} action=show show request を受け取りました"
             ));
             command_tx
@@ -219,7 +221,7 @@ fn route_request(
             Ok(HttpResponse::ok_text("ok"))
         }
         ("POST", "/hide") => {
-            log_server_info(format!(
+            log_post_request(format!(
                 "trigger=http_request peer={peer} action=hide hide request を受け取りました"
             ));
             command_tx
@@ -416,14 +418,14 @@ fn mascot_render_server_binary_name() -> &'static str {
 
 fn log_received_request<T: Serialize>(peer: SocketAddr, action: &str, request: &T) {
     match serde_json::to_string_pretty(request) {
-        Ok(request_json) => log_server_info(format!(
+        Ok(request_json) => log_post_request(format!(
             "trigger=http_request peer={peer} action={action} request を受け取りました\nrequest:\n{request_json}"
         )),
         Err(error) => {
             log_server_error(format!(
                 "trigger=http_request peer={peer} action={action} request の pretty JSON 整形に失敗しました: {error:#}"
             ));
-            log_server_info(format!(
+            log_post_request(format!(
                 "trigger=http_request peer={peer} action={action} request を受け取りました"
             ));
         }
