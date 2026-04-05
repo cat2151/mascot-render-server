@@ -33,8 +33,7 @@ pub fn log_post_request(message: impl AsRef<str>) {
 
 pub fn log_post_request_error(message: impl AsRef<str>) {
     let message = message.as_ref();
-    eprintln!("{message}");
-    log_post_request_with_level("post request log", "ERROR", message, true);
+    log_post_request_with_level("post request log", "ERROR", message, false);
 }
 
 fn log_post_request_with_level(
@@ -92,7 +91,7 @@ fn ensure_server_log_exists(path: &Path) -> Result<()> {
 fn append_log_record(log_kind: &str, path: &Path, level: &str, message: &str) -> Result<()> {
     let _guard = log_write_lock()
         .lock()
-        .expect("log write lock should not be poisoned");
+        .unwrap_or_else(|_| panic!("{log_kind} write lock should not be poisoned"));
     if let Some(parent) = path.parent() {
         create_dir_all(parent).with_context(|| {
             format!("failed to create {log_kind} directory {}", parent.display())
