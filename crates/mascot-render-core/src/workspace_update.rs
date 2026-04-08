@@ -3,7 +3,7 @@ use std::process::Command;
 #[cfg(not(target_os = "windows"))]
 use anyhow::bail;
 use anyhow::{anyhow, Context, Result};
-use cat_self_update_lib::check_remote_commit;
+use cat_self_update_lib::{check_remote_commit, CheckResult};
 
 const UPDATE_REPO_OWNER: &str = "cat2151";
 const UPDATE_REPO_NAME: &str = "mascot-render-server";
@@ -41,15 +41,25 @@ del \"%~f0\"\r\n",
     )
 }
 
-pub fn check_workspace_update(build_commit_hash: &str) -> Result<String> {
-    check_remote_commit(
+type CheckRemoteCommitFn =
+    fn(&str, &str, &str, &str) -> std::result::Result<CheckResult, Box<dyn std::error::Error>>;
+
+pub(crate) fn check_workspace_update_with(
+    build_commit_hash: &str,
+    checker: CheckRemoteCommitFn,
+) -> Result<String> {
+    checker(
         UPDATE_REPO_OWNER,
         UPDATE_REPO_NAME,
         UPDATE_BRANCH,
         build_commit_hash,
     )
     .map(|result| result.to_string())
-    .map_err(|error| anyhow!("{error}"))
+    .map_err(|error| anyhow!("failed to check for workspace update: {error}"))
+}
+
+pub fn check_workspace_update(build_commit_hash: &str) -> Result<String> {
+    check_workspace_update_with(build_commit_hash, check_remote_commit)
 }
 
 pub fn run_workspace_update() -> Result<()> {

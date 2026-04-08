@@ -1,4 +1,11 @@
-use crate::workspace_update::{update_bat_content, workspace_install_command};
+use std::error::Error;
+use std::fmt;
+
+use cat_self_update_lib::CheckResult;
+
+use crate::workspace_update::{
+    check_workspace_update_with, update_bat_content, workspace_install_command,
+};
 
 #[test]
 fn workspace_install_command_matches_readme_install_command() {
@@ -19,4 +26,63 @@ fn windows_update_bat_stops_both_binaries_and_reinstalls_workspace() {
     assert!(bat.contains("The update script will not be deleted so you can inspect or rerun it."));
     assert!(bat.contains("pause"));
     assert!(bat.contains("del \"%~f0\""));
+}
+
+fn fake_check_success(
+    owner: &str,
+    repo: &str,
+    branch: &str,
+    embedded_hash: &str,
+) -> Result<CheckResult, Box<dyn Error>> {
+    assert_eq!(owner, "cat2151");
+    assert_eq!(repo, "mascot-render-server");
+    assert_eq!(branch, "main");
+    assert_eq!(embedded_hash, "embedded123");
+
+    Ok(CheckResult {
+        embedded_hash: embedded_hash.to_owned(),
+        remote_hash: embedded_hash.to_owned(),
+    })
+}
+
+#[derive(Debug)]
+struct FakeCheckError;
+
+impl fmt::Display for FakeCheckError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "network down")
+    }
+}
+
+impl Error for FakeCheckError {}
+
+fn fake_check_failure(
+    _owner: &str,
+    _repo: &str,
+    _branch: &str,
+    _embedded_hash: &str,
+) -> Result<CheckResult, Box<dyn Error>> {
+    Err(Box::new(FakeCheckError))
+}
+
+#[test]
+fn check_workspace_update_uses_workspace_repo_arguments() {
+    let result = check_workspace_update_with("embedded123", fake_check_success)
+        .expect("workspace update check should succeed");
+
+    assert_eq!(
+        result,
+        "embedded: embedded123\nremote: embedded123\nresult: up-to-date"
+    );
+}
+
+#[test]
+fn check_workspace_update_adds_context_to_errors() {
+    let error =
+        check_workspace_update_with("embedded123", fake_check_failure).expect_err("should fail");
+
+    assert_eq!(
+        error.to_string(),
+        "failed to check for workspace update: network down"
+    );
 }
