@@ -53,7 +53,7 @@ fn check_subcommand_returns_check_action() {
 }
 
 #[test]
-fn command_help_returns_help_text() {
+fn update_subcommand_help_returns_help_text() {
     let action = parse_cli([
         OsString::from("psd-viewer-tui"),
         OsString::from("update"),
