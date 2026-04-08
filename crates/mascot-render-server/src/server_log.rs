@@ -2,10 +2,12 @@ use std::fs::{create_dir_all, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 
 use anyhow::{Context, Result};
 use mascot_render_core::local_data_root;
+use time::macros::format_description;
+use time::{OffsetDateTime, UtcOffset};
 
 const SERVER_LOG_PATH: &str = "logs/server.log";
 const POST_REQUEST_LOG_PATH: &str = "logs/post-request.log";
@@ -112,7 +114,11 @@ fn log_write_lock() -> &'static Mutex<()> {
 }
 
 fn format_log_record(level: &str, message: &str) -> String {
-    let timestamp = unix_timestamp();
+    format_log_record_at(level, message, SystemTime::now())
+}
+
+fn format_log_record_at(level: &str, message: &str, now: SystemTime) -> String {
+    let timestamp = human_readable_timestamp(now);
     let mut output = String::new();
 
     if message.is_empty() {
@@ -127,16 +133,23 @@ fn format_log_record(level: &str, message: &str) -> String {
     output
 }
 
-fn unix_timestamp() -> String {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => format!("{}.{:03}", duration.as_secs(), duration.subsec_millis()),
-        Err(_) => "0.000".to_string(),
-    }
+fn human_readable_timestamp(now: SystemTime) -> String {
+    OffsetDateTime::from(now)
+        .to_offset(UtcOffset::UTC)
+        .format(format_description!(
+            "[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:3]Z"
+        ))
+        .unwrap_or_else(|_| "1970-01-01 00:00:00.000Z".to_string())
 }
 
 #[cfg(test)]
 pub(crate) fn append_log_record_for_test(path: &Path, level: &str, message: &str) -> Result<()> {
     append_log_record("test log", path, level, message)
+}
+
+#[cfg(test)]
+pub(crate) fn format_log_record_for_test(level: &str, message: &str, now: SystemTime) -> String {
+    format_log_record_at(level, message, now)
 }
 
 #[cfg(test)]
