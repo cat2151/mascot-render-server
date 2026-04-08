@@ -1,39 +1,52 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
-use mascot_render_core::{
-    local_data_root, mascot_config_path, parse_mascot_config_path, workspace_cache_root,
-};
+use anyhow::Result;
+use clap::{error::ErrorKind, Parser, Subcommand};
+use mascot_render_core::{local_data_root, mascot_config_path, workspace_cache_root};
 
 #[derive(Debug)]
 pub(crate) enum CliAction {
     Run(PathBuf),
     Update,
+    Check,
     PrintHelp(String),
 }
 
+#[derive(Debug, Parser)]
+#[command(
+    name = "mascot-render-server",
+    disable_help_subcommand = true,
+    disable_version_flag = true,
+    args_conflicts_with_subcommands = true
+)]
+struct Cli {
+    #[arg(long, value_name = "path")]
+    config: Option<PathBuf>,
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    Update,
+    Check,
+}
+
 pub(crate) fn parse_cli(args: impl IntoIterator<Item = OsString>) -> Result<CliAction> {
-    let args = args.into_iter().collect::<Vec<_>>();
-    if args
-        .iter()
-        .skip(1)
-        .any(|arg| arg == "--help" || arg == "-h")
-    {
-        return Ok(CliAction::PrintHelp(help_text()));
-    }
-
-    if matches!(args.get(1), Some(arg) if arg == "update") {
-        if let Some(arg) = args.get(2) {
-            bail!(
-                "unsupported argument '{}' after 'update'; run with --help for usage",
-                arg.to_string_lossy()
-            );
+    match Cli::try_parse_from(args) {
+        Ok(cli) => match cli.command {
+            Some(Commands::Update) => Ok(CliAction::Update),
+            Some(Commands::Check) => Ok(CliAction::Check),
+            None => Ok(CliAction::Run(
+                cli.config.unwrap_or_else(mascot_config_path),
+            )),
+        },
+        Err(error) if error.kind() == ErrorKind::DisplayHelp => {
+            Ok(CliAction::PrintHelp(help_text()))
         }
-        return Ok(CliAction::Update);
+        Err(error) => Err(error.into()),
     }
-
-    parse_mascot_config_path(args).map(CliAction::Run)
 }
 
 pub(crate) fn help_text() -> String {
@@ -47,9 +60,11 @@ pub(crate) fn help_text() -> String {
 Usage:
   mascot-render-server [--config <path>]
   mascot-render-server update
+  mascot-render-server check
 
 Commands:
   update           Stop running binaries and reinstall both binaries.
+  check            Compare the embedded commit hash with the remote main branch.
 
 Options:
   --config <path>  Use a custom mascot static config TOML.

@@ -2,8 +2,12 @@ use std::process::Command;
 
 #[cfg(not(target_os = "windows"))]
 use anyhow::bail;
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
+use cat_self_update_lib::check_remote_commit;
 
+const UPDATE_REPO_OWNER: &str = "cat2151";
+const UPDATE_REPO_NAME: &str = "mascot-render-server";
+const UPDATE_BRANCH: &str = "main";
 const UPDATE_GIT_URL: &str = "https://github.com/cat2151/mascot-render-server";
 const UPDATE_PACKAGES: [&str; 2] = ["mascot-render-server", "psd-viewer-tui"];
 #[cfg(any(target_os = "windows", test))]
@@ -35,6 +39,17 @@ del \"%~f0\"\r\n",
         tui = UPDATE_EXECUTABLES[1],
         cmd = workspace_install_command()
     )
+}
+
+pub fn check_workspace_update(build_commit_hash: &str) -> Result<String> {
+    check_remote_commit(
+        UPDATE_REPO_OWNER,
+        UPDATE_REPO_NAME,
+        UPDATE_BRANCH,
+        build_commit_hash,
+    )
+    .map(|result| result.to_string())
+    .map_err(|error| anyhow!("{error}"))
 }
 
 pub fn run_workspace_update() -> Result<()> {

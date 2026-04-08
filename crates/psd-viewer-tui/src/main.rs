@@ -59,7 +59,7 @@ use anyhow::Result;
 use cli::{parse_cli, CliAction};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use mascot_render_client::hide_mascot_render_server;
-use mascot_render_core::{mascot_config_path, run_workspace_update};
+use mascot_render_core::{check_workspace_update, mascot_config_path, run_workspace_update};
 use ratatui::Terminal;
 use tui_sixel_preview::{build_picker, PreviewState};
 
@@ -69,11 +69,17 @@ use server_motion_sync::{shake_requested_status_message, ServerMotionSync};
 use server_preview_sync::ServerPreviewSync;
 use terminal::{Backend, TerminalGuard};
 
+const BUILD_COMMIT_HASH: &str = env!("BUILD_COMMIT_HASH");
+
 fn main() -> Result<()> {
     match parse_cli(std::env::args_os())? {
         CliAction::Run => {}
         CliAction::Update => {
             run_workspace_update()?;
+            return Ok(());
+        }
+        CliAction::Check => {
+            println!("{}", check_workspace_update(BUILD_COMMIT_HASH)?);
             return Ok(());
         }
         CliAction::PrintHelp(help) => {

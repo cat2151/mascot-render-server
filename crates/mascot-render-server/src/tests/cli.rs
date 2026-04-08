@@ -38,7 +38,9 @@ fn config_flag_still_accepts_custom_path() {
 
     match action {
         CliAction::Run(path) => assert_eq!(path, PathBuf::from("custom.toml")),
-        CliAction::Update | CliAction::PrintHelp(_) => panic!("expected run action"),
+        CliAction::Update | CliAction::Check | CliAction::PrintHelp(_) => {
+            panic!("expected run action")
+        }
     }
 }
 
@@ -51,4 +53,15 @@ fn update_subcommand_returns_update_action() {
     .expect("update should parse");
 
     assert!(matches!(action, CliAction::Update));
+}
+
+#[test]
+fn check_subcommand_returns_check_action() {
+    let action = parse_cli([
+        OsString::from("mascot-render-server"),
+        OsString::from("check"),
+    ])
+    .expect("check should parse");
+
+    assert!(matches!(action, CliAction::Check));
 }
