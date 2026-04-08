@@ -3,12 +3,14 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Barrier};
 use std::thread;
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use mascot_render_core::local_data_root;
 
 use crate::server_log::{
-    append_log_record_for_test, post_request_log_path_for_test, server_log_path_for_test,
+    append_log_record_for_test, format_log_record_for_test, post_request_log_path_for_test,
+    server_log_path_for_test,
 };
 
 #[test]
@@ -32,6 +34,20 @@ fn append_log_record_creates_parent_directory_and_writes_message() {
             .expect("log path should include nested directories"),
     )
     .expect("temporary server log directory should be removable");
+}
+
+#[test]
+fn format_log_record_uses_human_readable_utc_timestamp() {
+    let record = format_log_record_for_test(
+        "INFO",
+        "skin変更に成功しました",
+        UNIX_EPOCH + Duration::from_millis(0),
+    );
+
+    assert_eq!(
+        record,
+        "[1970-01-01 00:00:00.000Z] INFO skin変更に成功しました\n"
+    );
 }
 
 #[test]

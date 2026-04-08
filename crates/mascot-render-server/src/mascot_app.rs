@@ -31,6 +31,8 @@ mod config;
 mod ensemble;
 #[path = "mascot_app/layout.rs"]
 mod layout;
+#[path = "mascot_app/logging.rs"]
+mod logging;
 #[path = "mascot_app/runtime.rs"]
 mod runtime;
 #[path = "mascot_app/scale.rs"]
@@ -48,6 +50,12 @@ pub(crate) use ensemble::member_phase_offset_ratio;
 use ensemble::FavoriteEnsembleScene;
 #[cfg(test)]
 pub(crate) use ensemble::{member_eye_blink_elapsed, member_eye_blink_seed};
+#[cfg(test)]
+pub(crate) use logging::{
+    change_skin_failure_message_for_test, change_skin_stage_message_for_test,
+    change_skin_success_message_for_test,
+};
+use logging::{change_skin_success_message, run_change_skin_stage};
 #[cfg(test)]
 pub(crate) use runtime::mouth_flap_skin_state_for_test;
 
@@ -261,11 +269,13 @@ impl MascotApp {
             png_path.display()
         ));
         let previous_layout = self.window_layout;
-        self.open_skin = self.load_skin(ctx, png_path).with_context(|| {
-            format!(
-                "failed to load requested mascot skin image {}",
-                png_path.display()
-            )
+        self.open_skin = run_change_skin_stage(&previous_png_path, png_path, "load_skin", || {
+            self.load_skin(ctx, png_path).with_context(|| {
+                format!(
+                    "failed to load requested mascot skin image {}",
+                    png_path.display()
+                )
+            })
         })?;
         self.base_size = size_vec(
             self.open_skin.image_size[0],
@@ -274,23 +284,39 @@ impl MascotApp {
         );
         self.config.png_path = png_path.to_path_buf();
         self.eye_blink.reset(Instant::now());
-        self.refresh_closed_eye_skin(ctx).with_context(|| {
-            format!(
-                "failed to refresh closed-eye skin after changing to {}",
-                png_path.display()
-            )
-        })?;
-        self.refresh_mouth_flap_skins(ctx).with_context(|| {
-            format!(
-                "failed to refresh mouth-flap skins after changing to {}",
-                png_path.display()
-            )
-        })?;
-        self.refresh_window_layout(ctx, previous_layout);
-        log_server_info(format!(
-            "trigger=control_command action=change_skin skin変更しました: png_path={}",
-            png_path.display()
+        run_change_skin_stage(
+            &previous_png_path,
+            png_path,
+            "refresh_closed_eye_skin",
+            || {
+                self.refresh_closed_eye_skin(ctx).with_context(|| {
+                    format!(
+                        "failed to refresh closed-eye skin after changing to {}",
+                        png_path.display()
+                    )
+                })
+            },
+        )?;
+        run_change_skin_stage(
+            &previous_png_path,
+            png_path,
+            "refresh_mouth_flap_skins",
+            || {
+                self.refresh_mouth_flap_skins(ctx).with_context(|| {
+                    format!(
+                        "failed to refresh mouth-flap skins after changing to {}",
+                        png_path.display()
+                    )
+                })
+            },
+        )?;
+        log_server_info(logging::change_skin_stage_message(
+            &previous_png_path,
+            png_path,
+            "refresh_window_layout",
         ));
+        self.refresh_window_layout(ctx, previous_layout);
+        log_server_info(change_skin_success_message(&previous_png_path, png_path));
         Ok(())
     }
 
