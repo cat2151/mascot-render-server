@@ -139,7 +139,7 @@ fn human_readable_timestamp(now: SystemTime) -> String {
         .format(format_description!(
             "[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:3]Z"
         ))
-        .unwrap_or_else(|_| "1970-01-01 00:00:00.000Z".to_string())
+        .unwrap_or_else(|_| "INVALID-TIMESTAMP".to_string())
 }
 
 #[cfg(test)]

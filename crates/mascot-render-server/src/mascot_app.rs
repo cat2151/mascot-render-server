@@ -50,14 +50,12 @@ pub(crate) use ensemble::member_phase_offset_ratio;
 use ensemble::FavoriteEnsembleScene;
 #[cfg(test)]
 pub(crate) use ensemble::{member_eye_blink_elapsed, member_eye_blink_seed};
-use logging::{
-    change_skin_failure_message, change_skin_stage_message, change_skin_success_message,
-};
 #[cfg(test)]
 pub(crate) use logging::{
     change_skin_failure_message_for_test, change_skin_stage_message_for_test,
     change_skin_success_message_for_test,
 };
+use logging::{change_skin_success_message, run_change_skin_stage};
 #[cfg(test)]
 pub(crate) use runtime::mouth_flap_skin_state_for_test;
 
@@ -271,28 +269,14 @@ impl MascotApp {
             png_path.display()
         ));
         let previous_layout = self.window_layout;
-        log_server_info(change_skin_stage_message(
-            &previous_png_path,
-            png_path,
-            "load_skin",
-        ));
-        self.open_skin = match self.load_skin(ctx, png_path).with_context(|| {
-            format!(
-                "failed to load requested mascot skin image {}",
-                png_path.display()
-            )
-        }) {
-            Ok(open_skin) => open_skin,
-            Err(error) => {
-                log_server_error(change_skin_failure_message(
-                    &previous_png_path,
-                    png_path,
-                    "load_skin",
-                    &format!("{error:#}"),
-                ));
-                return Err(error);
-            }
-        };
+        self.open_skin = run_change_skin_stage(&previous_png_path, png_path, "load_skin", || {
+            self.load_skin(ctx, png_path).with_context(|| {
+                format!(
+                    "failed to load requested mascot skin image {}",
+                    png_path.display()
+                )
+            })
+        })?;
         self.base_size = size_vec(
             self.open_skin.image_size[0],
             self.open_skin.image_size[1],
@@ -300,45 +284,33 @@ impl MascotApp {
         );
         self.config.png_path = png_path.to_path_buf();
         self.eye_blink.reset(Instant::now());
-        log_server_info(change_skin_stage_message(
+        run_change_skin_stage(
             &previous_png_path,
             png_path,
             "refresh_closed_eye_skin",
-        ));
-        if let Err(error) = self.refresh_closed_eye_skin(ctx).with_context(|| {
-            format!(
-                "failed to refresh closed-eye skin after changing to {}",
-                png_path.display()
-            )
-        }) {
-            log_server_error(change_skin_failure_message(
-                &previous_png_path,
-                png_path,
-                "refresh_closed_eye_skin",
-                &format!("{error:#}"),
-            ));
-            return Err(error);
-        }
-        log_server_info(change_skin_stage_message(
+            || {
+                self.refresh_closed_eye_skin(ctx).with_context(|| {
+                    format!(
+                        "failed to refresh closed-eye skin after changing to {}",
+                        png_path.display()
+                    )
+                })
+            },
+        )?;
+        run_change_skin_stage(
             &previous_png_path,
             png_path,
             "refresh_mouth_flap_skins",
-        ));
-        if let Err(error) = self.refresh_mouth_flap_skins(ctx).with_context(|| {
-            format!(
-                "failed to refresh mouth-flap skins after changing to {}",
-                png_path.display()
-            )
-        }) {
-            log_server_error(change_skin_failure_message(
-                &previous_png_path,
-                png_path,
-                "refresh_mouth_flap_skins",
-                &format!("{error:#}"),
-            ));
-            return Err(error);
-        }
-        log_server_info(change_skin_stage_message(
+            || {
+                self.refresh_mouth_flap_skins(ctx).with_context(|| {
+                    format!(
+                        "failed to refresh mouth-flap skins after changing to {}",
+                        png_path.display()
+                    )
+                })
+            },
+        )?;
+        log_server_info(logging::change_skin_stage_message(
             &previous_png_path,
             png_path,
             "refresh_window_layout",
