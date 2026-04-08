@@ -41,6 +41,8 @@ del \"%~f0\"\r\n",
     )
 }
 
+/// Function signature for checking the remote commit of the workspace repository.
+/// Parameters are `(owner, repo, branch, embedded_hash)`.
 type CheckRemoteCommitFn =
     fn(&str, &str, &str, &str) -> std::result::Result<CheckResult, Box<dyn std::error::Error>>;
 

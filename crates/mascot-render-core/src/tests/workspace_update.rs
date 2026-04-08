@@ -7,6 +7,8 @@ use crate::workspace_update::{
     check_workspace_update_with, update_bat_content, workspace_install_command,
 };
 
+const FAKE_CHECK_ERROR_MESSAGE: &str = "network down";
+
 #[test]
 fn workspace_install_command_matches_readme_install_command() {
     assert_eq!(
@@ -50,7 +52,7 @@ struct FakeCheckError;
 
 impl fmt::Display for FakeCheckError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "network down")
+        write!(f, "{FAKE_CHECK_ERROR_MESSAGE}")
     }
 }
 
@@ -83,6 +85,6 @@ fn check_workspace_update_adds_context_to_errors() {
 
     assert_eq!(
         error.to_string(),
-        "failed to check for workspace update: network down"
+        format!("failed to check for workspace update: {FAKE_CHECK_ERROR_MESSAGE}")
     );
 }
