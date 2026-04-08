@@ -45,6 +45,14 @@ fn update_subcommand_returns_update_action() {
 }
 
 #[test]
+fn check_subcommand_returns_check_action() {
+    let action =
+        parse_cli([OsString::from("psd-viewer-tui"), OsString::from("check")]).expect("check");
+
+    assert!(matches!(action, CliAction::Check));
+}
+
+#[test]
 fn update_subcommand_help_returns_help_text() {
     let action = parse_cli([
         OsString::from("psd-viewer-tui"),

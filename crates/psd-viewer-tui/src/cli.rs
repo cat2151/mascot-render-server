@@ -1,6 +1,7 @@
 use std::ffi::OsString;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
+use clap::{error::ErrorKind, Parser, Subcommand};
 use mascot_render_core::{local_data_root, mascot_config_path, workspace_cache_root};
 
 use crate::tui_config::tui_config_path;
@@ -9,40 +10,38 @@ use crate::tui_config::tui_config_path;
 pub(crate) enum CliAction {
     Run,
     Update,
+    Check,
     PrintHelp(String),
 }
 
-pub(crate) fn parse_cli(args: impl IntoIterator<Item = OsString>) -> Result<CliAction> {
-    let mut args = args.into_iter();
-    let _program = args.next();
+#[derive(Debug, Parser)]
+#[command(
+    name = "psd-viewer-tui",
+    disable_help_subcommand = true,
+    disable_version_flag = true
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
 
-    match args.next() {
-        None => Ok(CliAction::Run),
-        Some(arg) if arg == "--help" || arg == "-h" => Ok(CliAction::PrintHelp(help_text())),
-        Some(arg) if arg == "update" => {
-            if let Some(next) = args.next() {
-                if next == "--help" || next == "-h" {
-                    return Ok(CliAction::PrintHelp(help_text()));
-                }
-                bail!(
-                    "unsupported argument '{}' after 'update'; run with --help for usage",
-                    next.to_string_lossy()
-                );
-            }
-            Ok(CliAction::Update)
+#[derive(Debug, Subcommand)]
+enum Commands {
+    Update,
+    Check,
+}
+
+pub(crate) fn parse_cli(args: impl IntoIterator<Item = OsString>) -> Result<CliAction> {
+    match Cli::try_parse_from(args) {
+        Ok(cli) => match cli.command {
+            Some(Commands::Update) => Ok(CliAction::Update),
+            Some(Commands::Check) => Ok(CliAction::Check),
+            None => Ok(CliAction::Run),
+        },
+        Err(error) if error.kind() == ErrorKind::DisplayHelp => {
+            Ok(CliAction::PrintHelp(help_text()))
         }
-        Some(arg) if arg.to_string_lossy().starts_with('-') => {
-            bail!(
-                "unsupported argument '{}'; run with --help for usage",
-                arg.to_string_lossy()
-            );
-        }
-        Some(arg) => {
-            bail!(
-                "unsupported positional argument '{}'; run with --help for usage",
-                arg.to_string_lossy()
-            );
-        }
+        Err(error) => Err(error.into()),
     }
 }
 
@@ -58,9 +57,11 @@ pub(crate) fn help_text() -> String {
 Usage:
   psd-viewer-tui
   psd-viewer-tui update
+  psd-viewer-tui check
 
 Commands:
   update          Stop running binaries and reinstall both binaries.
+  check           Compare the embedded commit hash with the remote main branch.
 
 Options:
   -h, --help      Show this help.

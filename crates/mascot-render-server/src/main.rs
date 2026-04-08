@@ -43,7 +43,8 @@ use eframe::NativeOptions;
 use favorite_ensemble::load_favorite_ensemble;
 use mascot_app::MascotApp;
 use mascot_render_core::{
-    load_mascot_config, load_mascot_image, run_workspace_update, Core, CoreConfig,
+    check_workspace_update, load_mascot_config, load_mascot_image, run_workspace_update, Core,
+    CoreConfig,
 };
 use mascot_render_server::window_history::{
     load_window_position, outer_position_for_anchor, window_history_path,
@@ -55,6 +56,8 @@ use mascot_render_server::{
 
 use app_support::{alpha_mask, content_bounds, size_vec, window_title};
 
+const BUILD_COMMIT_HASH: &str = env!("BUILD_COMMIT_HASH");
+
 const SKIN_CACHE_CAPACITY: usize = 16;
 
 fn main() -> Result<()> {
@@ -62,6 +65,10 @@ fn main() -> Result<()> {
         CliAction::Run(config_path) => config_path,
         CliAction::Update => {
             run_workspace_update()?;
+            return Ok(());
+        }
+        CliAction::Check => {
+            println!("{}", check_workspace_update(BUILD_COMMIT_HASH)?);
             return Ok(());
         }
         CliAction::PrintHelp(help) => {
