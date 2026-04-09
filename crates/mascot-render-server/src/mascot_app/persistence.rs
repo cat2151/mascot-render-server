@@ -11,6 +11,8 @@ pub(crate) fn persist_requested_skin_change(
     write_mascot_config(config_path, &requested_skin_target(config, png_path))
 }
 
+/// Reloads the persisted mascot runtime state and returns the verified
+/// `png_path` when it matches the requested skin change.
 pub(crate) fn verify_persisted_skin_change(config_path: &Path, png_path: &Path) -> Result<PathBuf> {
     let persisted_png_path = load_mascot_config(config_path)
         .with_context(|| format!("failed to reload {}", config_path.display()))?
