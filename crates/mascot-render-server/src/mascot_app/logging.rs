@@ -79,15 +79,12 @@ pub(crate) fn run_change_skin_stage<T>(
 }
 
 impl MascotApp {
-    pub(super) fn log_rendered_skin_if_changed(&mut self, png_path: &Path) -> bool {
+    pub(super) fn log_rendered_skin_if_changed(&mut self, png_path: &Path) {
         if !should_log_rendered_skin(self.last_logged_skin_path.as_deref(), png_path) {
-            return false;
+            return;
         }
-        if !record_rendered_skin_path(&mut self.last_logged_skin_path, png_path) {
-            return false;
-        }
+        self.last_logged_skin_path = Some(png_path.to_path_buf());
         log_server_skin_info(rendered_skin_message(png_path));
-        true
     }
 
     pub(super) fn clear_last_logged_skin_path(&mut self) {
@@ -102,6 +99,7 @@ pub(crate) fn should_log_rendered_skin(
     last_logged_skin_path != Some(png_path)
 }
 
+#[cfg(test)]
 pub(crate) fn record_rendered_skin_path(
     last_logged_skin_path: &mut Option<PathBuf>,
     png_path: &Path,
