@@ -46,10 +46,10 @@ pub(crate) fn change_skin_failure_message(
 }
 
 pub(crate) fn rendered_skin_message(png_path: &Path) -> String {
-    let png_file_name = png_path
-        .file_name()
-        .unwrap_or(png_path.as_os_str())
-        .to_string_lossy();
+    let png_file_name = match png_path.file_name() {
+        Some(file_name) => file_name.to_string_lossy().into_owned(),
+        None => png_path.display().to_string(),
+    };
     format!(
         "trigger=render action=display_skin displayed_png_path={} displayed_png_file_name={png_file_name}",
         png_path.display()

@@ -72,6 +72,7 @@ impl App for MascotApp {
             self.eye_blink.current_median_ms(),
         );
         if self.favorite_ensemble.is_some() {
+            // favorite ensemble では単一の表示 PNG を表せないため、単体 skin 用の重複抑止状態を戻す。
             self.clear_last_logged_skin_path();
             self.transparent_hit_test
                 .update(TransparentHitTestUpdate { now });
