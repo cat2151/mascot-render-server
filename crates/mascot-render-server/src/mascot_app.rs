@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 use std::time::{Instant, SystemTime};
 
@@ -13,9 +13,8 @@ use mascot_render_server::window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
 };
 use mascot_render_server::{
-    apply_motion_timeline_request, log_server_error, log_server_info, AlphaBounds,
-    FavoriteShufflePlaylist, MascotControlCommand, MascotSkinCache, MascotWindowLayout,
-    TransparentHitTestUpdate, TransparentHitTestWindow,
+    log_server_error, AlphaBounds, FavoriteShufflePlaylist, MascotControlCommand, MascotSkinCache,
+    MascotWindowLayout, TransparentHitTestUpdate, TransparentHitTestWindow,
 };
 
 use crate::app_support::{
@@ -27,6 +26,8 @@ use crate::mascot_scale::{effective_scale, keyboard_scale_steps, scroll_scale_st
 use crate::SKIN_CACHE_CAPACITY;
 #[path = "mascot_app/config.rs"]
 mod config;
+#[path = "mascot_app/control.rs"]
+mod control;
 #[path = "mascot_app/ensemble.rs"]
 mod ensemble;
 #[path = "mascot_app/layout.rs"]
@@ -43,10 +44,7 @@ mod scale;
 mod skins;
 #[cfg(test)]
 pub(crate) use config::should_reload_config_for_test;
-use config::{
-    active_config_scale, active_display_scale, describe_motion_timeline_request,
-    should_reload_config, ReloadInputs,
-};
+use config::{active_config_scale, active_display_scale, should_reload_config, ReloadInputs};
 #[cfg(test)]
 pub(crate) use ensemble::member_phase_offset_ratio;
 use ensemble::FavoriteEnsembleScene;
@@ -60,8 +58,6 @@ pub(crate) use logging::{
     record_rendered_skin_path_for_test, rendered_skin_message_for_test,
     should_log_rendered_skin_for_test,
 };
-use logging::{change_skin_success_message, run_change_skin_stage};
-use persistence::{persist_requested_skin_change, verify_persisted_skin_change};
 #[cfg(test)]
 pub(crate) use persistence::{
     persist_requested_skin_change_for_test, verify_persisted_skin_change_for_test,
@@ -206,172 +202,6 @@ impl MascotApp {
             now: Instant::now(),
         });
         app
-    }
-
-    fn apply_control_commands(&mut self, ctx: &egui::Context) -> Result<()> {
-        while let Ok(command) = self.control_rx.try_recv() {
-            match command {
-                MascotControlCommand::Show => {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                    log_server_info(
-                        "trigger=control_command action=show サーバウィンドウを表示しました",
-                    );
-                }
-                MascotControlCommand::Hide => {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                    log_server_info(
-                        "trigger=control_command action=hide サーバウィンドウを非表示にしました",
-                    );
-                }
-                MascotControlCommand::ChangeSkin(png_path) => {
-                    self.change_skin(ctx, &png_path).with_context(|| {
-                        format!(
-                            "failed to apply mascot change-skin command: requested_png_path={}",
-                            png_path.display()
-                        )
-                    })?;
-                }
-                MascotControlCommand::PlayTimeline(request) => {
-                    let timeline_summary = describe_motion_timeline_request(&request);
-                    apply_motion_timeline_request(
-                        &mut self.motion,
-                        self.window_layout,
-                        Instant::now(),
-                        request,
-                    )
-                    .with_context(|| {
-                        format!(
-                            "failed to apply mascot motion timeline command: {}",
-                            timeline_summary
-                        )
-                    })?;
-                    log_server_info(format!(
-                        "trigger=control_command action=timeline {}",
-                        timeline_summary
-                    ));
-                }
-            }
-            ctx.request_repaint();
-        }
-
-        Ok(())
-    }
-
-    fn change_skin(&mut self, ctx: &egui::Context, png_path: &Path) -> Result<()> {
-        if self.config.favorite_ensemble_enabled {
-            log_server_info(format!(
-                "trigger=control_command action=change_skin skin変更をスキップしました: favorite_ensemble_enabled=true requested_png_path={}",
-                png_path.display()
-            ));
-            return Ok(());
-        }
-        if self.config.png_path == png_path {
-            match verify_persisted_skin_change(&self.config_path, png_path) {
-                Ok(persisted_png_path) => {
-                    log_server_info(format!(
-                        "trigger=control_command action=change_skin skin変更をスキップしました: requested_png_path={} は現在の skin と同じで runtime state も一致しています runtime_state_path={} persisted_png_path={}",
-                        png_path.display(),
-                        self.runtime_state_path.display(),
-                        persisted_png_path.display()
-                    ));
-                    return Ok(());
-                }
-                Err(error) => {
-                    log_server_info(format!(
-                        "trigger=control_command action=change_skin requested_png_path={} は現在の skin と同じですが runtime state の検証に失敗したため再試行します: runtime_state_path={} error={error:#}",
-                        png_path.display(),
-                        self.runtime_state_path.display()
-                    ));
-                }
-            }
-        }
-
-        let previous_png_path = self.config.png_path.clone();
-        log_server_info(format!(
-            "trigger=control_command action=change_skin skin変更を開始しました: from={} to={}",
-            previous_png_path.display(),
-            png_path.display()
-        ));
-        let previous_layout = self.window_layout;
-        self.open_skin = run_change_skin_stage(&previous_png_path, png_path, "load_skin", || {
-            self.load_skin(ctx, png_path).with_context(|| {
-                format!(
-                    "failed to load requested mascot skin image {}",
-                    png_path.display()
-                )
-            })
-        })?;
-        self.base_size = size_vec(
-            self.open_skin.image_size[0],
-            self.open_skin.image_size[1],
-            Some(self.scale),
-        );
-        self.config.png_path = png_path.to_path_buf();
-        self.eye_blink.reset(Instant::now());
-        run_change_skin_stage(
-            &previous_png_path,
-            png_path,
-            "refresh_closed_eye_skin",
-            || {
-                self.refresh_closed_eye_skin(ctx).with_context(|| {
-                    format!(
-                        "failed to refresh closed-eye skin after changing to {}",
-                        png_path.display()
-                    )
-                })
-            },
-        )?;
-        run_change_skin_stage(
-            &previous_png_path,
-            png_path,
-            "refresh_mouth_flap_skins",
-            || {
-                self.refresh_mouth_flap_skins(ctx).with_context(|| {
-                    format!(
-                        "failed to refresh mouth-flap skins after changing to {}",
-                        png_path.display()
-                    )
-                })
-            },
-        )?;
-        log_server_info(logging::change_skin_stage_message(
-            &previous_png_path,
-            png_path,
-            "refresh_window_layout",
-        ));
-        self.refresh_window_layout(ctx, previous_layout);
-        run_change_skin_stage(
-            &previous_png_path,
-            png_path,
-            "persist_runtime_state",
-            || {
-                persist_requested_skin_change(&self.config_path, &self.config, png_path)
-                    .with_context(|| {
-                        format!(
-                            "failed to persist requested mascot skin to {}",
-                            self.runtime_state_path.display()
-                        )
-                    })
-            },
-        )?;
-        let persisted_png_path =
-            run_change_skin_stage(&previous_png_path, png_path, "verify_runtime_state", || {
-                verify_persisted_skin_change(&self.config_path, png_path).with_context(|| {
-                    format!(
-                        "failed to verify requested mascot skin in {}",
-                        self.runtime_state_path.display()
-                    )
-                })
-            })?;
-        self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
-        log_server_info(change_skin_success_message(
-            &previous_png_path,
-            png_path,
-            &self.runtime_state_path,
-            &persisted_png_path,
-        ));
-        Ok(())
     }
 
     fn reload_config_if_needed(&mut self, ctx: &egui::Context) -> Result<()> {
