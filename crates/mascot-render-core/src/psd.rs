@@ -44,7 +44,7 @@ pub(crate) fn build_psd_entry(path: &Path, render_root: &Path) -> PsdEntry {
     let mut render_warnings = Vec::new();
 
     if let Some(metadata) = analysis.metadata.as_ref().filter(|_| analysis.can_render()) {
-        let render_path = render_root.join(rendered_png_name(path));
+        let render_path = render_root.join(rendered_png_name(path, render_cache_root(render_root)));
         match render_png(
             metadata,
             &analysis.layers,
@@ -218,25 +218,19 @@ pub(crate) fn psd_file_name(path: &Path) -> String {
         .into_owned()
 }
 
-pub(crate) fn rendered_png_name(path: &Path) -> String {
+pub(crate) fn rendered_png_name(path: &Path, cache_root: &Path) -> String {
     let mut parts = Vec::new();
-    let mut cache_index = None;
 
-    for component in path.components() {
+    let relative_path = path.strip_prefix(cache_root).unwrap_or(path);
+
+    for component in relative_path.components() {
         if let Component::Normal(part) = component {
             let value = part.to_string_lossy();
             let sanitized = sanitize_component(&value);
             if !sanitized.is_empty() {
                 parts.push(sanitized);
-                if value == "cache" {
-                    cache_index = Some(parts.len());
-                }
             }
         }
-    }
-
-    if let Some(index) = cache_index {
-        parts = parts.into_iter().skip(index).collect();
     }
 
     let stem = if parts.is_empty() {
@@ -294,6 +288,13 @@ fn sanitize_component(value: &str) -> String {
         .collect::<String>()
         .trim_matches([' ', '.'])
         .to_string()
+}
+
+fn render_cache_root(render_root: &Path) -> &Path {
+    render_root
+        .parent()
+        .and_then(Path::parent)
+        .unwrap_or(render_root)
 }
 
 fn unix_timestamp() -> u64 {
