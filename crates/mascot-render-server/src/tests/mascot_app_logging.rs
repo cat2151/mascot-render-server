@@ -24,11 +24,13 @@ fn change_skin_success_log_message_reports_success() {
     let message = change_skin_success_message_for_test(
         Path::new("cache/anko/normal.png"),
         Path::new("cache/zunda/normal.png"),
+        Path::new("config/mascot-render-server.runtime.json"),
+        Path::new("cache/zunda/normal.png"),
     );
 
     assert_eq!(
         message,
-        "trigger=control_command action=change_skin skin変更に成功しました: from=cache/anko/normal.png to=cache/zunda/normal.png"
+        "trigger=control_command action=change_skin skin変更に成功しました: from=cache/anko/normal.png to=cache/zunda/normal.png runtime_state_path=config/mascot-render-server.runtime.json persisted_png_path=cache/zunda/normal.png"
     );
 }
 

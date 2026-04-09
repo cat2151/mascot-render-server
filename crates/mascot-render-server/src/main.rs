@@ -21,6 +21,9 @@ mod favorite_ensemble_tests;
 #[path = "tests/mascot_app_logging.rs"]
 mod mascot_app_logging_tests;
 #[cfg(test)]
+#[path = "tests/mascot_app_persistence.rs"]
+mod mascot_app_persistence_tests;
+#[cfg(test)]
 #[path = "tests/mascot_app_reload.rs"]
 mod mascot_app_reload_tests;
 #[cfg(test)]

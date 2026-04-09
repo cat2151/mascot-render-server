@@ -33,6 +33,8 @@ mod ensemble;
 mod layout;
 #[path = "mascot_app/logging.rs"]
 mod logging;
+#[path = "mascot_app/persistence.rs"]
+mod persistence;
 #[path = "mascot_app/runtime.rs"]
 mod runtime;
 #[path = "mascot_app/scale.rs"]
@@ -56,6 +58,11 @@ pub(crate) use logging::{
     change_skin_success_message_for_test,
 };
 use logging::{change_skin_success_message, run_change_skin_stage};
+use persistence::{persist_requested_skin_change, verify_persisted_skin_change};
+#[cfg(test)]
+pub(crate) use persistence::{
+    persist_requested_skin_change_for_test, verify_persisted_skin_change_for_test,
+};
 #[cfg(test)]
 pub(crate) use runtime::mouth_flap_skin_state_for_test;
 
@@ -255,11 +262,24 @@ impl MascotApp {
             return Ok(());
         }
         if self.config.png_path == png_path {
-            log_server_info(format!(
-                "trigger=control_command action=change_skin skin変更をスキップしました: requested_png_path={} は現在の skin と同じです",
-                png_path.display()
-            ));
-            return Ok(());
+            match verify_persisted_skin_change(&self.config_path, png_path) {
+                Ok(persisted_png_path) => {
+                    log_server_info(format!(
+                        "trigger=control_command action=change_skin skin変更をスキップしました: requested_png_path={} は現在の skin と同じで runtime state も一致しています runtime_state_path={} persisted_png_path={}",
+                        png_path.display(),
+                        self.runtime_state_path.display(),
+                        persisted_png_path.display()
+                    ));
+                    return Ok(());
+                }
+                Err(error) => {
+                    log_server_info(format!(
+                        "trigger=control_command action=change_skin requested_png_path={} は現在の skin と同じですが runtime state の検証に失敗したため再試行します: runtime_state_path={} error={error:#}",
+                        png_path.display(),
+                        self.runtime_state_path.display()
+                    ));
+                }
+            }
         }
 
         let previous_png_path = self.config.png_path.clone();
@@ -316,7 +336,36 @@ impl MascotApp {
             "refresh_window_layout",
         ));
         self.refresh_window_layout(ctx, previous_layout);
-        log_server_info(change_skin_success_message(&previous_png_path, png_path));
+        run_change_skin_stage(
+            &previous_png_path,
+            png_path,
+            "persist_runtime_state",
+            || {
+                persist_requested_skin_change(&self.config_path, &self.config, png_path)
+                    .with_context(|| {
+                        format!(
+                            "failed to persist requested mascot skin to {}",
+                            self.runtime_state_path.display()
+                        )
+                    })
+            },
+        )?;
+        let persisted_png_path =
+            run_change_skin_stage(&previous_png_path, png_path, "verify_runtime_state", || {
+                verify_persisted_skin_change(&self.config_path, png_path).with_context(|| {
+                    format!(
+                        "failed to verify requested mascot skin in {}",
+                        self.runtime_state_path.display()
+                    )
+                })
+            })?;
+        self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
+        log_server_info(change_skin_success_message(
+            &previous_png_path,
+            png_path,
+            &self.runtime_state_path,
+            &persisted_png_path,
+        ));
         Ok(())
     }
 
