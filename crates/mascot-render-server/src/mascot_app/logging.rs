@@ -15,11 +15,18 @@ pub(crate) fn change_skin_stage_message(
     )
 }
 
-pub(crate) fn change_skin_success_message(previous_png_path: &Path, png_path: &Path) -> String {
+pub(crate) fn change_skin_success_message(
+    previous_png_path: &Path,
+    png_path: &Path,
+    runtime_state_path: &Path,
+    persisted_png_path: &Path,
+) -> String {
     format!(
-        "trigger=control_command action=change_skin skin変更に成功しました: from={} to={}",
+        "trigger=control_command action=change_skin skin変更に成功しました: from={} to={} runtime_state_path={} persisted_png_path={}",
         previous_png_path.display(),
-        png_path.display()
+        png_path.display(),
+        runtime_state_path.display(),
+        persisted_png_path.display()
     )
 }
 
