@@ -70,7 +70,7 @@ fn persist_requested_skin_change_updates_runtime_state_png_path() {
 }
 
 #[test]
-fn verify_persisted_skin_change_returns_persisted_path_when_matching() {
+fn test_verify_persisted_skin_change_with_matching_path() {
     let config_path = unique_test_config_path("verify-match");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
     if let Some(parent) = config_path.parent() {
