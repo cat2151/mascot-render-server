@@ -26,8 +26,10 @@ fn display_layer_name_marks_unnamed_layers() {
 #[test]
 fn rendered_png_name_sanitizes_path_components() {
     assert_eq!(
-        rendered_png_name(Path::new("cache/abc/extracted/a/b:demo.psd")),
-        "cache__abc__extracted__a__b_demo.psd.png"
+        rendered_png_name(Path::new(
+            "/Users/alice/AppData/Local/mascot-render-server/cache/abc/extracted/a/b:demo.psd"
+        )),
+        "abc__extracted__a__b_demo.psd.png"
     );
 }
 

@@ -220,14 +220,23 @@ pub(crate) fn psd_file_name(path: &Path) -> String {
 
 pub(crate) fn rendered_png_name(path: &Path) -> String {
     let mut parts = Vec::new();
+    let mut cache_index = None;
 
     for component in path.components() {
         if let Component::Normal(part) = component {
-            let sanitized = sanitize_component(&part.to_string_lossy());
+            let value = part.to_string_lossy();
+            if value == "cache" {
+                cache_index = Some(parts.len());
+            }
+            let sanitized = sanitize_component(&value);
             if !sanitized.is_empty() {
                 parts.push(sanitized);
             }
         }
+    }
+
+    if let Some(index) = cache_index {
+        parts.drain(..=index);
     }
 
     let stem = if parts.is_empty() {
