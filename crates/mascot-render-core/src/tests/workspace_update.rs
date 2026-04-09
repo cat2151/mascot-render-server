@@ -99,7 +99,7 @@ fn run_workspace_update_adds_context_to_errors() {
 
     assert_eq!(
         error.to_string(),
-        format!("install command: {}", workspace_install_command())
+        format!("manual reinstall command: {}", workspace_install_command())
     );
     assert_eq!(
         error
