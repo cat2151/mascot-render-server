@@ -225,18 +225,18 @@ pub(crate) fn rendered_png_name(path: &Path) -> String {
     for component in path.components() {
         if let Component::Normal(part) = component {
             let value = part.to_string_lossy();
-            if value == "cache" {
-                cache_index = Some(parts.len());
-            }
             let sanitized = sanitize_component(&value);
             if !sanitized.is_empty() {
                 parts.push(sanitized);
+                if value == "cache" {
+                    cache_index = Some(parts.len());
+                }
             }
         }
     }
 
     if let Some(index) = cache_index {
-        parts.drain(..=index);
+        parts = parts.into_iter().skip(index).collect();
     }
 
     let stem = if parts.is_empty() {
