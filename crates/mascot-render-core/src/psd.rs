@@ -221,7 +221,10 @@ pub(crate) fn psd_file_name(path: &Path) -> String {
 pub(crate) fn rendered_png_name(path: &Path, cache_root: &Path) -> String {
     let mut parts = Vec::new();
 
-    let relative_path = path.strip_prefix(cache_root).unwrap_or(path);
+    let relative_path = path
+        .strip_prefix(cache_root)
+        .ok()
+        .unwrap_or_else(|| Path::new(path.file_name().unwrap_or(path.as_os_str())));
 
     for component in relative_path.components() {
         if let Component::Normal(part) = component {
@@ -290,6 +293,8 @@ fn sanitize_component(value: &str) -> String {
         .to_string()
 }
 
+/// `render_root` is expected to be `<cache_root>/<zip_hash>/renders`.
+/// The cache root is therefore two levels up from the renders directory.
 fn render_cache_root(render_root: &Path) -> &Path {
     render_root
         .parent()

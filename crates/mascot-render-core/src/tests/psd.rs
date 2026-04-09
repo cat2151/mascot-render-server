@@ -52,6 +52,17 @@ fn rendered_png_name_keeps_nested_cache_components_inside_extracted_tree() {
 }
 
 #[test]
+fn rendered_png_name_falls_back_to_file_name_when_path_is_outside_cache_root() {
+    assert_eq!(
+        rendered_png_name(
+            Path::new("/Users/alice/private/body.psd"),
+            Path::new("/tmp/custom-render-root")
+        ),
+        "body.psd.png"
+    );
+}
+
+#[test]
 fn build_layer_nodes_tracks_group_depth_and_visibility() {
     let mut group = LayerInfo::default();
     group.name = "Body".to_string();
