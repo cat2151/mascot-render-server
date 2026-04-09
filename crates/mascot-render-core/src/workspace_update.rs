@@ -19,9 +19,9 @@ pub fn workspace_install_command() -> String {
 
 /// Function signature for checking the remote commit of the workspace repository.
 /// Parameters are `(owner, repo, branch, embedded_hash)`.
-type CheckRemoteCommitFn =
-    fn(&str, &str, &str, &str) -> std::result::Result<CheckResult, Box<dyn Error>>;
-type SelfUpdateFn = fn(&str, &str, &[&str]) -> std::result::Result<(), Box<dyn Error>>;
+type LibResult<T> = std::result::Result<T, Box<dyn Error>>;
+type CheckRemoteCommitFn = fn(&str, &str, &str, &str) -> LibResult<CheckResult>;
+type SelfUpdateFn = fn(&str, &str, &[&str]) -> LibResult<()>;
 
 pub(crate) fn check_workspace_update_with(
     build_commit_hash: &str,
