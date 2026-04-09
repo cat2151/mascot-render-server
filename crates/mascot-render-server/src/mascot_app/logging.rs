@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use mascot_render_server::{log_server_error, log_server_info, log_server_skin_info};
@@ -79,17 +79,42 @@ pub(crate) fn run_change_skin_stage<T>(
 }
 
 impl MascotApp {
-    pub(super) fn log_rendered_skin_if_changed(&mut self, png_path: &Path) {
-        if self.last_logged_skin_path.as_deref() == Some(png_path) {
-            return;
+    pub(super) fn log_rendered_skin_if_changed(&mut self, png_path: &Path) -> bool {
+        if !should_log_rendered_skin(self.last_logged_skin_path.as_deref(), png_path) {
+            return false;
+        }
+        if !record_rendered_skin_path(&mut self.last_logged_skin_path, png_path) {
+            return false;
         }
         log_server_skin_info(rendered_skin_message(png_path));
-        self.last_logged_skin_path = Some(png_path.to_path_buf());
+        true
     }
 
     pub(super) fn clear_last_logged_skin_path(&mut self) {
-        self.last_logged_skin_path = None;
+        clear_rendered_skin_path(&mut self.last_logged_skin_path);
     }
+}
+
+pub(crate) fn should_log_rendered_skin(
+    last_logged_skin_path: Option<&Path>,
+    png_path: &Path,
+) -> bool {
+    last_logged_skin_path != Some(png_path)
+}
+
+pub(crate) fn record_rendered_skin_path(
+    last_logged_skin_path: &mut Option<PathBuf>,
+    png_path: &Path,
+) -> bool {
+    if !should_log_rendered_skin(last_logged_skin_path.as_deref(), png_path) {
+        return false;
+    }
+    *last_logged_skin_path = Some(png_path.to_path_buf());
+    true
+}
+
+pub(crate) fn clear_rendered_skin_path(last_logged_skin_path: &mut Option<PathBuf>) {
+    *last_logged_skin_path = None;
 }
 
 #[cfg(test)]
@@ -99,4 +124,10 @@ pub(crate) use change_skin_stage_message as change_skin_stage_message_for_test;
 #[cfg(test)]
 pub(crate) use change_skin_success_message as change_skin_success_message_for_test;
 #[cfg(test)]
+pub(crate) use clear_rendered_skin_path as clear_rendered_skin_path_for_test;
+#[cfg(test)]
+pub(crate) use record_rendered_skin_path as record_rendered_skin_path_for_test;
+#[cfg(test)]
 pub(crate) use rendered_skin_message as rendered_skin_message_for_test;
+#[cfg(test)]
+pub(crate) use should_log_rendered_skin as should_log_rendered_skin_for_test;

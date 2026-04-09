@@ -16,8 +16,8 @@ static LOG_WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn init_server_log() -> Result<PathBuf> {
     let path = server_log_path();
-    ensure_server_log_exists(&path)?;
-    ensure_server_log_exists(&server_skin_log_path())?;
+    ensure_log_exists(&path, "server log")?;
+    ensure_log_exists(&server_skin_log_path(), "server skin log")?;
     Ok(path)
 }
 
@@ -97,17 +97,17 @@ fn post_request_log_path() -> PathBuf {
     local_data_root().join(POST_REQUEST_LOG_PATH)
 }
 
-fn ensure_server_log_exists(path: &Path) -> Result<()> {
+fn ensure_log_exists(path: &Path, log_kind: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         create_dir_all(parent).with_context(|| {
-            format!("failed to create server log directory {}", parent.display())
+            format!("failed to create {log_kind} directory {}", parent.display())
         })?;
     }
     OpenOptions::new()
         .create(true)
         .append(true)
         .open(path)
-        .with_context(|| format!("failed to open server log {}", path.display()))?;
+        .with_context(|| format!("failed to open {log_kind} {}", path.display()))?;
     Ok(())
 }
 

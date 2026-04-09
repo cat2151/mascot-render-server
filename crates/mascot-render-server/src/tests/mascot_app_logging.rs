@@ -1,8 +1,11 @@
 use std::path::Path;
+use std::path::PathBuf;
 
 use crate::mascot_app::{
     change_skin_failure_message_for_test, change_skin_stage_message_for_test,
-    change_skin_success_message_for_test, rendered_skin_message_for_test,
+    change_skin_success_message_for_test, clear_rendered_skin_path_for_test,
+    record_rendered_skin_path_for_test, rendered_skin_message_for_test,
+    should_log_rendered_skin_for_test,
 };
 
 #[test]
@@ -57,4 +60,40 @@ fn rendered_skin_log_message_includes_displayed_path_and_file_name() {
         message,
         "trigger=render action=display_skin displayed_png_path=cache/shikoku/display.png displayed_png_file_name=display.png"
     );
+}
+
+#[test]
+fn rendered_skin_log_state_skips_duplicate_paths_until_cleared() {
+    let mut last_logged_skin_path = None::<PathBuf>;
+    let displayed_path = Path::new("cache/shikoku/display.png");
+
+    assert!(should_log_rendered_skin_for_test(
+        last_logged_skin_path.as_deref(),
+        displayed_path
+    ));
+    assert!(record_rendered_skin_path_for_test(
+        &mut last_logged_skin_path,
+        displayed_path
+    ));
+    assert_eq!(last_logged_skin_path.as_deref(), Some(displayed_path));
+    assert!(!should_log_rendered_skin_for_test(
+        last_logged_skin_path.as_deref(),
+        displayed_path
+    ));
+    assert!(!record_rendered_skin_path_for_test(
+        &mut last_logged_skin_path,
+        displayed_path
+    ));
+
+    clear_rendered_skin_path_for_test(&mut last_logged_skin_path);
+
+    assert!(should_log_rendered_skin_for_test(
+        last_logged_skin_path.as_deref(),
+        displayed_path
+    ));
+    assert!(record_rendered_skin_path_for_test(
+        &mut last_logged_skin_path,
+        displayed_path
+    ));
+    assert_eq!(last_logged_skin_path.as_deref(), Some(displayed_path));
 }

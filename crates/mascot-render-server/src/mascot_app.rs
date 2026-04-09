@@ -52,10 +52,13 @@ pub(crate) use ensemble::member_phase_offset_ratio;
 use ensemble::FavoriteEnsembleScene;
 #[cfg(test)]
 pub(crate) use ensemble::{member_eye_blink_elapsed, member_eye_blink_seed};
+use logging::should_log_rendered_skin;
 #[cfg(test)]
 pub(crate) use logging::{
     change_skin_failure_message_for_test, change_skin_stage_message_for_test,
-    change_skin_success_message_for_test, rendered_skin_message_for_test,
+    change_skin_success_message_for_test, clear_rendered_skin_path_for_test,
+    record_rendered_skin_path_for_test, rendered_skin_message_for_test,
+    should_log_rendered_skin_for_test,
 };
 use logging::{change_skin_success_message, run_change_skin_stage};
 use persistence::{persist_requested_skin_change, verify_persisted_skin_change};
