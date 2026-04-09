@@ -262,11 +262,24 @@ impl MascotApp {
             return Ok(());
         }
         if self.config.png_path == png_path {
-            log_server_info(format!(
-                "trigger=control_command action=change_skin skin変更をスキップしました: requested_png_path={} は現在の skin と同じです",
-                png_path.display()
-            ));
-            return Ok(());
+            match verify_persisted_skin_change(&self.config_path, png_path) {
+                Ok(persisted_png_path) => {
+                    log_server_info(format!(
+                        "trigger=control_command action=change_skin skin変更をスキップしました: requested_png_path={} は現在の skin と同じで runtime state も一致しています runtime_state_path={} persisted_png_path={}",
+                        png_path.display(),
+                        self.runtime_state_path.display(),
+                        persisted_png_path.display()
+                    ));
+                    return Ok(());
+                }
+                Err(error) => {
+                    log_server_info(format!(
+                        "trigger=control_command action=change_skin requested_png_path={} は現在の skin と同じですが runtime state の検証に失敗したため再試行します: runtime_state_path={} error={error:#}",
+                        png_path.display(),
+                        self.runtime_state_path.display()
+                    ));
+                }
+            }
         }
 
         let previous_png_path = self.config.png_path.clone();

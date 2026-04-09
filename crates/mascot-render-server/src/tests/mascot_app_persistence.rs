@@ -70,6 +70,31 @@ fn persist_requested_skin_change_updates_runtime_state_png_path() {
 }
 
 #[test]
+fn verify_persisted_skin_change_returns_persisted_path_when_matching() {
+    let config_path = unique_test_config_path("verify-match");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    if let Some(parent) = config_path.parent() {
+        let _ = fs::remove_dir_all(parent);
+    }
+    let _ = fs::remove_file(&runtime_state_path);
+
+    let config = sample_config();
+    let requested_png_path = PathBuf::from("cache/demo/requested.png");
+    persist_requested_skin_change_for_test(&config_path, &config, &requested_png_path)
+        .expect("should seed matching runtime state");
+
+    let persisted_png_path =
+        verify_persisted_skin_change_for_test(&config_path, &requested_png_path)
+            .expect("matching persisted state should verify");
+    assert_eq!(persisted_png_path, requested_png_path);
+
+    if let Some(parent) = config_path.parent() {
+        let _ = fs::remove_dir_all(parent);
+    }
+    let _ = fs::remove_file(&runtime_state_path);
+}
+
+#[test]
 fn verify_persisted_skin_change_reports_mismatch() {
     let config_path = unique_test_config_path("verify-mismatch");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
