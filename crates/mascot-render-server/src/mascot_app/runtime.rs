@@ -11,7 +11,10 @@ use mascot_render_server::{
 use crate::always_bend;
 use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 
-use super::{click_interaction_hit_test, keyboard_scale_steps, scroll_scale_steps, MascotApp};
+use super::{
+    click_interaction_hit_test, keyboard_scale_steps, scroll_scale_steps, should_log_rendered_skin,
+    MascotApp,
+};
 
 impl App for MascotApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
@@ -72,6 +75,8 @@ impl App for MascotApp {
             self.eye_blink.current_median_ms(),
         );
         if self.favorite_ensemble.is_some() {
+            // favorite ensemble では単一の表示 PNG を表せないため、単体 skin 用の重複抑止状態を戻す。
+            self.clear_last_logged_skin_path();
             self.transparent_hit_test
                 .update(TransparentHitTestUpdate { now });
 
@@ -216,9 +221,17 @@ impl App for MascotApp {
         } else {
             &self.open_skin
         };
+        let should_log_active_skin = should_log_rendered_skin(
+            self.last_logged_skin_path.as_deref(),
+            active_skin.path.as_path(),
+        );
         let texture_id = active_skin.texture.id();
         let active_image_size = active_skin.image_size;
         let active_alpha_mask = Arc::clone(&active_skin.alpha_mask);
+        let active_skin_path = should_log_active_skin.then(|| active_skin.path.clone());
+        if let Some(active_skin_path) = active_skin_path.as_deref() {
+            self.log_rendered_skin_if_changed(active_skin_path);
+        }
         let bend_transform = self.config.always_bend.enabled.then(|| {
             always_bend::sample_always_bend(
                 now - self.always_bend_started_at,

@@ -10,7 +10,7 @@ use mascot_render_core::local_data_root;
 
 use crate::server_log::{
     append_log_record_for_test, format_log_record_for_test, post_request_log_path_for_test,
-    server_log_path_for_test,
+    server_log_path_for_test, server_skin_log_path_for_test,
 };
 
 #[test]
@@ -127,6 +127,14 @@ fn server_log_path_lives_under_local_data_root_logs_directory() {
     assert_eq!(
         server_log_path_for_test(),
         local_data_root().join("logs").join("server.log")
+    );
+}
+
+#[test]
+fn server_skin_log_path_lives_under_local_data_root_logs_directory() {
+    assert_eq!(
+        server_skin_log_path_for_test(),
+        local_data_root().join("logs").join("server_skin.log")
     );
 }
 
