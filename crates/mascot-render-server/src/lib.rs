@@ -24,6 +24,7 @@ pub use mascot_skin_cache::MascotSkinCache;
 pub use motion_timeline::{apply_motion_timeline_request, validate_motion_timeline_request};
 pub use server_log::{
     init_server_log, log_post_request, log_post_request_error, log_server_error, log_server_info,
+    log_server_skin_info,
 };
 pub use transparent_hit_test::captures_logical_point;
 pub use transparent_hit_test::TransparentHitTestUpdate;

@@ -55,7 +55,7 @@ pub(crate) use ensemble::{member_eye_blink_elapsed, member_eye_blink_seed};
 #[cfg(test)]
 pub(crate) use logging::{
     change_skin_failure_message_for_test, change_skin_stage_message_for_test,
-    change_skin_success_message_for_test,
+    change_skin_success_message_for_test, rendered_skin_message_for_test,
 };
 use logging::{change_skin_success_message, run_change_skin_stage};
 use persistence::{persist_requested_skin_change, verify_persisted_skin_change};
@@ -85,6 +85,7 @@ pub(crate) struct MascotApp {
     scale: f32,
     pending_persisted_scale: Option<f32>,
     last_scale_change_at: Option<Instant>,
+    last_logged_skin_path: Option<PathBuf>,
     always_bend_started_at: Instant,
     base_size: Vec2,
     skin_cache: MascotSkinCache<CachedSkin>,
@@ -172,6 +173,7 @@ impl MascotApp {
             scale,
             pending_persisted_scale: None,
             last_scale_change_at: None,
+            last_logged_skin_path: None,
             always_bend_started_at: now,
             base_size,
             skin_cache,

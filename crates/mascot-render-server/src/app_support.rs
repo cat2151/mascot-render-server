@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -10,6 +10,7 @@ const CONTENT_BOUNDS_ALPHA_THRESHOLD: u8 = 1;
 
 #[derive(Clone)]
 pub(crate) struct CachedSkin {
+    pub(crate) path: PathBuf,
     pub(crate) texture: TextureHandle,
     pub(crate) image_size: [u32; 2],
     pub(crate) alpha_mask: Arc<[u8]>,
@@ -40,6 +41,7 @@ pub(crate) fn cached_skin_from_image(ctx: &egui::Context, image: &MascotImageDat
     let alpha_mask = alpha_mask(&image.rgba);
     let content_bounds = content_bounds([image.width, image.height], alpha_mask.as_ref());
     CachedSkin {
+        path: image.path.clone(),
         texture: load_texture(ctx, image),
         image_size: [image.width, image.height],
         alpha_mask,

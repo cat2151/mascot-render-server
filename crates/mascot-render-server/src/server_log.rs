@@ -10,12 +10,14 @@ use time::macros::format_description;
 use time::{OffsetDateTime, UtcOffset};
 
 const SERVER_LOG_PATH: &str = "logs/server.log";
+const SERVER_SKIN_LOG_PATH: &str = "logs/server_skin.log";
 const POST_REQUEST_LOG_PATH: &str = "logs/post-request.log";
 static LOG_WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn init_server_log() -> Result<PathBuf> {
     let path = server_log_path();
     ensure_server_log_exists(&path)?;
+    ensure_server_log_exists(&server_skin_log_path())?;
     Ok(path)
 }
 
@@ -27,6 +29,10 @@ pub fn log_server_error(message: impl AsRef<str>) {
     let message = message.as_ref();
     eprintln!("{message}");
     log_server("ERROR", message, true);
+}
+
+pub fn log_server_skin_info(message: impl AsRef<str>) {
+    log_server_skin("INFO", message.as_ref(), false);
 }
 
 pub fn log_post_request(message: impl AsRef<str>) {
@@ -66,8 +72,25 @@ fn log_server(level: &str, message: &str, already_printed_to_stderr: bool) {
     }
 }
 
+fn log_server_skin(level: &str, message: &str, already_printed_to_stderr: bool) {
+    let path = server_skin_log_path();
+    if let Err(error) = append_log_record("server skin log", &path, level, message) {
+        if !already_printed_to_stderr {
+            eprintln!("{message}");
+        }
+        eprintln!(
+            "failed to append server skin log {}: {error:#}",
+            path.display()
+        );
+    }
+}
+
 fn server_log_path() -> PathBuf {
     local_data_root().join(SERVER_LOG_PATH)
+}
+
+fn server_skin_log_path() -> PathBuf {
+    local_data_root().join(SERVER_SKIN_LOG_PATH)
 }
 
 fn post_request_log_path() -> PathBuf {
@@ -160,4 +183,9 @@ pub(crate) fn post_request_log_path_for_test() -> PathBuf {
 #[cfg(test)]
 pub(crate) fn server_log_path_for_test() -> PathBuf {
     server_log_path()
+}
+
+#[cfg(test)]
+pub(crate) fn server_skin_log_path_for_test() -> PathBuf {
+    server_skin_log_path()
 }

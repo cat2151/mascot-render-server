@@ -72,6 +72,7 @@ impl App for MascotApp {
             self.eye_blink.current_median_ms(),
         );
         if self.favorite_ensemble.is_some() {
+            self.clear_last_logged_skin_path();
             self.transparent_hit_test
                 .update(TransparentHitTestUpdate { now });
 
@@ -216,9 +217,11 @@ impl App for MascotApp {
         } else {
             &self.open_skin
         };
+        let active_skin_path = active_skin.path.clone();
         let texture_id = active_skin.texture.id();
         let active_image_size = active_skin.image_size;
         let active_alpha_mask = Arc::clone(&active_skin.alpha_mask);
+        self.log_rendered_skin_if_changed(&active_skin_path);
         let bend_transform = self.config.always_bend.enabled.then(|| {
             always_bend::sample_always_bend(
                 now - self.always_bend_started_at,

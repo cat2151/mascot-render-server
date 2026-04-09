@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::mascot_app::{
     change_skin_failure_message_for_test, change_skin_stage_message_for_test,
-    change_skin_success_message_for_test,
+    change_skin_success_message_for_test, rendered_skin_message_for_test,
 };
 
 #[test]
@@ -46,5 +46,15 @@ fn change_skin_failure_log_message_reports_stage_and_error() {
     assert_eq!(
         message,
         "trigger=control_command action=change_skin skin変更に失敗しました: stage=refresh_mouth_flap_skins from=cache/anko/normal.png to=cache/zunda/normal.png error=failed to refresh mouth-flap skins"
+    );
+}
+
+#[test]
+fn rendered_skin_log_message_includes_displayed_path_and_file_name() {
+    let message = rendered_skin_message_for_test(Path::new("cache/shikoku/display.png"));
+
+    assert_eq!(
+        message,
+        "trigger=render action=display_skin displayed_png_path=cache/shikoku/display.png displayed_png_file_name=display.png"
     );
 }
