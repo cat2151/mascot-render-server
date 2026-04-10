@@ -1,7 +1,9 @@
 use std::fs;
+use std::fs::File;
 use std::path::PathBuf;
 
 use serde_json::json;
+use zip::ZipWriter;
 
 use crate::{workspace_cache_root, Core, CoreConfig, PsdEntry};
 
@@ -52,6 +54,32 @@ fn load_cached_zip_entries_snapshot_reads_cached_meta_without_hashing_zip() {
     let _ = fs::remove_dir_all(&cache_dir);
 }
 
+#[test]
+fn load_zip_entry_uses_assets_zip_without_creating_or_keeping_source_zip_copy() {
+    let cache_dir = workspace_cache_root().join("test-load-zip-entry-assets-zip");
+    let _ = fs::remove_dir_all(&cache_dir);
+
+    let zip_path = cache_dir.join("assets/live.zip");
+    create_empty_zip(&zip_path);
+
+    let core = Core::new(CoreConfig {
+        cache_dir: cache_dir.clone(),
+    });
+
+    let first_entry = core.load_zip_entry(&zip_path).unwrap();
+    let legacy_source_zip_path = first_entry.cache_dir.join("source.zip");
+    assert_eq!(first_entry.source_zip_path, zip_path);
+    assert!(!legacy_source_zip_path.exists());
+
+    create_file(&legacy_source_zip_path);
+
+    let second_entry = core.load_zip_entry(&zip_path).unwrap();
+    assert_eq!(second_entry.source_zip_path, zip_path);
+    assert!(!legacy_source_zip_path.exists());
+
+    let _ = fs::remove_dir_all(&cache_dir);
+}
+
 fn sample_psd_entry(path: &std::path::Path, rendered_png_path: Option<PathBuf>) -> PsdEntry {
     PsdEntry {
         path: path.to_path_buf(),
@@ -87,4 +115,13 @@ fn create_file(path: &std::path::Path) {
         fs::create_dir_all(parent).unwrap();
     }
     fs::write(path, b"test").unwrap();
+}
+
+fn create_empty_zip(path: &std::path::Path) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+
+    let file = File::create(path).unwrap();
+    ZipWriter::new(file).finish().unwrap();
 }
