@@ -25,9 +25,40 @@ fn display_layer_name_marks_unnamed_layers() {
 
 #[test]
 fn rendered_png_name_sanitizes_path_components() {
+    let cache_root = Path::new("/Users/alice/AppData/Local/mascot-render-server-data");
+
     assert_eq!(
-        rendered_png_name(Path::new("cache/abc/extracted/a/b:demo.psd")),
-        "cache__abc__extracted__a__b_demo.psd.png"
+        rendered_png_name(
+            Path::new(
+                "/Users/alice/AppData/Local/mascot-render-server-data/abc/extracted/a/b:demo.psd"
+            ),
+            cache_root
+        ),
+        "abc__extracted__a__b_demo.psd.png"
+    );
+}
+
+#[test]
+fn rendered_png_name_keeps_nested_cache_components_inside_extracted_tree() {
+    let cache_root = Path::new("/tmp/custom-render-root");
+
+    assert_eq!(
+        rendered_png_name(
+            Path::new("/tmp/custom-render-root/abc/extracted/assets/cache/body.psd"),
+            cache_root
+        ),
+        "abc__extracted__assets__cache__body.psd.png"
+    );
+}
+
+#[test]
+fn rendered_png_name_falls_back_to_file_name_when_path_is_outside_cache_root() {
+    assert_eq!(
+        rendered_png_name(
+            Path::new("/Users/alice/private/body.psd"),
+            Path::new("/tmp/custom-render-root")
+        ),
+        "body.psd.png"
     );
 }
 

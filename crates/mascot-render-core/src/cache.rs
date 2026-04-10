@@ -17,7 +17,7 @@ pub fn default_cache_root() -> PathBuf {
     workspace_cache_root()
 }
 
-const ZIP_META_VERSION: u32 = 2;
+const ZIP_META_VERSION: u32 = 3;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ZipMetaFile {

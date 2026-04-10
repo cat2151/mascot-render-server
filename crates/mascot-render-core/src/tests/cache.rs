@@ -73,7 +73,7 @@ fn write_snapshot_meta(
     }
 
     let body = json!({
-        "version": 2,
+        "version": 3,
         "zip_path": zip_path,
         "zip_hash": zip_hash,
         "psds": psds,
