@@ -207,7 +207,12 @@ fn snapshot_psds(psds: Vec<PsdEntry>) -> Vec<PsdEntry> {
 
 fn remove_legacy_source_zip(source_zip_path: &Path) -> Result<()> {
     if source_zip_path.is_file() {
-        let _ = fs::remove_file(source_zip_path);
+        if let Err(error) = fs::remove_file(source_zip_path) {
+            eprintln!(
+                "warning: failed to remove legacy source zip '{}': {error}",
+                source_zip_path.display()
+            );
+        }
     }
     Ok(())
 }
