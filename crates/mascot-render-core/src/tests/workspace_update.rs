@@ -106,8 +106,14 @@ fn assert_python_script_has_valid_syntax(script: &str) {
         }
     }
 
-    let (program, args, output) = output
-        .unwrap_or_else(|| panic!("could not find a Python interpreter for syntax validation"));
+    let (program, args, output) = match output {
+        Some(output) => output,
+        None => {
+            fs::remove_file(&script_path).expect("failed to remove temporary test script");
+            eprintln!("skipping Python syntax validation because no Python interpreter was found");
+            return;
+        }
+    };
     let command = std::iter::once((*program).to_string())
         .chain(args.iter().map(|arg| (*arg).to_string()))
         .chain(["-c".to_string(), compile_command.to_string()])
@@ -165,6 +171,21 @@ fn generate_update_script_installs_all_workspace_binaries() {
     ));
     assert!(script.contains("    launch(['mascot-render-server'])"));
     assert!(script.contains("    launch(['psd-viewer-tui'])"));
+}
+
+#[test]
+fn generate_update_script_keeps_top_level_python_lines_unindented() {
+    let script = generate_update_script(
+        "cat2151",
+        "mascot-render-server",
+        &["mascot-render-server", "psd-viewer-tui"],
+        1234,
+    );
+
+    assert!(script.starts_with("import os\nimport shlex\nimport subprocess\n"));
+    assert!(script.contains(
+        "    launch(['psd-viewer-tui'])\nexcept subprocess.CalledProcessError as err:\n"
+    ));
 }
 
 #[test]

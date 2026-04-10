@@ -117,77 +117,82 @@ pub(crate) fn generate_update_script(
     };
 
     format!(
-        r#"import os
-import shlex
-import subprocess
-import sys
-import traceback
-
-PARENT_PID = {parent_pid}
-INSTALL_PARTS = {install_parts}
-
-def log(message):
-    print(message, flush=True)
-
-def format_command(parts):
-    if sys.platform == 'win32':
-        return subprocess.list2cmdline(parts)
-    return shlex.join(parts)
-
-def wait_for_parent_exit():
-    if sys.platform != 'win32':
-        return
-
-    import ctypes
-
-    synchronize = 0x00100000
-    infinite = 0xFFFFFFFF
-    kernel32 = ctypes.windll.kernel32
-    handle = kernel32.OpenProcess(synchronize, False, PARENT_PID)
-    if not handle:
-        return
-
-    try:
-        kernel32.WaitForSingleObject(handle, infinite)
-    finally:
-        kernel32.CloseHandle(handle)
-
-def launch(parts):
-    log(f"起動しています: {{format_command(parts)}}")
-    subprocess.Popen(parts)
-
-def wait_for_user_acknowledgement():
-    if sys.platform != 'win32':
-        return
-
-    log("Enterキーを押すと閉じます")
-    try:
-        input()
-    except EOFError:
-        pass
-
-try:
-    log("現在のプロセスの終了を待っています")
-    wait_for_parent_exit()
-    log("cargo installを起動しています")
-    log(f"$ {{format_command(INSTALL_PARTS)}}")
-    subprocess.run(INSTALL_PARTS, check=True)
-    log("cargo install が完了しました")
-{launch_stmts}except subprocess.CalledProcessError as err:
-    log(f"cargo install が失敗しました。終了コード: {{err.returncode}}")
-    wait_for_user_acknowledgement()
-    sys.exit(err.returncode)
-except Exception as err:
-    log(f"更新処理に失敗しました: {{err}}")
-    traceback.print_exc()
-    wait_for_user_acknowledgement()
-    sys.exit(1)
-finally:
-    try:
-        os.remove(__file__)
-    except OSError:
-        pass
-"#
+        concat!(
+            "import os\n",
+            "import shlex\n",
+            "import subprocess\n",
+            "import sys\n",
+            "import traceback\n",
+            "\n",
+            "PARENT_PID = {parent_pid}\n",
+            "INSTALL_PARTS = {install_parts}\n",
+            "\n",
+            "def log(message):\n",
+            "    print(message, flush=True)\n",
+            "\n",
+            "def format_command(parts):\n",
+            "    if sys.platform == 'win32':\n",
+            "        return subprocess.list2cmdline(parts)\n",
+            "    return shlex.join(parts)\n",
+            "\n",
+            "def wait_for_parent_exit():\n",
+            "    if sys.platform != 'win32':\n",
+            "        return\n",
+            "\n",
+            "    import ctypes\n",
+            "\n",
+            "    synchronize = 0x00100000\n",
+            "    infinite = 0xFFFFFFFF\n",
+            "    kernel32 = ctypes.windll.kernel32\n",
+            "    handle = kernel32.OpenProcess(synchronize, False, PARENT_PID)\n",
+            "    if not handle:\n",
+            "        return\n",
+            "\n",
+            "    try:\n",
+            "        kernel32.WaitForSingleObject(handle, infinite)\n",
+            "    finally:\n",
+            "        kernel32.CloseHandle(handle)\n",
+            "\n",
+            "def launch(parts):\n",
+            "    log(f\"起動しています: {{format_command(parts)}}\")\n",
+            "    subprocess.Popen(parts)\n",
+            "\n",
+            "def wait_for_user_acknowledgement():\n",
+            "    if sys.platform != 'win32':\n",
+            "        return\n",
+            "\n",
+            "    log(\"Enterキーを押すと閉じます\")\n",
+            "    try:\n",
+            "        input()\n",
+            "    except EOFError:\n",
+            "        pass\n",
+            "\n",
+            "try:\n",
+            "    log(\"現在のプロセスの終了を待っています\")\n",
+            "    wait_for_parent_exit()\n",
+            "    log(\"cargo installを起動しています\")\n",
+            "    log(f\"$ {{format_command(INSTALL_PARTS)}}\")\n",
+            "    subprocess.run(INSTALL_PARTS, check=True)\n",
+            "    log(\"cargo install が完了しました\")\n",
+            "{launch_stmts}",
+            "except subprocess.CalledProcessError as err:\n",
+            "    log(f\"cargo install が失敗しました。終了コード: {{err.returncode}}\")\n",
+            "    wait_for_user_acknowledgement()\n",
+            "    sys.exit(err.returncode)\n",
+            "except Exception as err:\n",
+            "    log(f\"更新処理に失敗しました: {{err}}\")\n",
+            "    traceback.print_exc()\n",
+            "    wait_for_user_acknowledgement()\n",
+            "    sys.exit(1)\n",
+            "finally:\n",
+            "    try:\n",
+            "        os.remove(__file__)\n",
+            "    except OSError:\n",
+            "        pass\n"
+        ),
+        parent_pid = parent_pid,
+        install_parts = install_parts,
+        launch_stmts = launch_stmts
     )
 }
 
@@ -212,12 +217,37 @@ fn spawn_python(py_path: &Path) -> LibResult<()> {
             .arg(py_path)
             .creation_flags(CREATE_NEW_CONSOLE)
             .spawn()?;
+
+        return Ok(());
     }
 
     #[cfg(not(windows))]
     {
-        Command::new("python3").arg(py_path).spawn()?;
-    }
+        let mut candidates = Vec::new();
+        if let Some(python) = std::env::var_os("PYTHON") {
+            candidates.push(python);
+        }
+        candidates.push("python3".into());
+        candidates.push("python".into());
 
-    Ok(())
+        let mut last_not_found = None;
+        for candidate in candidates {
+            match Command::new(&candidate).arg(py_path).spawn() {
+                Ok(_) => return Ok(()),
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                    last_not_found = Some(err);
+                }
+                Err(err) => return Err(err.into()),
+            }
+        }
+
+        Err(last_not_found
+            .unwrap_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "no Python interpreter found; tried PYTHON, python3, and python",
+                )
+            })
+            .into())
+    }
 }
