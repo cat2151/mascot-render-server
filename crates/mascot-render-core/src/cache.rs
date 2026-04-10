@@ -71,12 +71,13 @@ pub(crate) fn load_cached_zip_entries_snapshot(cache_root: &Path) -> Result<Vec<
         if psds.is_empty() {
             continue;
         }
+        let zip_path = meta.zip_path;
 
         zip_entries.push(ZipEntry {
-            zip_path: meta.zip_path,
+            zip_path: zip_path.clone(),
             zip_hash: meta.zip_hash,
             cache_dir: cache_dir.clone(),
-            source_zip_path: cache_dir.join("source.zip"),
+            source_zip_path: zip_path,
             extracted_dir: cache_dir.join("extracted"),
             psd_meta_path,
             psds,
@@ -91,13 +92,14 @@ pub(crate) fn load_cached_zip_entries_snapshot(cache_root: &Path) -> Result<Vec<
 pub(crate) fn load_zip_entry(zip_path: &Path, cache_root: &Path) -> Result<ZipEntry> {
     let zip_hash = hash_file(zip_path)?;
     let cache_dir = cache_root.join(&zip_hash);
-    let source_zip_path = cache_dir.join("source.zip");
+    let source_zip_path = zip_path.to_path_buf();
     let extracted_dir = cache_dir.join("extracted");
     let psd_meta_path = cache_dir.join("psd-meta.json");
+    let legacy_source_zip_path = cache_dir.join("source.zip");
 
     fs::create_dir_all(&cache_dir)
         .with_context(|| format!("failed to create cache dir {}", cache_dir.display()))?;
-    ensure_source_zip(zip_path, &source_zip_path)?;
+    remove_legacy_source_zip(&legacy_source_zip_path)?;
 
     let cached_meta = load_zip_meta_file(&psd_meta_path)?;
     let meta_is_reusable = cached_meta
@@ -109,7 +111,7 @@ pub(crate) fn load_zip_entry(zip_path: &Path, cache_root: &Path) -> Result<ZipEn
             fs::remove_dir_all(&extracted_dir)
                 .with_context(|| format!("failed to remove {}", extracted_dir.display()))?;
         }
-        extract_zip_to_dir(&source_zip_path, &extracted_dir)?;
+        extract_zip_to_dir(zip_path, &extracted_dir)?;
     }
 
     let psds = match cached_meta {
@@ -203,23 +205,15 @@ fn snapshot_psds(psds: Vec<PsdEntry>) -> Vec<PsdEntry> {
         .collect()
 }
 
-fn ensure_source_zip(zip_path: &Path, source_zip_path: &Path) -> Result<()> {
-    if source_zip_path.exists() {
-        return Ok(());
+fn remove_legacy_source_zip(source_zip_path: &Path) -> Result<()> {
+    if source_zip_path.is_file() {
+        if let Err(error) = fs::remove_file(source_zip_path) {
+            eprintln!(
+                "warning: failed to remove legacy source zip '{}': {error}",
+                source_zip_path.display()
+            );
+        }
     }
-
-    if let Some(parent) = source_zip_path.parent() {
-        fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-
-    fs::copy(zip_path, source_zip_path).with_context(|| {
-        format!(
-            "failed to copy {} to {}",
-            zip_path.display(),
-            source_zip_path.display()
-        )
-    })?;
     Ok(())
 }
 
