@@ -62,11 +62,7 @@ fn fake_update_success(owner: &str, repo: &str, crates: &[&str]) -> Result<(), B
     Ok(())
 }
 
-fn fake_update_failure(
-    _owner: &str,
-    _repo: &str,
-    _crates: &[&str],
-) -> Result<(), Box<dyn Error>> {
+fn fake_update_failure(_owner: &str, _repo: &str, _crates: &[&str]) -> Result<(), Box<dyn Error>> {
     Err(Box::new(FakeCheckError))
 }
 
