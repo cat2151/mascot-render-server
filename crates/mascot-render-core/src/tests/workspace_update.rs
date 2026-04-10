@@ -114,7 +114,7 @@ fn assert_python_script_has_valid_syntax(script: &str) {
         .collect::<Vec<_>>()
         .join(" ");
 
-    fs::remove_file(&script_path).ok();
+    fs::remove_file(&script_path).expect("failed to remove temporary test script");
 
     assert!(
         output.status.success(),

@@ -174,7 +174,7 @@ try:
     subprocess.run(INSTALL_PARTS, check=True)
     log("cargo install が完了しました")
 {launch_stmts}except subprocess.CalledProcessError as err:
-    log(f"更新に失敗しました。終了コード: {{err.returncode}}")
+    log(f"cargo install が失敗しました。終了コード: {{err.returncode}}")
     wait_for_user_acknowledgement()
     sys.exit(err.returncode)
 except Exception as err:
