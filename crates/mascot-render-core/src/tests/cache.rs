@@ -71,7 +71,7 @@ fn load_zip_entry_uses_assets_zip_without_creating_or_keeping_source_zip_copy() 
     assert_eq!(first_entry.source_zip_path, zip_path);
     assert!(!legacy_source_zip_path.exists());
 
-    create_file(&legacy_source_zip_path);
+    create_empty_zip(&legacy_source_zip_path);
 
     let second_entry = core.load_zip_entry(&zip_path).unwrap();
     assert_eq!(second_entry.source_zip_path, zip_path);
