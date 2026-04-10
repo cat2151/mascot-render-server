@@ -229,6 +229,11 @@ fn spawn_python(py_path: &Path) -> LibResult<()> {
         }
         candidates.push("python3".into());
         candidates.push("python".into());
+        let tried = candidates
+            .iter()
+            .map(|candidate| candidate.to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join(", ");
 
         let mut last_not_found = None;
         for candidate in candidates {
@@ -237,7 +242,16 @@ fn spawn_python(py_path: &Path) -> LibResult<()> {
                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                     last_not_found = Some(err);
                 }
-                Err(err) => return Err(err.into()),
+                Err(err) => {
+                    return Err(std::io::Error::new(
+                        err.kind(),
+                        format!(
+                            "failed to launch Python interpreter {}: {err}",
+                            candidate.to_string_lossy()
+                        ),
+                    )
+                    .into());
+                }
             }
         }
 
@@ -245,7 +259,7 @@ fn spawn_python(py_path: &Path) -> LibResult<()> {
             .unwrap_or_else(|| {
                 std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    "no Python interpreter found; tried PYTHON, python3, and python",
+                    format!("no Python interpreter found; tried {tried}"),
                 )
             })
             .into())

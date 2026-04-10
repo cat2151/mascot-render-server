@@ -109,7 +109,11 @@ fn assert_python_script_has_valid_syntax(script: &str) {
     let (program, args, output) = match output {
         Some(output) => output,
         None => {
-            fs::remove_file(&script_path).expect("failed to remove temporary test script");
+            if let Err(err) = fs::remove_file(&script_path) {
+                eprintln!(
+                    "failed to remove temporary test script after skipping Python syntax validation: {err}"
+                );
+            }
             eprintln!("skipping Python syntax validation because no Python interpreter was found");
             return;
         }
