@@ -26,6 +26,7 @@ pub fn workspace_install_command() -> String {
 type LibResult<T> = std::result::Result<T, Box<dyn Error>>;
 type CheckRemoteCommitFn = fn(&str, &str, &str, &str) -> LibResult<CheckResult>;
 type SelfUpdateFn = fn(&str, &str, &[&str]) -> LibResult<()>;
+pub(crate) type PythonCommand = (OsString, Vec<OsString>);
 
 pub(crate) fn check_workspace_update_with(
     build_commit_hash: &str,
@@ -60,7 +61,10 @@ fn self_update_workspace(owner: &str, repo: &str, bins: &[&str]) -> LibResult<()
     let py_path = unique_tmp_path();
 
     fs::write(&py_path, py_content)?;
-    spawn_python(&py_path)?;
+    if let Err(error) = spawn_python(&py_path) {
+        let _ = fs::remove_file(&py_path);
+        return Err(error);
+    }
 
     Ok(())
 }
@@ -95,6 +99,7 @@ pub(crate) fn generate_update_script(
     parent_pid: u32,
 ) -> String {
     let repo_url = format!("https://github.com/{owner}/{repo}");
+    let target_binaries = python_list_literal(bins.iter().copied());
     let install_parts = if bins.is_empty() {
         python_list_literal(["cargo", "install", "--force", "--git", repo_url.as_str()])
     } else {
@@ -126,6 +131,7 @@ pub(crate) fn generate_update_script(
             "import traceback\n",
             "\n",
             "PARENT_PID = {parent_pid}\n",
+            "TARGET_BINARIES = {target_binaries}\n",
             "INSTALL_PARTS = {install_parts}\n",
             "\n",
             "def log(message):\n",
@@ -141,22 +147,43 @@ pub(crate) fn generate_update_script(
             "        return\n",
             "\n",
             "    import ctypes\n",
+            "    from ctypes import wintypes\n",
             "\n",
             "    synchronize = 0x00100000\n",
             "    infinite = 0xFFFFFFFF\n",
             "    kernel32 = ctypes.windll.kernel32\n",
-            "    handle = kernel32.OpenProcess(synchronize, False, PARENT_PID)\n",
+            "    open_process = kernel32.OpenProcess\n",
+            "    open_process.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]\n",
+            "    open_process.restype = wintypes.HANDLE\n",
+            "    wait_for_single_object = kernel32.WaitForSingleObject\n",
+            "    wait_for_single_object.argtypes = [wintypes.HANDLE, wintypes.DWORD]\n",
+            "    wait_for_single_object.restype = wintypes.DWORD\n",
+            "    close_handle = kernel32.CloseHandle\n",
+            "    close_handle.argtypes = [wintypes.HANDLE]\n",
+            "    close_handle.restype = wintypes.BOOL\n",
+            "    handle = open_process(synchronize, False, PARENT_PID)\n",
             "    if not handle:\n",
             "        return\n",
             "\n",
             "    try:\n",
-            "        kernel32.WaitForSingleObject(handle, infinite)\n",
+            "        wait_for_single_object(handle, infinite)\n",
             "    finally:\n",
-            "        kernel32.CloseHandle(handle)\n",
+            "        close_handle(handle)\n",
             "\n",
             "def launch(parts):\n",
             "    log(f\"起動しています: {{format_command(parts)}}\")\n",
             "    subprocess.Popen(parts)\n",
+            "\n",
+            "def wait_for_other_workspace_binaries_to_exit():\n",
+            "    if sys.platform != 'win32' or len(TARGET_BINARIES) <= 1:\n",
+            "        return\n",
+            "\n",
+            "    names = ', '.join(TARGET_BINARIES)\n",
+            "    log(f\"workspace update は複数バイナリを再インストールします。{{names}} がすべて終了していることを確認して Enter キーを押してください\")\n",
+            "    try:\n",
+            "        input()\n",
+            "    except EOFError:\n",
+            "        pass\n",
             "\n",
             "def wait_for_user_acknowledgement():\n",
             "    if sys.platform != 'win32':\n",
@@ -171,6 +198,7 @@ pub(crate) fn generate_update_script(
             "try:\n",
             "    log(\"現在のプロセスの終了を待っています\")\n",
             "    wait_for_parent_exit()\n",
+            "    wait_for_other_workspace_binaries_to_exit()\n",
             "    log(\"cargo installを起動しています\")\n",
             "    log(f\"$ {{format_command(INSTALL_PARTS)}}\")\n",
             "    subprocess.run(INSTALL_PARTS, check=True)\n",
@@ -192,6 +220,7 @@ pub(crate) fn generate_update_script(
             "        pass\n"
         ),
         parent_pid = parent_pid,
+        target_binaries = target_binaries,
         install_parts = install_parts,
         launch_stmts = launch_stmts
     )
@@ -209,14 +238,13 @@ fn unique_tmp_path() -> PathBuf {
 }
 
 fn spawn_python(py_path: &Path) -> LibResult<()> {
-    let candidates = python_launch_candidates();
+    let candidates = python_launch_candidates(std::env::var_os("PYTHON"));
     let tried = candidates
         .iter()
         .map(|(program, args)| format_python_command(program, args))
         .collect::<Vec<_>>()
         .join(", ");
 
-    let mut last_not_found = None;
     for (program, args) in candidates {
         let mut command = Command::new(&program);
         command.args(&args).arg(py_path);
@@ -230,9 +258,7 @@ fn spawn_python(py_path: &Path) -> LibResult<()> {
 
         match command.spawn() {
             Ok(_) => return Ok(()),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                last_not_found = Some(err);
-            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
             Err(err) => {
                 return Err(std::io::Error::new(
                     err.kind(),
@@ -246,26 +272,23 @@ fn spawn_python(py_path: &Path) -> LibResult<()> {
         }
     }
 
-    Err(last_not_found
-        .unwrap_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("no Python interpreter found; tried {tried}"),
-            )
-        })
-        .into())
+    Err(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        format!("no Python interpreter found; tried {tried}"),
+    )
+    .into())
 }
 
-fn python_launch_candidates() -> Vec<(OsString, Vec<OsString>)> {
+pub(crate) fn python_launch_candidates(env_python: Option<OsString>) -> Vec<PythonCommand> {
     let mut candidates = Vec::new();
-    if let Some(python) = std::env::var_os("PYTHON") {
+    if let Some(python) = env_python {
         candidates.push((python, Vec::new()));
     }
 
     #[cfg(windows)]
     {
-        candidates.push(("python".into(), Vec::new()));
         candidates.push(("py".into(), vec!["-3".into()]));
+        candidates.push(("python".into(), Vec::new()));
     }
 
     #[cfg(not(windows))]
