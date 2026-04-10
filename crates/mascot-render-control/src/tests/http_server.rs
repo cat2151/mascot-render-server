@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use mascot_render_client::{
@@ -32,13 +33,22 @@ fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
     );
 
     let preview_path = PathBuf::from("cache/demo/variation.png");
-    change_skin_mascot_render_server_at(address, &preview_path)
-        .expect("change-skin request should succeed");
+    let preview_request = {
+        let preview_path = preview_path.clone();
+        thread::spawn(move || change_skin_mascot_render_server_at(address, &preview_path))
+    };
+    let preview_command = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("change-skin command should arrive");
     assert_eq!(
-        rx.recv_timeout(Duration::from_secs(1))
-            .expect("change-skin command should arrive"),
-        MascotControlCommand::ChangeSkin(preview_path)
+        preview_command,
+        MascotControlCommand::change_skin(preview_path.clone())
     );
+    preview_command.finish(Ok(()));
+    preview_request
+        .join()
+        .expect("change-skin request thread should complete")
+        .expect("change-skin request should succeed");
 
     let timeline = MotionTimelineRequest {
         steps: vec![MotionTimelineStep {
@@ -47,13 +57,22 @@ fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
             fps: 20,
         }],
     };
-    play_timeline_mascot_render_server_at(address, &timeline)
-        .expect("timeline request should succeed");
+    let timeline_request = {
+        let timeline = timeline.clone();
+        thread::spawn(move || play_timeline_mascot_render_server_at(address, &timeline))
+    };
+    let timeline_command = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("timeline command should arrive");
     assert_eq!(
-        rx.recv_timeout(Duration::from_secs(1))
-            .expect("timeline command should arrive"),
-        MascotControlCommand::PlayTimeline(timeline)
+        timeline_command,
+        MascotControlCommand::play_timeline(timeline.clone())
     );
+    timeline_command.finish(Ok(()));
+    timeline_request
+        .join()
+        .expect("timeline request thread should complete")
+        .expect("timeline request should succeed");
 
     let mouth_flap_timeline = MotionTimelineRequest {
         steps: vec![MotionTimelineStep {
@@ -62,19 +81,65 @@ fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
             fps: 20,
         }],
     };
-    play_timeline_mascot_render_server_at(address, &mouth_flap_timeline)
-        .expect("mouth flap timeline request should succeed");
+    let mouth_flap_request = {
+        let mouth_flap_timeline = mouth_flap_timeline.clone();
+        thread::spawn(move || play_timeline_mascot_render_server_at(address, &mouth_flap_timeline))
+    };
+    let mouth_flap_command = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("mouth flap timeline command should arrive");
     assert_eq!(
-        rx.recv_timeout(Duration::from_secs(1))
-            .expect("mouth flap timeline command should arrive"),
-        MascotControlCommand::PlayTimeline(mouth_flap_timeline)
+        mouth_flap_command,
+        MascotControlCommand::play_timeline(mouth_flap_timeline.clone())
     );
+    mouth_flap_command.finish(Ok(()));
+    mouth_flap_request
+        .join()
+        .expect("mouth flap request thread should complete")
+        .expect("mouth flap timeline request should succeed");
 
     hide_mascot_render_server_at(address).expect("hide request should succeed");
     assert_eq!(
         rx.recv_timeout(Duration::from_secs(1))
             .expect("hide command should arrive"),
         MascotControlCommand::Hide
+    );
+}
+
+#[test]
+fn mascot_control_server_reports_change_skin_apply_failure_to_http_caller() {
+    let (tx, rx) = mpsc::channel();
+    let (address, _handle) =
+        start_mascot_control_server_on(SocketAddr::from(([127, 0, 0, 1], 0)), tx)
+            .expect("should start mascot control server");
+    wait_for_healthcheck(address);
+
+    let preview_path = PathBuf::from("cache/demo/variation.png");
+    let request_thread = {
+        let preview_path = preview_path.clone();
+        thread::spawn(move || change_skin_mascot_render_server_at(address, &preview_path))
+    };
+
+    let command = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("change-skin command should arrive");
+    assert_eq!(
+        command,
+        MascotControlCommand::change_skin(preview_path.clone())
+    );
+    command.finish(Err("failed to load requested skin".to_string()));
+
+    let error = request_thread
+        .join()
+        .expect("request thread should complete")
+        .expect_err("change-skin request should report apply failure");
+    assert!(
+        error.to_string().contains("HTTP 500"),
+        "unexpected error: {error:#}"
+    );
+    assert!(
+        error.to_string().contains("failed to load requested skin"),
+        "unexpected error: {error:#}"
     );
 }
 

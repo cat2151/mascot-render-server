@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use eframe::egui;
-use mascot_render_core::load_mascot_image;
+use mascot_render_core::{load_mascot_image, MascotConfig};
 
 use super::{CachedSkin, FavoriteEnsembleScene, MascotApp};
 use crate::app_support::cached_skin_from_image;
@@ -44,38 +44,56 @@ impl MascotApp {
     }
 
     pub(super) fn refresh_closed_eye_skin(&mut self, ctx: &egui::Context) -> Result<()> {
-        if self.config.favorite_ensemble_enabled {
-            self.closed_skin = None;
-            return Ok(());
-        }
         self.eye_blink.reset(Instant::now());
-        let Some(closed_png_path) = render_closed_eye_png(&self.core, &self.config)? else {
-            self.closed_skin = None;
-            return Ok(());
-        };
-        if closed_png_path == self.config.png_path {
-            self.closed_skin = None;
-            return Ok(());
-        }
-
-        self.closed_skin = Some(self.load_skin(ctx, &closed_png_path)?);
+        let config = self.config.clone();
+        self.closed_skin = self.load_closed_eye_skin_for_config(ctx, &config)?;
         Ok(())
     }
 
     pub(super) fn refresh_mouth_flap_skins(&mut self, ctx: &egui::Context) -> Result<()> {
-        if self.config.favorite_ensemble_enabled {
-            self.mouth_open_skin = None;
-            self.mouth_closed_skin = None;
-            return Ok(());
+        let config = self.config.clone();
+        let (mouth_open_skin, mouth_closed_skin) =
+            self.load_mouth_flap_skins_for_config(ctx, &config)?;
+        self.mouth_open_skin = mouth_open_skin;
+        self.mouth_closed_skin = mouth_closed_skin;
+        Ok(())
+    }
+
+    pub(super) fn load_closed_eye_skin_for_config(
+        &mut self,
+        ctx: &egui::Context,
+        config: &MascotConfig,
+    ) -> Result<Option<CachedSkin>> {
+        if config.favorite_ensemble_enabled {
+            return Ok(None);
         }
-        let Some(mouth_flap_pngs) = render_mouth_flap_pngs(&self.core, &self.config)? else {
-            self.mouth_open_skin = None;
-            self.mouth_closed_skin = None;
-            return Ok(());
+
+        let Some(closed_png_path) = render_closed_eye_png(&self.core, config)? else {
+            return Ok(None);
+        };
+        if closed_png_path == config.png_path {
+            return Ok(None);
+        }
+
+        Ok(Some(self.load_skin(ctx, &closed_png_path)?))
+    }
+
+    pub(super) fn load_mouth_flap_skins_for_config(
+        &mut self,
+        ctx: &egui::Context,
+        config: &MascotConfig,
+    ) -> Result<(Option<CachedSkin>, Option<CachedSkin>)> {
+        if config.favorite_ensemble_enabled {
+            return Ok((None, None));
+        }
+
+        let Some(mouth_flap_pngs) = render_mouth_flap_pngs(&self.core, config)? else {
+            return Ok((None, None));
         };
 
-        self.mouth_open_skin = Some(self.load_skin(ctx, &mouth_flap_pngs.open_png_path)?);
-        self.mouth_closed_skin = Some(self.load_skin(ctx, &mouth_flap_pngs.closed_png_path)?);
-        Ok(())
+        Ok((
+            Some(self.load_skin(ctx, &mouth_flap_pngs.open_png_path)?),
+            Some(self.load_skin(ctx, &mouth_flap_pngs.closed_png_path)?),
+        ))
     }
 }

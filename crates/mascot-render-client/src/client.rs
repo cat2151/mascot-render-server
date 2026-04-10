@@ -12,7 +12,9 @@ pub const PREVIEW_MOUTH_FLAP_DURATION_MS: u64 = 5_000;
 pub const PREVIEW_MOUTH_FLAP_FPS: u16 = 4;
 
 const MASCOT_RENDER_SERVER_HOST: &str = "127.0.0.1";
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
+const APPLY_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChangeSkinRequest {
@@ -72,16 +74,38 @@ pub fn preview_mouth_flap_timeline_request() -> MotionTimelineRequest {
     }
 }
 
+pub fn validate_motion_timeline_request(request: &MotionTimelineRequest) -> Result<()> {
+    if request.steps.len() != 1 {
+        bail!(
+            "motion timeline must contain exactly one step, got {}",
+            request.steps.len()
+        );
+    }
+
+    let step = &request.steps[0];
+    if step.duration_ms == 0 {
+        bail!("motion timeline duration must be greater than zero");
+    }
+    if step.fps == 0 {
+        bail!("motion timeline fps must be greater than zero");
+    }
+
+    match step.kind {
+        MotionTimelineKind::Shake => Ok(()),
+        MotionTimelineKind::MouthFlap => Ok(()),
+    }
+}
+
 pub fn mascot_render_server_healthcheck_at(address: SocketAddr) -> Result<()> {
-    send_http_request(address, "GET", "/health", None)
+    send_http_request(address, "GET", "/health", None, IO_TIMEOUT)
 }
 
 pub fn show_mascot_render_server_at(address: SocketAddr) -> Result<()> {
-    send_http_request(address, "POST", "/show", None)
+    send_http_request(address, "POST", "/show", None, IO_TIMEOUT)
 }
 
 pub fn hide_mascot_render_server_at(address: SocketAddr) -> Result<()> {
-    send_http_request(address, "POST", "/hide", None)
+    send_http_request(address, "POST", "/hide", None, IO_TIMEOUT)
 }
 
 pub fn change_skin_mascot_render_server_at(address: SocketAddr, png_path: &Path) -> Result<()> {
@@ -89,16 +113,17 @@ pub fn change_skin_mascot_render_server_at(address: SocketAddr, png_path: &Path)
         png_path: png_path.to_path_buf(),
     })
     .context("failed to serialize mascot change-skin request")?;
-    send_http_request(address, "POST", "/change-skin", Some(&body))
+    send_http_request(address, "POST", "/change-skin", Some(&body), APPLY_TIMEOUT)
 }
 
 pub fn play_timeline_mascot_render_server_at(
     address: SocketAddr,
     request: &MotionTimelineRequest,
 ) -> Result<()> {
+    validate_motion_timeline_request(request)?;
     let body = serde_json::to_vec(request)
         .context("failed to serialize mascot motion timeline request")?;
-    send_http_request(address, "POST", "/timeline", Some(&body))
+    send_http_request(address, "POST", "/timeline", Some(&body), APPLY_TIMEOUT)
 }
 
 pub fn wait_for_mascot_render_server_healthcheck_at(
@@ -127,11 +152,12 @@ fn send_http_request(
     method: &str,
     path: &str,
     body: Option<&[u8]>,
+    read_timeout: Duration,
 ) -> Result<()> {
-    let mut stream = TcpStream::connect_timeout(&address, IO_TIMEOUT)
+    let mut stream = TcpStream::connect_timeout(&address, CONNECT_TIMEOUT)
         .with_context(|| format!("failed to connect to mascot-render-server at {address}"))?;
     stream
-        .set_read_timeout(Some(IO_TIMEOUT))
+        .set_read_timeout(Some(read_timeout))
         .with_context(|| format!("failed to set read timeout for {address}"))?;
     stream
         .set_write_timeout(Some(IO_TIMEOUT))

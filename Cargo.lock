@@ -2443,7 +2443,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mascot-render-client",
- "mascot-render-core",
  "serde",
  "serde_json",
  "time",

@@ -6,12 +6,11 @@ use std::thread;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use mascot_render_core::local_data_root;
-
 use crate::logging::{
     append_log_record_for_test, control_log_path_for_test, format_log_record_for_test,
-    server_log_path_for_test, server_skin_log_path_for_test,
+    server_log_path_for_test, server_skin_log_path_for_test, startup_diagnostics_dir_for_test,
 };
+use crate::paths::control_local_data_root_for_test;
 
 #[test]
 fn append_log_record_creates_parent_directory_and_writes_message() {
@@ -112,7 +111,9 @@ fn append_log_record_serializes_concurrent_writes() {
 fn control_log_path_lives_under_local_data_root_logs_directory() {
     assert_eq!(
         control_log_path_for_test(),
-        local_data_root().join("logs").join("control.log")
+        control_local_data_root_for_test()
+            .join("logs")
+            .join("control.log")
     );
 }
 
@@ -120,7 +121,9 @@ fn control_log_path_lives_under_local_data_root_logs_directory() {
 fn server_log_path_lives_under_local_data_root_logs_directory() {
     assert_eq!(
         server_log_path_for_test(),
-        local_data_root().join("logs").join("server.log")
+        control_local_data_root_for_test()
+            .join("logs")
+            .join("server.log")
     );
 }
 
@@ -128,7 +131,19 @@ fn server_log_path_lives_under_local_data_root_logs_directory() {
 fn server_skin_log_path_lives_under_local_data_root_logs_directory() {
     assert_eq!(
         server_skin_log_path_for_test(),
-        local_data_root().join("logs").join("server_skin.log")
+        control_local_data_root_for_test()
+            .join("logs")
+            .join("server_skin.log")
+    );
+}
+
+#[test]
+fn startup_diagnostics_dir_lives_under_local_data_root_logs_directory() {
+    assert_eq!(
+        startup_diagnostics_dir_for_test(),
+        control_local_data_root_for_test()
+            .join("logs")
+            .join("startup")
     );
 }
 

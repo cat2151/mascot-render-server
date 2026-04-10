@@ -5,17 +5,19 @@ use std::time::Instant;
 
 mod helpers;
 
-use self::helpers::{create_invalid_favorites_path, favorite, mascot_config, TestFixtureCleanup};
+use self::helpers::{
+    create_invalid_favorites_path, favorite, mascot_config, unique_test_root, TestFixtureCleanup,
+};
 use crate::favorite_shuffle::{
     build_playlist, favorites_path_for, load_favorites, suppress_rotation_for_active_display_diff,
     suppress_rotation_for_psd_viewer_tui_activity_path, FavoriteShufflePlaylist,
     FAVORITE_SHUFFLE_INTERVAL,
 };
-use mascot_render_core::{psd_viewer_tui_activity_path, workspace_cache_root, Core, CoreConfig};
+use mascot_render_core::{psd_viewer_tui_activity_path, Core, CoreConfig};
 
 #[test]
 fn favorite_shuffle_deduplicates_and_fills_missing_file_name() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-load");
+    let root = unique_test_root("test-favorite-shuffle-load");
     let path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
@@ -45,7 +47,7 @@ psd_file_name = "body-renamed.psd"
 
 #[test]
 fn favorite_shuffle_invalid_entry_is_rejected_during_parse() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-invalid-entry");
+    let root = unique_test_root("test-favorite-shuffle-invalid-entry");
     let path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
@@ -68,7 +70,7 @@ psd_file_name = "body.psd"
 
 #[test]
 fn favorite_shuffle_uses_dedicated_favorites_file_name() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-path");
+    let root = unique_test_root("test-favorite-shuffle-path");
     assert_eq!(
         favorites_path_for(&root),
         root.join("favorites/favorites.toml")
@@ -77,7 +79,7 @@ fn favorite_shuffle_uses_dedicated_favorites_file_name() {
 
 #[test]
 fn favorite_shuffle_rejects_legacy_version_field() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-legacy-version");
+    let root = unique_test_root("test-favorite-shuffle-legacy-version");
     let path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
@@ -141,7 +143,7 @@ fn favorite_shuffle_is_suppressed_while_previewing_an_edited_variation() {
 
 #[test]
 fn favorite_shuffle_skips_loading_favorites_while_previewing_an_edited_variation() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-active-edit");
+    let root = unique_test_root("test-favorite-shuffle-active-edit");
     let favorites_path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     create_invalid_favorites_path(&favorites_path);
@@ -165,7 +167,7 @@ fn favorite_shuffle_skips_loading_favorites_while_previewing_an_edited_variation
 
 #[test]
 fn favorite_shuffle_still_reads_favorites_without_an_active_edit() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-normal-read");
+    let root = unique_test_root("test-favorite-shuffle-normal-read");
     let favorites_path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     create_invalid_favorites_path(&favorites_path);
@@ -191,7 +193,7 @@ fn favorite_shuffle_still_reads_favorites_without_an_active_edit() {
 
 #[test]
 fn favorite_shuffle_is_suppressed_while_psd_viewer_tui_is_active() {
-    let config_path = workspace_cache_root().join("test-favorite-shuffle-active-tui/mascot.toml");
+    let config_path = unique_test_root("test-favorite-shuffle-active-tui").join("mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
     fs::remove_file(&activity_path).ok();
     fs::create_dir_all(
@@ -210,7 +212,7 @@ fn favorite_shuffle_is_suppressed_while_psd_viewer_tui_is_active() {
 
 #[test]
 fn favorite_shuffle_ignores_stale_psd_viewer_tui_activity() {
-    let config_path = workspace_cache_root().join("test-favorite-shuffle-stale-tui/mascot.toml");
+    let config_path = unique_test_root("test-favorite-shuffle-stale-tui").join("mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
     fs::remove_file(&activity_path).ok();
     fs::create_dir_all(
@@ -229,7 +231,7 @@ fn favorite_shuffle_ignores_stale_psd_viewer_tui_activity() {
 
 #[test]
 fn favorite_shuffle_ignores_missing_psd_viewer_tui_activity() {
-    let config_path = workspace_cache_root().join("test-favorite-shuffle-missing-tui/mascot.toml");
+    let config_path = unique_test_root("test-favorite-shuffle-missing-tui").join("mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
     fs::remove_file(&activity_path).ok();
 
@@ -241,7 +243,7 @@ fn favorite_shuffle_ignores_missing_psd_viewer_tui_activity() {
 
 #[test]
 fn favorite_shuffle_ignores_future_psd_viewer_tui_activity() {
-    let config_path = workspace_cache_root().join("test-favorite-shuffle-future-tui/mascot.toml");
+    let config_path = unique_test_root("test-favorite-shuffle-future-tui").join("mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
     fs::remove_file(&activity_path).ok();
     fs::create_dir_all(
@@ -260,8 +262,7 @@ fn favorite_shuffle_ignores_future_psd_viewer_tui_activity() {
 
 #[test]
 fn favorite_shuffle_ignores_unreadable_psd_viewer_tui_activity() {
-    let config_path =
-        workspace_cache_root().join("test-favorite-shuffle-unreadable-tui/mascot.toml");
+    let config_path = unique_test_root("test-favorite-shuffle-unreadable-tui").join("mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
     let _cleanup = TestFixtureCleanup(activity_path.clone());
     fs::remove_dir_all(
@@ -281,7 +282,7 @@ fn favorite_shuffle_ignores_unreadable_psd_viewer_tui_activity() {
 
 #[test]
 fn favorite_shuffle_skips_loading_favorites_while_psd_viewer_tui_is_active() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-active-tui-read");
+    let root = unique_test_root("test-favorite-shuffle-active-tui-read");
     let favorites_path = favorites_path_for(&root);
     let config_path = root.join("mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
@@ -316,7 +317,7 @@ fn favorite_shuffle_skips_loading_favorites_while_psd_viewer_tui_is_active() {
 
 #[test]
 fn favorite_shuffle_loads_saved_mascot_scale_per_favorite() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-load-scale");
+    let root = unique_test_root("test-favorite-shuffle-load-scale");
     let path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
@@ -341,7 +342,7 @@ mascot_scale = 1.75
 
 #[test]
 fn favorite_shuffle_discards_invalid_saved_mascot_scales() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-invalid-scale");
+    let root = unique_test_root("test-favorite-shuffle-invalid-scale");
     let path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(path.parent().expect("favorites path should have a parent"))
@@ -386,7 +387,7 @@ mascot_scale = nan
 
 #[test]
 fn favorite_shuffle_persists_scale_for_matching_favorite_without_losing_other_fields() {
-    let root = workspace_cache_root().join("test-favorite-shuffle-persist-scale");
+    let root = unique_test_root("test-favorite-shuffle-persist-scale");
     let favorites_path = favorites_path_for(&root);
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(

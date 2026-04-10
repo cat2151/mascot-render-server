@@ -5,13 +5,15 @@ use std::sync::{Mutex, OnceLock};
 use std::time::SystemTime;
 
 use anyhow::{Context, Result};
-use mascot_render_core::local_data_root;
 use time::macros::format_description;
 use time::{OffsetDateTime, UtcOffset};
+
+use crate::paths::control_local_data_root;
 
 const SERVER_LOG_PATH: &str = "logs/server.log";
 const SERVER_SKIN_LOG_PATH: &str = "logs/server_skin.log";
 const CONTROL_LOG_PATH: &str = "logs/control.log";
+const STARTUP_DIAGNOSTICS_DIR_PATH: &str = "logs/startup";
 static LOG_WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn init_server_log() -> Result<PathBuf> {
@@ -79,15 +81,19 @@ fn log_with_level(
 }
 
 fn server_log_path() -> PathBuf {
-    local_data_root().join(SERVER_LOG_PATH)
+    control_local_data_root().join(SERVER_LOG_PATH)
 }
 
 fn server_skin_log_path() -> PathBuf {
-    local_data_root().join(SERVER_SKIN_LOG_PATH)
+    control_local_data_root().join(SERVER_SKIN_LOG_PATH)
 }
 
 fn control_log_path() -> PathBuf {
-    local_data_root().join(CONTROL_LOG_PATH)
+    control_local_data_root().join(CONTROL_LOG_PATH)
+}
+
+pub(crate) fn startup_diagnostics_dir() -> PathBuf {
+    control_local_data_root().join(STARTUP_DIAGNOSTICS_DIR_PATH)
 }
 
 fn ensure_log_exists(path: &Path, log_kind: &str) -> Result<()> {
@@ -171,6 +177,11 @@ pub(crate) fn control_log_path_for_test() -> PathBuf {
 #[cfg(test)]
 pub(crate) fn format_log_record_for_test(level: &str, message: &str, now: SystemTime) -> String {
     format_log_record_at(level, message, now)
+}
+
+#[cfg(test)]
+pub(crate) fn startup_diagnostics_dir_for_test() -> PathBuf {
+    startup_diagnostics_dir()
 }
 
 #[cfg(test)]

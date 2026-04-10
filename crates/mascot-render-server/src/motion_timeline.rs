@@ -1,8 +1,9 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
-use mascot_render_client::{MotionTimelineKind, MotionTimelineRequest};
-use mascot_render_control::validate_motion_timeline_request;
+use mascot_render_client::{
+    validate_motion_timeline_request, MotionTimelineKind, MotionTimelineRequest,
+};
 use mascot_render_core::MotionState;
 
 use crate::MascotWindowLayout;

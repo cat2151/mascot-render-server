@@ -8,16 +8,17 @@ use std::time::Duration;
 
 use anyhow::{anyhow, bail, Context, Result};
 use mascot_render_client::{
-    mascot_render_server_address, ChangeSkinRequest, MotionTimelineRequest,
+    mascot_render_server_address, validate_motion_timeline_request, ChangeSkinRequest,
+    MotionTimelineRequest,
 };
 use serde::Serialize;
 
-use crate::command::MascotControlCommand;
+use crate::command::{ControlCommandCompletion, ControlCommandWaitError, MascotControlCommand};
 use crate::logging::{log_control_error, log_control_info};
-use crate::timeline::validate_motion_timeline_request;
 
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
+const APPLY_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Debug)]
 struct HttpRequest {
@@ -171,31 +172,29 @@ fn route_request(
                 .context("failed to parse mascot change-skin request JSON")?;
             let png_path = request.png_path.clone();
             log_request_payload(peer, "change_skin", &request);
-            enqueue_command(
-                peer,
-                "change_skin",
-                MascotControlCommand::ChangeSkin(request.png_path),
-                command_tx,
-                notify,
-            )?;
+            let response =
+                enqueue_apply_command(peer, "change_skin", command_tx, notify, |completion| {
+                    MascotControlCommand::change_skin_with_completion(png_path.clone(), completion)
+                })?;
             log_control_info(format!(
-                "event=control_request stage=enqueued peer={peer} action=change_skin png_path={}",
+                "event=control_request stage=applied peer={peer} action=change_skin png_path={}",
                 png_path.display()
             ));
-            Ok(HttpResponse::ok_text("ok"))
+            Ok(response)
         }
         ("POST", "/timeline") => {
             let request: MotionTimelineRequest = serde_json::from_slice(&request.body)
                 .context("failed to parse mascot motion timeline request JSON")?;
             validate_motion_timeline_request(&request)?;
             log_request_payload(peer, "timeline", &request);
-            enqueue_command(
-                peer,
-                "timeline",
-                MascotControlCommand::PlayTimeline(request),
-                command_tx,
-                notify,
-            )
+            let response =
+                enqueue_apply_command(peer, "timeline", command_tx, notify, |completion| {
+                    MascotControlCommand::play_timeline_with_completion(request, completion)
+                })?;
+            log_control_info(format!(
+                "event=control_request stage=applied peer={peer} action=timeline"
+            ));
+            Ok(response)
         }
         _ => Ok(HttpResponse::not_found("not found")),
     }
@@ -214,8 +213,39 @@ fn enqueue_command(
     command_tx
         .send(command)
         .with_context(|| format!("failed to enqueue mascot {action} command"))?;
+    log_control_info(format!(
+        "event=control_request stage=queued peer={peer} action={action}"
+    ));
     notify_ui(notify);
-    Ok(HttpResponse::ok_text("ok"))
+    Ok(HttpResponse::ok_text("queued"))
+}
+
+fn enqueue_apply_command(
+    peer: SocketAddr,
+    action: &str,
+    command_tx: &Sender<MascotControlCommand>,
+    notify: Option<&Arc<dyn Fn() + Send + Sync>>,
+    build_command: impl FnOnce(ControlCommandCompletion) -> MascotControlCommand,
+) -> Result<HttpResponse> {
+    let (completion, waiter) = ControlCommandCompletion::pair();
+    enqueue_command(peer, action, build_command(completion), command_tx, notify)?;
+    match waiter.wait(APPLY_WAIT_TIMEOUT) {
+        Ok(()) => Ok(HttpResponse::ok_text("applied")),
+        Err(ControlCommandWaitError::TimedOut(timeout)) => {
+            let error = ControlCommandWaitError::TimedOut(timeout).into_anyhow(action);
+            log_control_error(format!(
+                "event=control_request stage=apply_timeout peer={peer} action={action} error={error:#}"
+            ));
+            Ok(HttpResponse::gateway_timeout(error.to_string()))
+        }
+        Err(error) => {
+            let error = error.into_anyhow(action);
+            log_control_error(format!(
+                "event=control_request stage=apply_failed peer={peer} action={action} error={error:#}"
+            ));
+            Ok(HttpResponse::internal_server_error(error.to_string()))
+        }
+    }
 }
 
 fn notify_ui(notify: Option<&Arc<dyn Fn() + Send + Sync>>) {
@@ -331,6 +361,14 @@ impl HttpResponse {
         Self {
             status_code: 500,
             status_text: "Internal Server Error",
+            body: body.into_bytes(),
+        }
+    }
+
+    fn gateway_timeout(body: String) -> Self {
+        Self {
+            status_code: 504,
+            status_text: "Gateway Timeout",
             body: body.into_bytes(),
         }
     }

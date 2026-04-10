@@ -1,10 +1,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::favorite_shuffle::FavoriteEntry;
 use mascot_render_core::{
-    AlwaysBendConfig, BounceAnimationConfig, IdleSinkAnimationConfig, MascotConfig,
-    SquashBounceAnimationConfig,
+    workspace_cache_root, AlwaysBendConfig, BounceAnimationConfig, IdleSinkAnimationConfig,
+    MascotConfig, SquashBounceAnimationConfig,
 };
 
 pub(super) fn favorite(
@@ -45,6 +46,14 @@ pub(super) fn create_invalid_favorites_path(favorites_path: &Path) {
     fs::create_dir(favorites_path).expect(
         "should create directory at favorites file path to simulate invalid favorites file",
     );
+}
+
+pub(super) fn unique_test_root(prefix: &str) -> PathBuf {
+    let unique_suffix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time should be after unix epoch")
+        .as_nanos();
+    workspace_cache_root().join(format!("{prefix}-{unique_suffix}"))
 }
 
 /// RAII guard that removes a temporary test fixture path on drop.

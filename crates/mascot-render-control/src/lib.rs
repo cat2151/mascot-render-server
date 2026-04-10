@@ -2,8 +2,8 @@ mod command;
 mod http_server;
 mod logging;
 mod orchestration;
+mod paths;
 mod spawn;
-mod timeline;
 
 #[cfg(test)]
 mod tests;
@@ -15,4 +15,3 @@ pub use orchestration::{
     ensure_mascot_render_server_visible, play_mascot_render_server_timeline,
     sync_mascot_render_server_preview,
 };
-pub use timeline::validate_motion_timeline_request;
