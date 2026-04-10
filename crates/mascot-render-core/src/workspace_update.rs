@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -208,60 +209,78 @@ fn unique_tmp_path() -> PathBuf {
 }
 
 fn spawn_python(py_path: &Path) -> LibResult<()> {
+    let candidates = python_launch_candidates();
+    let tried = candidates
+        .iter()
+        .map(|(program, args)| format_python_command(program, args))
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    let mut last_not_found = None;
+    for (program, args) in candidates {
+        let mut command = Command::new(&program);
+        command.args(&args).arg(py_path);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+
+            const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+            command.creation_flags(CREATE_NEW_CONSOLE);
+        }
+
+        match command.spawn() {
+            Ok(_) => return Ok(()),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                last_not_found = Some(err);
+            }
+            Err(err) => {
+                return Err(std::io::Error::new(
+                    err.kind(),
+                    format!(
+                        "failed to launch Python interpreter {}: {err}",
+                        format_python_command(&program, &args)
+                    ),
+                )
+                .into());
+            }
+        }
+    }
+
+    Err(last_not_found
+        .unwrap_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("no Python interpreter found; tried {tried}"),
+            )
+        })
+        .into())
+}
+
+fn python_launch_candidates() -> Vec<(OsString, Vec<OsString>)> {
+    let mut candidates = Vec::new();
+    if let Some(python) = std::env::var_os("PYTHON") {
+        candidates.push((python, Vec::new()));
+    }
+
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
-
-        const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
-        Command::new("python")
-            .arg(py_path)
-            .creation_flags(CREATE_NEW_CONSOLE)
-            .spawn()?;
-
-        Ok(())
+        candidates.push(("python".into(), Vec::new()));
+        candidates.push(("py".into(), vec!["-3".into()]));
     }
 
     #[cfg(not(windows))]
     {
-        let mut candidates = Vec::new();
-        if let Some(python) = std::env::var_os("PYTHON") {
-            candidates.push(python);
-        }
-        candidates.push("python3".into());
-        candidates.push("python".into());
-        let tried = candidates
-            .iter()
-            .map(|candidate| candidate.to_string_lossy().into_owned())
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let mut last_not_found = None;
-        for candidate in candidates {
-            match Command::new(&candidate).arg(py_path).spawn() {
-                Ok(_) => return Ok(()),
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                    last_not_found = Some(err);
-                }
-                Err(err) => {
-                    return Err(std::io::Error::new(
-                        err.kind(),
-                        format!(
-                            "failed to launch Python interpreter {}: {err}",
-                            candidate.to_string_lossy()
-                        ),
-                    )
-                    .into());
-                }
-            }
-        }
-
-        Err(last_not_found
-            .unwrap_or_else(|| {
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    format!("no Python interpreter found; tried {tried}"),
-                )
-            })
-            .into())
+        candidates.push(("python3".into(), Vec::new()));
+        candidates.push(("python".into(), Vec::new()));
     }
+
+    candidates
+}
+
+fn format_python_command(program: &OsString, args: &[OsString]) -> String {
+    std::iter::once(program)
+        .chain(args.iter())
+        .map(|part| part.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
