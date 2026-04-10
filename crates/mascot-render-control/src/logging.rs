@@ -11,77 +11,70 @@ use time::{OffsetDateTime, UtcOffset};
 
 const SERVER_LOG_PATH: &str = "logs/server.log";
 const SERVER_SKIN_LOG_PATH: &str = "logs/server_skin.log";
-const POST_REQUEST_LOG_PATH: &str = "logs/post-request.log";
+const CONTROL_LOG_PATH: &str = "logs/control.log";
 static LOG_WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 pub fn init_server_log() -> Result<PathBuf> {
     let path = server_log_path();
     ensure_log_exists(&path, "server log")?;
     ensure_log_exists(&server_skin_log_path(), "server skin log")?;
+    ensure_log_exists(&control_log_path(), "control log")?;
     Ok(path)
 }
 
 pub fn log_server_info(message: impl AsRef<str>) {
-    log_server("INFO", message.as_ref(), false);
+    log_with_level(
+        "server log",
+        &server_log_path(),
+        "INFO",
+        message.as_ref(),
+        false,
+    );
 }
 
 pub fn log_server_error(message: impl AsRef<str>) {
     let message = message.as_ref();
     eprintln!("{message}");
-    log_server("ERROR", message, true);
+    log_with_level("server log", &server_log_path(), "ERROR", message, true);
 }
 
 pub fn log_server_skin_info(message: impl AsRef<str>) {
-    log_server_skin("INFO", message.as_ref(), false);
+    log_with_level(
+        "server skin log",
+        &server_skin_log_path(),
+        "INFO",
+        message.as_ref(),
+        false,
+    );
 }
 
-pub fn log_post_request(message: impl AsRef<str>) {
-    log_post_request_with_level("post request log", "INFO", message.as_ref(), false);
+pub(crate) fn log_control_info(message: impl AsRef<str>) {
+    log_with_level(
+        "control log",
+        &control_log_path(),
+        "INFO",
+        message.as_ref(),
+        false,
+    );
 }
 
-pub fn log_post_request_error(message: impl AsRef<str>) {
+pub(crate) fn log_control_error(message: impl AsRef<str>) {
     let message = message.as_ref();
-    log_post_request_with_level("post request log", "ERROR", message, false);
+    log_with_level("control log", &control_log_path(), "ERROR", message, false);
 }
 
-fn log_post_request_with_level(
+fn log_with_level(
     log_kind: &str,
+    path: &Path,
     level: &str,
     message: &str,
     already_printed_to_stderr: bool,
 ) {
-    let path = post_request_log_path();
-    if let Err(error) = append_log_record(log_kind, &path, level, message) {
+    if let Err(error) = append_log_record(log_kind, path, level, message) {
         if !already_printed_to_stderr {
             eprintln!("{message}");
         }
-        eprintln!(
-            "failed to append post request log {}: {error:#}",
-            path.display()
-        );
-    }
-}
-
-fn log_server(level: &str, message: &str, already_printed_to_stderr: bool) {
-    let path = server_log_path();
-    if let Err(error) = append_log_record("server log", &path, level, message) {
-        if !already_printed_to_stderr {
-            eprintln!("{message}");
-        }
-        eprintln!("failed to append server log {}: {error:#}", path.display());
-    }
-}
-
-fn log_server_skin(level: &str, message: &str, already_printed_to_stderr: bool) {
-    let path = server_skin_log_path();
-    if let Err(error) = append_log_record("server skin log", &path, level, message) {
-        if !already_printed_to_stderr {
-            eprintln!("{message}");
-        }
-        eprintln!(
-            "failed to append server skin log {}: {error:#}",
-            path.display()
-        );
+        eprintln!("failed to append {log_kind} {}: {error:#}", path.display());
     }
 }
 
@@ -93,8 +86,8 @@ fn server_skin_log_path() -> PathBuf {
     local_data_root().join(SERVER_SKIN_LOG_PATH)
 }
 
-fn post_request_log_path() -> PathBuf {
-    local_data_root().join(POST_REQUEST_LOG_PATH)
+fn control_log_path() -> PathBuf {
+    local_data_root().join(CONTROL_LOG_PATH)
 }
 
 fn ensure_log_exists(path: &Path, log_kind: &str) -> Result<()> {
@@ -171,13 +164,13 @@ pub(crate) fn append_log_record_for_test(path: &Path, level: &str, message: &str
 }
 
 #[cfg(test)]
-pub(crate) fn format_log_record_for_test(level: &str, message: &str, now: SystemTime) -> String {
-    format_log_record_at(level, message, now)
+pub(crate) fn control_log_path_for_test() -> PathBuf {
+    control_log_path()
 }
 
 #[cfg(test)]
-pub(crate) fn post_request_log_path_for_test() -> PathBuf {
-    post_request_log_path()
+pub(crate) fn format_log_record_for_test(level: &str, message: &str, now: SystemTime) -> String {
+    format_log_record_at(level, message, now)
 }
 
 #[cfg(test)]

@@ -2438,6 +2438,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mascot-render-control"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mascot-render-client",
+ "mascot-render-core",
+ "serde",
+ "serde_json",
+ "time",
+]
+
+[[package]]
 name = "mascot-render-core"
 version = "0.1.0"
 dependencies = [
@@ -2462,11 +2474,11 @@ dependencies = [
  "clap",
  "eframe",
  "mascot-render-client",
+ "mascot-render-control",
  "mascot-render-core",
  "raw-window-handle",
  "serde",
  "serde_json",
- "time",
  "toml",
  "windows-sys 0.61.2",
 ]
@@ -3375,6 +3387,7 @@ dependencies = [
  "clap",
  "crossterm",
  "mascot-render-client",
+ "mascot-render-control",
  "mascot-render-core",
  "mascot-render-server",
  "ratatui",

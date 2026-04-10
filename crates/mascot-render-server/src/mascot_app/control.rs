@@ -3,7 +3,8 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use eframe::egui;
-use mascot_render_server::{apply_motion_timeline_request, log_server_info, MascotControlCommand};
+use mascot_render_control::{log_server_info, MascotControlCommand};
+use mascot_render_server::apply_motion_timeline_request;
 
 use super::config::describe_motion_timeline_request;
 use super::logging::{change_skin_success_message, run_change_skin_stage};

@@ -9,6 +9,7 @@ anyhow = "1"
 clap = { version = "4.6.0", features = ["derive"] }
 crossterm = "0.29"
 mascot-render-client = { path = "../mascot-render-client" }
+mascot-render-control = { path = "../mascot-render-control" }
 mascot-render-server = { path = "../mascot-render-server" }
 ratatui = "0.30"
 ratatui-image = { version = "10", default-features = false, features = ["crossterm"] }

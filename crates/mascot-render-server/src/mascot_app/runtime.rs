@@ -3,9 +3,10 @@ use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, Pos2, Rect};
 use eframe::App;
+use mascot_render_control::log_server_error;
 use mascot_render_core::MotionTransform;
 use mascot_render_server::{
-    captures_logical_point, log_server_error, transformed_image_rect, TransparentHitTestUpdate,
+    captures_logical_point, transformed_image_rect, TransparentHitTestUpdate,
 };
 
 use crate::always_bend;

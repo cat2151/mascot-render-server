@@ -3,6 +3,7 @@ members = [
     "crates/mascot-render-core",
     "crates/psd-viewer-tui",
     "crates/mascot-render-client",
+    "crates/mascot-render-control",
     "crates/tui-sixel-preview",
     "crates/mascot-render-server",
 ]

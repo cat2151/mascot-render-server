@@ -8,8 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use mascot_render_core::local_data_root;
 
-use crate::server_log::{
-    append_log_record_for_test, format_log_record_for_test, post_request_log_path_for_test,
+use crate::logging::{
+    append_log_record_for_test, control_log_path_for_test, format_log_record_for_test,
     server_log_path_for_test, server_skin_log_path_for_test,
 };
 
@@ -27,13 +27,7 @@ fn append_log_record_creates_parent_directory_and_writes_message() {
         "unexpected log contents: {log_contents}"
     );
 
-    fs::remove_dir_all(
-        log_path
-            .parent()
-            .and_then(|path| path.parent())
-            .expect("log path should include nested directories"),
-    )
-    .expect("temporary server log directory should be removable");
+    remove_test_log_dir(&log_path);
 }
 
 #[test]
@@ -115,10 +109,10 @@ fn append_log_record_serializes_concurrent_writes() {
 }
 
 #[test]
-fn post_request_log_path_lives_under_local_data_root_logs_directory() {
+fn control_log_path_lives_under_local_data_root_logs_directory() {
     assert_eq!(
-        post_request_log_path_for_test(),
-        local_data_root().join("logs").join("post-request.log")
+        control_log_path_for_test(),
+        local_data_root().join("logs").join("control.log")
     );
 }
 
@@ -154,7 +148,7 @@ fn unique_test_log_path(prefix: &str) -> PathBuf {
         .expect("system time should be after unix epoch")
         .as_nanos();
     std::env::temp_dir()
-        .join(format!("mascot-render-server-{prefix}-{unique_suffix}"))
+        .join(format!("mascot-render-control-{prefix}-{unique_suffix}"))
         .join("logs")
         .join("server.log")
 }

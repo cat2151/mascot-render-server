@@ -5,6 +5,7 @@ use std::time::{Instant, SystemTime};
 use anyhow::{Context, Result};
 use eframe::egui::{self, Pos2, Rect, Vec2};
 use eframe::CreationContext;
+use mascot_render_control::{log_server_error, MascotControlCommand};
 use mascot_render_core::{
     load_mascot_config, mascot_runtime_state_path, psd_viewer_tui_activity_path, Core, CoreConfig,
     MascotConfig, MascotImageData, MotionState,
@@ -13,8 +14,8 @@ use mascot_render_server::window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
 };
 use mascot_render_server::{
-    log_server_error, AlphaBounds, FavoriteShufflePlaylist, MascotControlCommand, MascotSkinCache,
-    MascotWindowLayout, TransparentHitTestUpdate, TransparentHitTestWindow,
+    AlphaBounds, FavoriteShufflePlaylist, MascotSkinCache, MascotWindowLayout,
+    TransparentHitTestUpdate, TransparentHitTestWindow,
 };
 
 use crate::app_support::{

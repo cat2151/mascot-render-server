@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use mascot_render_server::{log_server_error, log_server_info, log_server_skin_info};
+use mascot_render_control::{log_server_error, log_server_info, log_server_skin_info};
 
 use super::MascotApp;
 

@@ -3,8 +3,8 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 
 use anyhow::Result;
+use mascot_render_control::sync_mascot_render_server_preview;
 use mascot_render_core::mascot_config_path;
-use mascot_render_server::sync_mascot_render_server_preview;
 
 const SERVER_SYNC_ACTIVITY_MESSAGE: &str = "Starting mascot-render-server / syncing preview...";
 

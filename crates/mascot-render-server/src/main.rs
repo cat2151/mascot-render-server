@@ -45,6 +45,9 @@ use eframe::egui;
 use eframe::NativeOptions;
 use favorite_ensemble::load_favorite_ensemble;
 use mascot_app::MascotApp;
+use mascot_render_control::{
+    init_server_log, log_server_error, log_server_info, start_mascot_control_server_with_notify,
+};
 use mascot_render_core::{
     check_workspace_update, load_mascot_config, load_mascot_image, run_workspace_update, Core,
     CoreConfig,
@@ -52,10 +55,7 @@ use mascot_render_core::{
 use mascot_render_server::window_history::{
     load_window_position, outer_position_for_anchor, window_history_path,
 };
-use mascot_render_server::{
-    init_server_log, log_server_error, log_server_info, start_mascot_control_server_with_notify,
-    AlphaBounds, MascotWindowLayout,
-};
+use mascot_render_server::{AlphaBounds, MascotWindowLayout};
 
 use app_support::{alpha_mask, content_bounds, size_vec, window_title};
 

@@ -5,14 +5,15 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::mascot_control::{
-    start_mascot_control_server_on, start_mascot_control_server_on_with_notify,
-    MascotControlCommand,
-};
 use mascot_render_client::{
     change_skin_mascot_render_server_at, hide_mascot_render_server_at,
     mascot_render_server_healthcheck_at, play_timeline_mascot_render_server_at,
     show_mascot_render_server_at, MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep,
+};
+
+use crate::command::MascotControlCommand;
+use crate::http_server::{
+    start_mascot_control_server_on, start_mascot_control_server_on_with_notify,
 };
 
 #[test]
