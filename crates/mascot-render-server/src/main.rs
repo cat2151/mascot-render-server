@@ -12,6 +12,9 @@ mod mouth_flap;
 #[path = "tests/always_bend.rs"]
 mod always_bend_tests;
 #[cfg(test)]
+#[path = "tests/app_support.rs"]
+mod app_support_tests;
+#[cfg(test)]
 #[path = "tests/character_resolver.rs"]
 mod character_resolver_tests;
 #[cfg(test)]

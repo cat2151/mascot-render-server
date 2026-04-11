@@ -3,6 +3,8 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use eframe::egui::{self, ColorImage, TextureHandle, TextureOptions, Vec2};
+#[cfg(not(test))]
+use mascot_render_control::log_server_info;
 use mascot_render_core::{mascot_window_size, MascotConfig, MascotImageData};
 use mascot_render_server::{alpha_bounds_from_mask, AlphaBounds};
 
@@ -64,7 +66,38 @@ fn load_texture(ctx: &egui::Context, image: &MascotImageData) -> TextureHandle {
         &image.rgba,
     );
     let texture_name = format!("mascot-png:{}", image.path.display());
-    ctx.load_texture(texture_name, color_image, TextureOptions::LINEAR)
+    log_if_image_exceeds_current_egui_texture_hint(ctx, image, &texture_name);
+
+    let texture_manager = ctx.tex_manager();
+    let texture_id =
+        texture_manager
+            .write()
+            .alloc(texture_name, color_image.into(), TextureOptions::LINEAR);
+    TextureHandle::new(texture_manager, texture_id)
+}
+
+fn log_if_image_exceeds_current_egui_texture_hint(
+    ctx: &egui::Context,
+    image: &MascotImageData,
+    texture_name: &str,
+) {
+    let max_texture_side = ctx.input(|input| input.max_texture_side);
+    if image.width as usize <= max_texture_side && image.height as usize <= max_texture_side {
+        return;
+    }
+
+    #[cfg(not(test))]
+    {
+        log_server_info(format!(
+            "trigger=skin_texture action=allocate_oversized_texture texture_name={} image_size={}x{} egui_current_max_texture_side={} note=egui may still hold the pre-first-frame default limit during startup; the renderer upload uses the backend limit",
+            texture_name,
+            image.width,
+            image.height,
+            max_texture_side
+        ));
+    }
+    #[cfg(test)]
+    let _ = texture_name;
 }
 
 pub(crate) fn alpha_mask(rgba: &[u8]) -> Arc<[u8]> {
