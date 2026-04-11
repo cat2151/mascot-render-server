@@ -110,7 +110,7 @@ fn drain_startup(state: &mut StatusTuiState, startup: &mut ServerStartupSync) {
 fn drain_test_posts(state: &mut StatusTuiState, test_posts: &mut TestPostSync) {
     if let Some(result) = test_posts.drain_completion() {
         match result {
-            Ok(label) => state.record_test_post_success(label),
+            Ok((label, elapsed_ms)) => state.record_test_post_success(label, elapsed_ms),
             Err((label, error)) => state.record_test_post_failed(label, error),
         }
     }
@@ -144,17 +144,20 @@ fn handle_key(state: &mut StatusTuiState, test_posts: &mut TestPostSync, key: ev
             start_test_post(state, test_posts, TestPostAction::Hide);
         }
         KeyCode::Char('p') if key.modifiers == KeyModifiers::NONE => {
-            let Some(character_name) = state.configured_character_name() else {
-                state.record_test_post_failed(
-                    TestPostAction::change_character_label(),
-                    "configured_character_name unavailable: wait for a status snapshot with configured source paths".to_string(),
-                );
-                return;
-            };
+            start_configured_character_post(
+                state,
+                test_posts,
+                TestPostAction::ChangeCharacter,
+                TestPostAction::change_character_label(),
+            );
+        }
+        KeyCode::Char('r') if key.modifiers == KeyModifiers::NONE => {
             start_test_post(
                 state,
                 test_posts,
-                TestPostAction::ChangeCharacter(character_name),
+                TestPostAction::RandomCharacter {
+                    current: state.current_psd_source(),
+                },
             );
         }
         KeyCode::Char('t') if key.modifiers == KeyModifiers::NONE => {
@@ -165,6 +168,22 @@ fn handle_key(state: &mut StatusTuiState, test_posts: &mut TestPostSync, key: ev
         }
         _ => {}
     }
+}
+
+fn start_configured_character_post(
+    state: &mut StatusTuiState,
+    test_posts: &mut TestPostSync,
+    build_action: impl FnOnce(String) -> TestPostAction,
+    missing_label: String,
+) {
+    let Some(character_name) = state.configured_character_name() else {
+        state.record_test_post_failed(
+            missing_label,
+            "configured_character_name unavailable: wait for a status snapshot with configured source paths".to_string(),
+        );
+        return;
+    };
+    start_test_post(state, test_posts, build_action(character_name));
 }
 
 fn start_test_post(

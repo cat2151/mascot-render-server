@@ -30,6 +30,9 @@ mod mascot_app_persistence_tests;
 #[path = "tests/mascot_app_reload.rs"]
 mod mascot_app_reload_tests;
 #[cfg(test)]
+#[path = "tests/mascot_app_status.rs"]
+mod mascot_app_status_tests;
+#[cfg(test)]
 #[path = "tests/mascot_scale.rs"]
 mod mascot_scale_tests;
 #[cfg(test)]

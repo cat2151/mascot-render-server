@@ -86,8 +86,8 @@ fn test_post_status_tracks_background_post_result() {
     state.record_test_post_started("show".to_string());
     assert_eq!(state.test_post_status_label(), "show: running");
 
-    state.record_test_post_success("show".to_string());
-    assert_eq!(state.test_post_status_label(), "show: ok");
+    state.record_test_post_success("show".to_string(), 1_234);
+    assert_eq!(state.test_post_status_label(), "show: ok (1.2s)");
 
     state.record_test_post_failed("hide".to_string(), "connection refused".to_string());
     assert_eq!(

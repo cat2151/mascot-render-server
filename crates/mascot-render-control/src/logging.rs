@@ -12,6 +12,7 @@ use crate::paths::control_local_data_root;
 
 const SERVER_LOG_PATH: &str = "logs/server.log";
 const SERVER_SKIN_LOG_PATH: &str = "logs/server_skin.log";
+const PSD_VIEWER_TUI_LOG_PATH: &str = "logs/psd_viewer_tui.log";
 const CONTROL_LOG_PATH: &str = "logs/control.log";
 const STARTUP_DIAGNOSTICS_DIR_PATH: &str = "logs/startup";
 static LOG_WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -20,6 +21,7 @@ pub fn init_server_log() -> Result<PathBuf> {
     let path = server_log_path();
     ensure_log_exists(&path, "server log")?;
     ensure_log_exists(&server_skin_log_path(), "server skin log")?;
+    ensure_log_exists(&psd_viewer_tui_log_path(), "psd-viewer-tui log")?;
     ensure_log_exists(&control_log_path(), "control log")?;
     Ok(path)
 }
@@ -44,6 +46,16 @@ pub fn log_server_skin_info(message: impl AsRef<str>) {
     log_with_level(
         "server skin log",
         &server_skin_log_path(),
+        "INFO",
+        message.as_ref(),
+        false,
+    );
+}
+
+pub fn log_psd_viewer_tui_info(message: impl AsRef<str>) {
+    log_with_level(
+        "psd-viewer-tui log",
+        &psd_viewer_tui_log_path(),
         "INFO",
         message.as_ref(),
         false,
@@ -86,6 +98,10 @@ fn server_log_path() -> PathBuf {
 
 fn server_skin_log_path() -> PathBuf {
     control_local_data_root().join(SERVER_SKIN_LOG_PATH)
+}
+
+fn psd_viewer_tui_log_path() -> PathBuf {
+    control_local_data_root().join(PSD_VIEWER_TUI_LOG_PATH)
 }
 
 fn control_log_path() -> PathBuf {
@@ -192,4 +208,9 @@ pub(crate) fn server_log_path_for_test() -> PathBuf {
 #[cfg(test)]
 pub(crate) fn server_skin_log_path_for_test() -> PathBuf {
     server_skin_log_path()
+}
+
+#[cfg(test)]
+pub(crate) fn psd_viewer_tui_log_path_for_test() -> PathBuf {
+    psd_viewer_tui_log_path()
 }

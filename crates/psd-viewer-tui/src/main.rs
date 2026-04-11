@@ -43,6 +43,9 @@ mod library_tests;
 #[path = "tests/mouth_flap.rs"]
 mod mouth_flap_tests;
 #[cfg(test)]
+#[path = "tests/selection_timing.rs"]
+mod selection_timing_tests;
+#[cfg(test)]
 #[path = "tests/server_preview_sync.rs"]
 mod server_preview_sync_tests;
 #[cfg(test)]

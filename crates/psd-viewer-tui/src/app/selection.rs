@@ -4,7 +4,7 @@ use super::library::{
     build_library_rows, first_psd_selection, selected_flat_index, selected_row_index,
     selection_from_flat_index, selection_from_psd_path, LibraryRow,
 };
-use super::{App, FocusPane};
+use super::{App, FocusPane, TimingLog};
 use crate::workspace_state::WorkspaceState;
 use mascot_render_core::{PsdEntry, ZipEntry};
 
@@ -276,14 +276,23 @@ impl App {
     }
 
     fn select_psd_by_flat_index(&mut self, flat_index: usize) -> Result<()> {
-        let Some((zip_index, psd_index)) = selection_from_flat_index(&self.zip_entries, flat_index)
-        else {
+        let mut timing = TimingLog::start(
+            "select_psd_by_flat_index",
+            format!("flat_index={flat_index}"),
+        );
+        let Some((zip_index, psd_index)) = timing.measure("selection_from_flat_index", || {
+            selection_from_flat_index(&self.zip_entries, flat_index)
+        }) else {
             return Ok(());
         };
-        self.selected_zip_index = zip_index;
-        self.selected_psd_index = psd_index;
-        self.selected_layer_index = 0;
-        self.refresh_selected_psd_state()
+        timing.measure("assign_selection", || {
+            self.selected_zip_index = zip_index;
+            self.selected_psd_index = psd_index;
+            self.selected_layer_index = 0;
+        });
+        timing.measure_result("refresh_selected_psd_state", || {
+            self.refresh_selected_psd_state()
+        })
     }
 
     fn persist_navigation_selection(&self) -> Result<()> {

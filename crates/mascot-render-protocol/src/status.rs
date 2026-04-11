@@ -9,6 +9,7 @@ pub struct ServerStatusSnapshot {
     pub heartbeat_at_unix_ms: u64,
     pub lifecycle: ServerLifecyclePhase,
     pub current_command: Option<ServerCommandStatus>,
+    pub current_work: Option<ServerWorkStatus>,
     pub last_completed_command: Option<ServerCommandStatus>,
     pub last_failed_command: Option<ServerCommandStatus>,
     pub configured_character_name: Option<String>,
@@ -43,6 +44,15 @@ pub struct ServerCommandStatus {
     pub requested_at_unix_ms: u64,
     pub updated_at_unix_ms: u64,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServerWorkStatus {
+    pub kind: String,
+    pub stage: String,
+    pub summary: String,
+    pub started_at_unix_ms: u64,
+    pub updated_at_unix_ms: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,6 +100,7 @@ impl ServerStatusSnapshot {
             heartbeat_at_unix_ms: now,
             lifecycle: ServerLifecyclePhase::Starting,
             current_command: None,
+            current_work: None,
             last_completed_command: None,
             last_failed_command: None,
             configured_character_name: None,
@@ -106,6 +117,33 @@ impl ServerStatusSnapshot {
             runtime_state_path,
             pending_persisted_scale: false,
             last_error: None,
+        }
+    }
+}
+
+impl ServerWorkStatus {
+    pub fn started(
+        kind: impl Into<String>,
+        stage: impl Into<String>,
+        summary: impl Into<String>,
+    ) -> Self {
+        let now = now_unix_ms();
+        Self {
+            kind: kind.into(),
+            stage: stage.into(),
+            summary: summary.into(),
+            started_at_unix_ms: now,
+            updated_at_unix_ms: now,
+        }
+    }
+
+    pub fn with_stage(&self, stage: impl Into<String>, summary: impl Into<String>) -> Self {
+        Self {
+            kind: self.kind.clone(),
+            stage: stage.into(),
+            summary: summary.into(),
+            started_at_unix_ms: self.started_at_unix_ms,
+            updated_at_unix_ms: now_unix_ms(),
         }
     }
 }

@@ -9,11 +9,14 @@ pub(crate) mod mouth_flap;
 mod selection;
 mod startup;
 mod support;
+mod timing;
 
 #[cfg(test)]
 pub(crate) use favorites::saved_window_positions_match_for_test;
 #[cfg(test)]
 pub(crate) use favorites::{apply_favorite_variation, apply_favorite_window_position};
+#[cfg(test)]
+pub(crate) use timing::format_timing_log_message_for_test;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -35,6 +38,7 @@ use eye_blink::EyeBlinkAnimation;
 use mouth_flap::MouthFlapAnimation;
 pub(crate) use startup::{spawn_startup_loader, StartupEvent};
 use support::{current_preview_status, psd_path_in_zip};
+use timing::TimingLog;
 
 pub(crate) const MONOKAI_YELLOW: Color = Color::Rgb(230, 219, 116);
 pub(crate) const MONOKAI_PINK: Color = Color::Rgb(249, 38, 114);
@@ -371,40 +375,61 @@ impl App {
     }
 
     fn refresh_selected_psd_state(&mut self) -> Result<()> {
-        self.current_psd_document = None;
-        self.current_preview_png_path = None;
-        self.current_variation_spec_path = None;
-        self.favorites_preview_png_path = None;
-        self.clear_preview_animations();
-        self.layer_rows.clear();
+        let mut timing = TimingLog::start(
+            "refresh_selected_psd_state",
+            self.selected_psd_timing_summary(),
+        );
+        timing.measure("clear_current_preview_state", || {
+            self.current_psd_document = None;
+            self.current_preview_png_path = None;
+            self.current_variation_spec_path = None;
+            self.favorites_preview_png_path = None;
+            self.clear_preview_animations();
+            self.layer_rows.clear();
+        });
 
-        let Some((zip_path, extracted_dir)) = self
-            .selected_zip_entry()
-            .map(|zip| (zip.zip_path.clone(), zip.extracted_dir.clone()))
-        else {
+        let Some((zip_path, extracted_dir)) = self.selected_zip_entry().map(|zip| {
+            timing.measure("clone_selected_zip_paths", || {
+                (zip.zip_path.clone(), zip.extracted_dir.clone())
+            })
+        }) else {
             return Ok(());
         };
-        let Some(psd_entry) = self.selected_psd_entry().cloned() else {
+        let Some(psd_entry) = timing.measure("clone_selected_psd_entry", || {
+            self.selected_psd_entry().cloned()
+        }) else {
             return Ok(());
         };
         let psd_path = psd_entry.path.clone();
         if self.startup_pending_psd_paths.contains(&psd_path) {
             self.status = format!("Parsing selected PSD: {}", psd_entry.file_name);
-            self.sync_selection_bounds();
+            timing.measure("sync_selection_bounds", || self.sync_selection_bounds());
             return Ok(());
         }
         let psd_path_in_zip = psd_path_in_zip(&psd_path, &extracted_dir, &psd_path);
-        let document = psd_entry.to_document(&zip_path, &psd_path_in_zip);
+        let document = timing.measure("PsdEntry::to_document", || {
+            psd_entry.to_document(&zip_path, &psd_path_in_zip)
+        });
         let variation = self.variations.entry(psd_path.clone()).or_default().clone();
 
-        self.layer_rows = resolve_layer_rows(&document, &variation);
+        self.layer_rows = timing.measure("resolve_layer_rows", || {
+            resolve_layer_rows(&document, &variation)
+        });
         self.current_psd_document = Some(document);
-        self.restore_current_psd_mascot_scale()?;
-        self.sync_preview_for_variation(&zip_path, &psd_path, &psd_path_in_zip, &psd_entry)?;
-        let _ = self.sync_current_mascot_config()?;
-        self.sync_selection_bounds();
+        timing.measure_result("restore_current_psd_mascot_scale", || {
+            self.restore_current_psd_mascot_scale()
+        })?;
+        timing.measure_result("sync_preview_for_variation", || {
+            self.sync_preview_for_variation(&zip_path, &psd_path, &psd_path_in_zip, &psd_entry)
+        })?;
+        let _ = timing.measure_result("sync_current_mascot_config", || {
+            self.sync_current_mascot_config()
+        })?;
+        timing.measure("sync_selection_bounds", || self.sync_selection_bounds());
         if self.favorites_visible {
-            self.update_selected_favorite_preview();
+            timing.measure("update_selected_favorite_preview", || {
+                self.update_selected_favorite_preview();
+            });
         }
         Ok(())
     }
@@ -416,20 +441,52 @@ impl App {
         psd_path_in_zip: &Path,
         psd_entry: &PsdEntry,
     ) -> Result<()> {
-        let variation = self.variations.get(psd_path).cloned().unwrap_or_default();
+        let mut timing = TimingLog::start(
+            "sync_preview_for_variation",
+            format!(
+                "zip_path={} psd_path={} psd_path_in_zip={}",
+                zip_path.display(),
+                psd_path.display(),
+                psd_path_in_zip.display()
+            ),
+        );
+        let variation = timing.measure("clone_variation", || {
+            self.variations.get(psd_path).cloned().unwrap_or_default()
+        });
         if variation.is_default() {
-            self.current_preview_png_path = psd_entry.rendered_png_path.clone();
-            self.current_variation_spec_path = None;
+            timing.measure("set_default_preview", || {
+                self.current_preview_png_path = psd_entry.rendered_png_path.clone();
+                self.current_variation_spec_path = None;
+            });
             return Ok(());
         }
 
-        let rendered = self.core.render_png(RenderRequest {
-            zip_path: zip_path.to_path_buf(),
-            psd_path_in_zip: psd_path_in_zip.to_path_buf(),
-            display_diff: variation,
+        let rendered = timing.measure_result("Core::render_png", || {
+            self.core.render_png(RenderRequest {
+                zip_path: zip_path.to_path_buf(),
+                psd_path_in_zip: psd_path_in_zip.to_path_buf(),
+                display_diff: variation,
+            })
         })?;
-        self.current_variation_spec_path = Some(variation_spec_path(&rendered.output_path));
-        self.current_preview_png_path = Some(rendered.output_path);
+        timing.measure("set_variation_preview", || {
+            self.current_variation_spec_path = Some(variation_spec_path(&rendered.output_path));
+            self.current_preview_png_path = Some(rendered.output_path);
+        });
         Ok(())
+    }
+
+    fn selected_psd_timing_summary(&self) -> String {
+        let zip_path = self
+            .selected_zip_entry()
+            .map(|entry| entry.zip_path.display().to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let psd_path = self
+            .selected_psd_entry()
+            .map(|entry| entry.path.display().to_string())
+            .unwrap_or_else(|| "-".to_string());
+        format!(
+            "zip_index={} psd_index={} zip_path={} psd_path={}",
+            self.selected_zip_index, self.selected_psd_index, zip_path, psd_path
+        )
     }
 }

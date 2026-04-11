@@ -80,6 +80,8 @@ pub(crate) use persistence::{
 };
 #[cfg(test)]
 pub(crate) use runtime::mouth_flap_skin_state_for_test;
+#[cfg(test)]
+pub(crate) use status::ServerWorkGuard;
 
 pub(crate) struct MascotApp {
     config_path: PathBuf,
@@ -267,6 +269,11 @@ impl MascotApp {
             return Ok(false);
         }
 
+        let mut work = self.start_current_work(
+            "reload_config_if_needed",
+            "load_mascot_config",
+            format!("config_path={}", self.config_path.display()),
+        );
         let previous_layout = self.window_layout;
         let next_config = load_mascot_config(&self.config_path)
             .with_context(|| format!("failed to hot-reload {}", self.config_path.display()))?;
@@ -297,11 +304,19 @@ impl MascotApp {
                 .set_always_idle_sink_enabled(self.config.always_idle_sink_enabled, Instant::now());
         }
         if png_changed || ensemble_mode_changed {
+            work.update_stage(
+                "load_active_skin",
+                format!("png_path={}", self.config.png_path.display()),
+            );
             self.open_skin = self.load_active_skin(ctx)?;
         }
 
         if self.config.favorite_ensemble_enabled {
             if ensemble_mode_changed || favorite_ensemble_changed {
+                work.update_stage(
+                    "load_favorite_ensemble",
+                    format!("favorites_path={}", favorites_path.display()),
+                );
                 self.favorite_ensemble = self.load_active_ensemble_scene(ctx)?;
             }
         } else if ensemble_mode_changed || png_changed {
@@ -349,6 +364,12 @@ impl MascotApp {
                 WindowHistoryTracker::new(next_history_path, saved_window_position);
             restored_window_position = saved_window_position;
         }
+        work.update_stage(
+            "refresh_window_layout",
+            format!(
+                "png_changed={png_changed} ensemble_mode_changed={ensemble_mode_changed} favorite_ensemble_changed={favorite_ensemble_changed}"
+            ),
+        );
         self.refresh_window_layout(ctx, previous_layout);
         if let Some(position) = restored_window_position {
             layout::restore_anchor_position(self, ctx, position);

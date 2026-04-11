@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use eframe::egui;
+use mascot_render_control::log_server_info;
 use mascot_render_core::{load_mascot_image, MascotConfig};
 
 use super::{CachedSkin, FavoriteEnsembleScene, MascotApp};
@@ -14,13 +15,34 @@ use crate::mouth_flap::render_mouth_flap_pngs;
 impl MascotApp {
     pub(super) fn load_skin(&mut self, ctx: &egui::Context, png_path: &Path) -> Result<CachedSkin> {
         if let Some(cached_skin) = self.skin_cache.get(png_path) {
+            let _work =
+                self.start_current_work("load_skin", "cache_hit", skin_work_summary(png_path));
+            log_server_info(format!(
+                "trigger=skin_cache action=load_skin stage=cache_hit png_path={}",
+                png_path.display()
+            ));
             return Ok(cached_skin.clone());
         }
 
+        let _work = self.start_current_work(
+            "load_skin",
+            "cache_miss_decode_texture",
+            skin_work_summary(png_path),
+        );
+        log_server_info(format!(
+            "trigger=skin_cache action=load_skin stage=cache_miss_decode_texture png_path={}",
+            png_path.display()
+        ));
         let image = load_mascot_image(png_path)
             .with_context(|| format!("failed to load mascot skin {}", png_path.display()))?;
         let skin = cached_skin_from_image(ctx, &image);
-        self.skin_cache.insert(png_path.to_path_buf(), skin.clone());
+        let evicted_paths = self.skin_cache.insert(png_path.to_path_buf(), skin.clone());
+        for evicted_path in evicted_paths {
+            log_server_info(format!(
+                "trigger=skin_cache action=evict evicted_png_path={}",
+                evicted_path.display()
+            ));
+        }
         Ok(skin)
     }
 
@@ -73,6 +95,11 @@ impl MascotApp {
             return Ok(());
         }
 
+        let mut work = self.start_current_work(
+            "refresh_pending_auxiliary_skins",
+            "refresh_closed_eye_skin",
+            format!("png_path={}", self.config.png_path.display()),
+        );
         self.pending_auxiliary_skin_refresh = false;
         if self.config.favorite_ensemble_enabled {
             self.clear_auxiliary_skins();
@@ -80,6 +107,10 @@ impl MascotApp {
         }
 
         self.refresh_closed_eye_skin(ctx)?;
+        work.update_stage(
+            "refresh_mouth_flap_skins",
+            format!("png_path={}", self.config.png_path.display()),
+        );
         self.refresh_mouth_flap_skins(ctx)
     }
 
@@ -127,4 +158,8 @@ impl MascotApp {
             Some(self.load_skin(ctx, &mouth_flap_pngs.closed_png_path)?),
         ))
     }
+}
+
+fn skin_work_summary(png_path: &Path) -> String {
+    format!("png_path={}", png_path.display())
 }

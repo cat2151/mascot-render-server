@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use mascot_render_protocol::{
     now_unix_ms, ServerCommandKind, ServerCommandStage, ServerCommandStatus, ServerLifecyclePhase,
-    ServerStatusSnapshot,
+    ServerStatusSnapshot, ServerWorkStatus,
 };
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
@@ -18,6 +18,7 @@ const HELP_LINES: &[&str] = &[
     "s POST /show",
     "h POST /hide",
     "p POST /change-character configured_character_name",
+    "r pick random cached PSD name and POST /change-character",
     "t POST /timeline shake",
     "m POST /timeline mouth-flap",
     "",
@@ -52,32 +53,39 @@ pub(crate) fn draw(frame: &mut ratatui::Frame, state: &StatusTuiState) {
     let command_columns = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(34),
-            Constraint::Percentage(33),
-            Constraint::Percentage(33),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
         ])
         .split(layout[2]);
     render_panel(
         frame,
         command_columns[0],
+        "Current Work",
+        current_work_lines(state),
+    );
+    render_panel(
+        frame,
+        command_columns[1],
         "Current Command",
         current_command_lines(state),
     );
     render_panel(
         frame,
-        command_columns[1],
+        command_columns[2],
         "Last Completed",
         completed_command_lines(state),
     );
     render_panel(
         frame,
-        command_columns[2],
+        command_columns[3],
         "Last Failed",
         failed_command_lines(state),
     );
 
     let footer = Paragraph::new(format!(
-        "test POST: {}\n? help | q quit | s show | h hide | p change-character configured name | t shake | m mouth-flap | Ctrl-C quit",
+        "test POST: {}\n? help | q quit | s show | h hide | p change-character configured name | r random cached PSD | t shake | m mouth-flap | Ctrl-C quit",
         state.test_post_status_label()
     ))
         .block(Block::default().borders(Borders::ALL).title("Keys"));
@@ -260,6 +268,17 @@ fn current_command_lines(state: &StatusTuiState) -> Vec<String> {
     })
 }
 
+fn current_work_lines(state: &StatusTuiState) -> Vec<String> {
+    let Some(snapshot) = snapshot_ref(state) else {
+        return vec!["-".to_string()];
+    };
+
+    work_status_text(snapshot.current_work.as_ref(), now_unix_ms())
+        .lines()
+        .map(ToString::to_string)
+        .collect()
+}
+
 fn completed_command_lines(state: &StatusTuiState) -> Vec<String> {
     command_lines(snapshot_ref(state), |snapshot| {
         snapshot.last_completed_command.as_ref()
@@ -315,6 +334,22 @@ pub(crate) fn command_status_text(command: Option<&ServerCommandStatus>) -> Stri
         text.push_str(error);
     }
     text
+}
+
+pub(crate) fn work_status_text(work: Option<&ServerWorkStatus>, now_unix_ms: u64) -> String {
+    let Some(work) = work else {
+        return "-".to_string();
+    };
+
+    format!(
+        "kind: {}\nstage: {}\nsummary: {}\nstarted_at_unix_ms: {}\nupdated_at_unix_ms: {}\nelapsed: {}",
+        work.kind,
+        work.stage,
+        work.summary,
+        work.started_at_unix_ms,
+        work.updated_at_unix_ms,
+        format_duration_ms(now_unix_ms.saturating_sub(work.started_at_unix_ms))
+    )
 }
 
 pub(crate) fn lifecycle_text(lifecycle: ServerLifecyclePhase) -> &'static str {

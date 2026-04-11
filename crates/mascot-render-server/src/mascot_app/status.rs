@@ -4,11 +4,18 @@ use eframe::egui;
 use mascot_render_control::{log_server_error, MascotControlCommand};
 use mascot_render_protocol::{
     now_unix_ms, ServerCommandStage, ServerLifecyclePhase, ServerMotionStatus, ServerWindowStatus,
+    ServerWorkStatus,
 };
 use mascot_render_server::window_history::current_viewport_info;
 
 use super::character::configured_character_name_for_status;
 use super::MascotApp;
+
+pub(crate) struct ServerWorkGuard {
+    status_store: mascot_render_protocol::ServerStatusStore,
+    current: ServerWorkStatus,
+    previous: Option<ServerWorkStatus>,
+}
 
 impl MascotApp {
     pub(super) fn refresh_status_snapshot(
@@ -107,12 +114,89 @@ impl MascotApp {
         });
     }
 
+    pub(super) fn start_current_work(
+        &self,
+        kind: &'static str,
+        stage: &'static str,
+        summary: impl Into<String>,
+    ) -> ServerWorkGuard {
+        ServerWorkGuard::start(self.status_store.clone(), kind, stage, summary.into())
+    }
+
     fn update_status_store(
         &self,
         update: impl FnOnce(&mut mascot_render_protocol::ServerStatusSnapshot),
     ) {
-        if let Err(error) = self.status_store.update(update) {
-            log_server_error(format!("failed to update mascot server status: {error:#}"));
+        update_status_store(&self.status_store, update);
+    }
+}
+
+impl ServerWorkGuard {
+    fn start(
+        status_store: mascot_render_protocol::ServerStatusStore,
+        kind: &'static str,
+        stage: &'static str,
+        summary: String,
+    ) -> Self {
+        let current = ServerWorkStatus::started(kind, stage, summary);
+        let mut previous = None;
+        update_status_store(&status_store, |snapshot| {
+            previous = snapshot.current_work.clone();
+            snapshot.current_work = Some(current.clone());
+        });
+        Self {
+            status_store,
+            current,
+            previous,
         }
+    }
+
+    pub(crate) fn update_stage(&mut self, stage: &'static str, summary: impl Into<String>) {
+        let current = self.current.with_stage(stage, summary.into());
+        update_status_store(&self.status_store, |snapshot| {
+            if current_work_matches(snapshot.current_work.as_ref(), &self.current) {
+                snapshot.current_work = Some(current.clone());
+            }
+        });
+        self.current = current;
+    }
+}
+
+impl Drop for ServerWorkGuard {
+    fn drop(&mut self) {
+        update_status_store(&self.status_store, |snapshot| {
+            if current_work_matches(snapshot.current_work.as_ref(), &self.current) {
+                snapshot.current_work = self.previous.clone();
+            }
+        });
+    }
+}
+
+fn current_work_matches(current: Option<&ServerWorkStatus>, expected: &ServerWorkStatus) -> bool {
+    current.is_some_and(|current| {
+        current.kind == expected.kind
+            && current.started_at_unix_ms == expected.started_at_unix_ms
+            && current.stage == expected.stage
+    })
+}
+
+fn update_status_store(
+    status_store: &mascot_render_protocol::ServerStatusStore,
+    update: impl FnOnce(&mut mascot_render_protocol::ServerStatusSnapshot),
+) {
+    if let Err(error) = status_store.update(update) {
+        log_server_error(format!("failed to update mascot server status: {error:#}"));
+    }
+}
+
+#[cfg(test)]
+impl ServerWorkGuard {
+    pub(crate) fn start_for_test(
+        status_store: mascot_render_protocol::ServerStatusStore,
+        kind: &'static str,
+        stage: &'static str,
+        summary: impl Into<String>,
+    ) -> Self {
+        Self::start(status_store, kind, stage, summary.into())
     }
 }

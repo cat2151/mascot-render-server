@@ -4,6 +4,7 @@ use crate::{
     validate_motion_timeline_request, ChangeCharacterRequest, MotionTimelineKind,
     MotionTimelineRequest, MotionTimelineStep, ServerCommandKind, ServerCommandStage,
     ServerCommandStatus, ServerLifecyclePhase, ServerStatusSnapshot, ServerStatusStore,
+    ServerWorkStatus,
 };
 
 #[test]
@@ -100,6 +101,11 @@ fn server_status_snapshot_round_trips_as_json() {
         ServerCommandKind::ChangeCharacter,
         "character=demo",
     ));
+    snapshot.current_work = Some(ServerWorkStatus::started(
+        "reload_config_if_needed",
+        "load_active_skin",
+        "png_path=cache/demo/open.png",
+    ));
 
     let json = serde_json::to_string(&snapshot).expect("snapshot should serialize");
     let decoded: ServerStatusSnapshot =
@@ -121,6 +127,22 @@ fn server_command_status_updates_stage_without_losing_request_time() {
     assert_eq!(applied.summary, queued.summary);
     assert_eq!(applied.requested_at_unix_ms, queued.requested_at_unix_ms);
     assert_eq!(applied.stage, ServerCommandStage::Applied);
+}
+
+#[test]
+fn server_work_status_updates_stage_without_losing_start_time() {
+    let started = ServerWorkStatus::started(
+        "reload_config_if_needed",
+        "load_mascot_config",
+        "config_path=config.toml",
+    );
+    let updated = started.with_stage("load_active_skin", "png_path=skin.png");
+
+    assert_eq!(updated.kind, started.kind);
+    assert_eq!(updated.started_at_unix_ms, started.started_at_unix_ms);
+    assert_eq!(updated.stage, "load_active_skin");
+    assert_eq!(updated.summary, "png_path=skin.png");
+    assert!(updated.updated_at_unix_ms >= started.updated_at_unix_ms);
 }
 
 #[test]

@@ -8,7 +8,7 @@ use mascot_render_core::{
 
 use crate::tui_config::{save_tui_runtime_state, tui_config_path};
 
-use super::App;
+use super::{App, TimingLog};
 
 const MASCOT_SCALE_STEP: f32 = 0.10;
 const MIN_MASCOT_SCALE: f32 = 0.01;
@@ -23,7 +23,13 @@ impl App {
     }
 
     pub(crate) fn sync_current_mascot_config(&mut self) -> Result<bool> {
-        self.ensure_mascot_scale_initialized()?;
+        let mut timing = TimingLog::start(
+            "sync_current_mascot_config",
+            self.sync_current_mascot_config_timing_summary(),
+        );
+        timing.measure_result("ensure_mascot_scale_initialized", || {
+            self.ensure_mascot_scale_initialized()
+        })?;
 
         let Some(png_path) = self.current_preview_png_path.clone() else {
             return Ok(false);
@@ -47,7 +53,10 @@ impl App {
             psd_path_in_zip,
             display_diff_path: self.current_variation_spec_path.clone(),
         };
-        write_mascot_config(&mascot_config_path(), &target)?;
+        let config_path = mascot_config_path();
+        timing.measure_result("write_mascot_config", || {
+            write_mascot_config(&config_path, &target)
+        })?;
         Ok(true)
     }
 
@@ -77,18 +86,23 @@ impl App {
             return Ok(());
         }
 
-        let Some(png_path) = self.current_preview_png_path.as_deref() else {
+        let Some(png_path) = self.current_preview_png_path.clone() else {
             return Ok(());
         };
 
-        let image = load_mascot_image(png_path)?;
-        let scale = self
-            .screen_height_px
-            .map(|screen_height_px| {
-                default_mascot_scale_for_screen_height(image.height, screen_height_px)
-            })
-            .unwrap_or_else(|| legacy_scale_from_image_height(image.width, image.height));
-        self.persist_mascot_scale(scale)
+        let mut timing = TimingLog::start(
+            "ensure_mascot_scale_initialized",
+            format!("png_path={}", png_path.display()),
+        );
+        let image = timing.measure_result("load_mascot_image", || load_mascot_image(&png_path))?;
+        let scale = timing.measure("calculate_default_scale", || {
+            self.screen_height_px
+                .map(|screen_height_px| {
+                    default_mascot_scale_for_screen_height(image.height, screen_height_px)
+                })
+                .unwrap_or_else(|| legacy_scale_from_image_height(image.width, image.height))
+        });
+        timing.measure_result("persist_mascot_scale", || self.persist_mascot_scale(scale))
     }
 
     pub(super) fn restore_mascot_scale(&mut self, mascot_scale: Option<f32>) {
@@ -157,6 +171,19 @@ impl App {
         self.tui_runtime_state
             .set_mascot_scale_for_psd(zip_path, psd_path_in_zip, scale);
         save_tui_runtime_state(&tui_config_path(), &self.tui_runtime_state)
+    }
+
+    fn sync_current_mascot_config_timing_summary(&self) -> String {
+        let png_path = self
+            .current_preview_png_path
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let zip_path = self
+            .selected_zip_entry()
+            .map(|entry| entry.zip_path.display().to_string())
+            .unwrap_or_else(|| "-".to_string());
+        format!("png_path={png_path} zip_path={zip_path}")
     }
 }
 

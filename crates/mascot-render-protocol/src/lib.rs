@@ -11,6 +11,6 @@ pub use command::{
 };
 pub use status::{
     now_unix_ms, ServerCommandKind, ServerCommandStage, ServerCommandStatus, ServerLifecyclePhase,
-    ServerMotionStatus, ServerStatusSnapshot, ServerWindowStatus,
+    ServerMotionStatus, ServerStatusSnapshot, ServerWindowStatus, ServerWorkStatus,
 };
 pub use store::ServerStatusStore;

@@ -21,7 +21,7 @@ impl<T> MascotSkinCache<T> {
         self.entries.get(path)
     }
 
-    pub fn insert(&mut self, path: PathBuf, value: T) {
+    pub fn insert(&mut self, path: PathBuf, value: T) -> Vec<PathBuf> {
         if self.entries.contains_key(&path) {
             self.order.retain(|existing| existing != &path);
         }
@@ -29,10 +29,13 @@ impl<T> MascotSkinCache<T> {
         self.order.push_back(path.clone());
         self.entries.insert(path, value);
 
+        let mut evicted_paths = Vec::new();
         while self.entries.len() > self.capacity {
             if let Some(evicted_path) = self.order.pop_front() {
                 self.entries.remove(&evicted_path);
+                evicted_paths.push(evicted_path);
             }
         }
+        evicted_paths
     }
 }

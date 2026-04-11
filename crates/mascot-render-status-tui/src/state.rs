@@ -2,6 +2,8 @@ use std::time::Instant;
 
 use mascot_render_protocol::ServerStatusSnapshot;
 
+use crate::actions::CachedPsdSource;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) enum ServerStartupStatus {
     #[default]
@@ -16,7 +18,10 @@ pub(crate) enum TestPostStatus {
     #[default]
     Idle,
     Running(String),
-    Succeeded(String),
+    Succeeded {
+        label: String,
+        elapsed_ms: u64,
+    },
     Failed {
         label: String,
         error: String,
@@ -75,8 +80,8 @@ impl StatusTuiState {
         self.test_post_status = TestPostStatus::Running(label);
     }
 
-    pub(crate) fn record_test_post_success(&mut self, label: String) {
-        self.test_post_status = TestPostStatus::Succeeded(label);
+    pub(crate) fn record_test_post_success(&mut self, label: String, elapsed_ms: u64) {
+        self.test_post_status = TestPostStatus::Succeeded { label, elapsed_ms };
     }
 
     pub(crate) fn record_test_post_failed(&mut self, label: String, error: String) {
@@ -103,7 +108,9 @@ impl StatusTuiState {
         match &self.test_post_status {
             TestPostStatus::Idle => "idle".to_string(),
             TestPostStatus::Running(label) => format!("{label}: running"),
-            TestPostStatus::Succeeded(label) => format!("{label}: ok"),
+            TestPostStatus::Succeeded { label, elapsed_ms } => {
+                format!("{label}: ok ({})", format_duration_ms(*elapsed_ms))
+            }
             TestPostStatus::Failed { label, error } => format!("{label}: failed: {error}"),
         }
     }
@@ -120,6 +127,14 @@ impl StatusTuiState {
         self.last_snapshot
             .as_ref()
             .and_then(|snapshot| snapshot.configured_character_name.clone())
+    }
+
+    pub(crate) fn current_psd_source(&self) -> Option<CachedPsdSource> {
+        self.last_snapshot.as_ref().map(|snapshot| CachedPsdSource {
+            png_path: snapshot.configured_png_path.clone(),
+            zip_path: snapshot.configured_zip_path.clone(),
+            psd_path_in_zip: snapshot.configured_psd_path_in_zip.clone(),
+        })
     }
 
     pub(crate) fn toggle_help(&mut self) {
