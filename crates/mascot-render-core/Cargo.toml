@@ -8,7 +8,7 @@ name = "mascot_render_core"
 
 [dependencies]
 anyhow = "1"
-cat-self-update-lib = { git = "https://github.com/cat2151/cat-self-update", rev = "1ea0d9347829c74f10d101e9dd34c566c8d705a8" }
+cat-self-update-lib = { git = "https://github.com/cat2151/cat-self-update" }
 eframe = "0.33"
 encoding_rs = "0.8"
 image = { version = "0.25", default-features = false, features = ["png"] }
