@@ -60,7 +60,7 @@ Usage:
   psd-viewer-tui check
 
 Commands:
-  update          Stop running binaries and reinstall both binaries.
+  update          Stop running binaries and reinstall workspace binaries.
   check           Compare the embedded commit hash with the remote main branch.
 
 Options:

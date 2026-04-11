@@ -89,6 +89,6 @@ psd-viewer-tui
 - Eye blinking and lip-syncing.
 - Server. To easily control the desktop mascot from other applications via an HTTP REST API.
 
-## What this Application Does NOT Aim For (Out of Scope)
-- Establishing a new high-functional general-purpose desktop mascot common standard, developing a governance system for it, and continuous operation.
-- Support. Responding to requests or suggestions.
+## Non-Goals (Out of Scope)
+- Formulation of a new high-functionality general-purpose desktop mascot standard, establishment of a governance system for it, and continuous operation.
+- Support: Responding to requests or suggestions.

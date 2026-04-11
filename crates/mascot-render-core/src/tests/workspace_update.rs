@@ -13,7 +13,7 @@ const FAKE_CHECK_ERROR_MESSAGE: &str = "network down";
 fn workspace_install_command_matches_readme_install_command() {
     assert_eq!(
         workspace_install_command(),
-        "cargo install --force --git https://github.com/cat2151/mascot-render-server mascot-render-server psd-viewer-tui"
+        "cargo install --force --git https://github.com/cat2151/mascot-render-server mascot-render-server psd-viewer-tui mascot-render-status-tui"
     );
 }
 
@@ -57,7 +57,14 @@ fn fake_check_failure(
 fn fake_update_success(owner: &str, repo: &str, crates: &[&str]) -> Result<(), Box<dyn Error>> {
     assert_eq!(owner, "cat2151");
     assert_eq!(repo, "mascot-render-server");
-    assert_eq!(crates, ["mascot-render-server", "psd-viewer-tui"]);
+    assert_eq!(
+        crates,
+        [
+            "mascot-render-server",
+            "psd-viewer-tui",
+            "mascot-render-status-tui",
+        ]
+    );
 
     Ok(())
 }

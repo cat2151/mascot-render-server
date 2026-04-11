@@ -7,7 +7,11 @@ const UPDATE_REPO_OWNER: &str = "cat2151";
 const UPDATE_REPO_NAME: &str = "mascot-render-server";
 const UPDATE_BRANCH: &str = "main";
 const UPDATE_GIT_URL: &str = "https://github.com/cat2151/mascot-render-server";
-const UPDATE_TARGETS: [&str; 2] = ["mascot-render-server", "psd-viewer-tui"];
+const UPDATE_TARGETS: [&str; 3] = [
+    "mascot-render-server",
+    "psd-viewer-tui",
+    "mascot-render-status-tui",
+];
 
 pub fn workspace_install_command() -> String {
     format!(
