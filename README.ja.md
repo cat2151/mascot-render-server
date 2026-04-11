@@ -13,7 +13,7 @@
 Rustが必要です。
 
 ```
-cargo install --force --git https://github.com/cat2151/mascot-render-server mascot-render-server psd-viewer-tui
+cargo install --force --git https://github.com/cat2151/mascot-render-server mascot-render-server psd-viewer-tui mascot-render-status-tui
 ```
 
 ## 準備
