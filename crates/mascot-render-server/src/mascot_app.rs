@@ -26,6 +26,8 @@ use crate::eye_blink::EyeBlinkLoop;
 use crate::favorite_ensemble::favorites_path as favorite_ensemble_path;
 use crate::mascot_scale::{effective_scale, keyboard_scale_steps, scroll_scale_steps};
 use crate::SKIN_CACHE_CAPACITY;
+#[path = "mascot_app/character.rs"]
+mod character;
 #[path = "mascot_app/config.rs"]
 mod config;
 #[path = "mascot_app/control.rs"]
@@ -47,8 +49,18 @@ mod skins;
 #[path = "mascot_app/status.rs"]
 mod status;
 #[cfg(test)]
-pub(crate) use config::should_reload_config_for_test;
-use config::{active_config_scale, active_display_scale, should_reload_config, ReloadInputs};
+pub(crate) use character::{
+    candidate_index_from_seed_for_test, character_skin_candidates_for_test,
+    configured_character_name_for_status, resolve_character_skin_from_entries_for_test,
+};
+use config::{
+    active_config_scale, active_display_scale, should_refresh_auxiliary_skins_now,
+    should_reload_config, ReloadInputs,
+};
+#[cfg(test)]
+pub(crate) use config::{
+    should_refresh_auxiliary_skins_now_for_test, should_reload_config_for_test,
+};
 #[cfg(test)]
 pub(crate) use ensemble::member_phase_offset_ratio;
 use ensemble::FavoriteEnsembleScene;
@@ -57,14 +69,14 @@ pub(crate) use ensemble::{member_eye_blink_elapsed, member_eye_blink_seed};
 use logging::should_log_rendered_skin;
 #[cfg(test)]
 pub(crate) use logging::{
-    change_skin_failure_message_for_test, change_skin_stage_message_for_test,
-    change_skin_success_message_for_test, clear_rendered_skin_path_for_test,
+    change_character_failure_message_for_test, change_character_stage_message_for_test,
+    change_character_success_message_for_test, clear_rendered_skin_path_for_test,
     record_rendered_skin_path_for_test, rendered_skin_message_for_test,
     should_log_rendered_skin_for_test,
 };
 #[cfg(test)]
 pub(crate) use persistence::{
-    persist_requested_skin_change_for_test, verify_persisted_skin_change_for_test,
+    persist_requested_character_change_for_test, verify_persisted_character_change_for_test,
 };
 #[cfg(test)]
 pub(crate) use runtime::mouth_flap_skin_state_for_test;
@@ -84,6 +96,7 @@ pub(crate) struct MascotApp {
     closed_skin: Option<CachedSkin>,
     mouth_open_skin: Option<CachedSkin>,
     mouth_closed_skin: Option<CachedSkin>,
+    pending_auxiliary_skin_refresh: bool,
     favorite_ensemble: Option<FavoriteEnsembleScene>,
     scale: f32,
     pending_persisted_scale: Option<f32>,
@@ -183,6 +196,7 @@ impl MascotApp {
             closed_skin: None,
             mouth_open_skin: None,
             mouth_closed_skin: None,
+            pending_auxiliary_skin_refresh: false,
             favorite_ensemble,
             scale,
             pending_persisted_scale: None,
@@ -222,7 +236,7 @@ impl MascotApp {
         app
     }
 
-    fn reload_config_if_needed(&mut self, ctx: &egui::Context) -> Result<()> {
+    fn reload_config_if_needed(&mut self, ctx: &egui::Context) -> Result<bool> {
         let now = Instant::now();
         let next_config_modified_at = path_modified_at(&self.config_path);
         let next_runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
@@ -250,7 +264,7 @@ impl MascotApp {
             self.last_effective_config_check_at,
             now,
         ) {
-            return Ok(());
+            return Ok(false);
         }
 
         let previous_layout = self.window_layout;
@@ -309,8 +323,8 @@ impl MascotApp {
         let mut restored_window_position = None;
         if ensemble_mode_changed || favorite_ensemble_changed || png_changed || blink_source_changed
         {
-            self.refresh_closed_eye_skin(ctx)?;
-            self.refresh_mouth_flap_skins(ctx)?;
+            self.queue_auxiliary_skin_refresh();
+            ctx.request_repaint();
         }
         if history_path_changed
             || self.window_history_modified_at != next_window_history_modified_at
@@ -343,7 +357,7 @@ impl MascotApp {
             &self.config,
             &self.config_path,
         )));
-        Ok(())
+        Ok(true)
     }
     fn sync_window_history(&mut self, ctx: &egui::Context, now: Instant) -> Result<()> {
         if let Some(viewport_info) = current_viewport_info(ctx) {

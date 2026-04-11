@@ -14,7 +14,7 @@ use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 
 use super::{
     click_interaction_hit_test, keyboard_scale_steps, scroll_scale_steps, should_log_rendered_skin,
-    MascotApp,
+    should_refresh_auxiliary_skins_now, MascotApp,
 };
 
 impl App for MascotApp {
@@ -36,8 +36,20 @@ impl App for MascotApp {
             self.record_and_log_status_error(format!("{error:#}"));
         }
 
-        if let Err(error) = self.reload_config_if_needed(ctx) {
-            self.record_and_log_status_error(format!("{error:#}"));
+        let config_reloaded = match self.reload_config_if_needed(ctx) {
+            Ok(config_reloaded) => config_reloaded,
+            Err(error) => {
+                self.record_and_log_status_error(format!("{error:#}"));
+                false
+            }
+        };
+        if should_refresh_auxiliary_skins_now(
+            config_reloaded,
+            self.has_pending_auxiliary_skin_refresh(),
+        ) {
+            if let Err(error) = self.refresh_pending_auxiliary_skins(ctx) {
+                self.record_and_log_status_error(format!("{error:#}"));
+            }
         }
         self.apply_pending_restored_anchor_position(ctx);
 

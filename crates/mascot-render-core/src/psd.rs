@@ -293,7 +293,7 @@ fn sanitize_component(value: &str) -> String {
         .to_string()
 }
 
-/// `render_root` is expected to be `<cache_root>/<zip_hash>/renders`.
+/// `render_root` is expected to be `<cache_root>/<zip_cache_key>/renders`.
 /// The cache root is therefore two levels up from the renders directory.
 fn render_cache_root(render_root: &Path) -> &Path {
     render_root

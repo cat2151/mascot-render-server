@@ -1,19 +1,19 @@
 use std::path::PathBuf;
 
 use crate::{
-    validate_motion_timeline_request, ChangeSkinRequest, MotionTimelineKind, MotionTimelineRequest,
-    MotionTimelineStep, ServerCommandKind, ServerCommandStage, ServerCommandStatus,
-    ServerLifecyclePhase, ServerStatusSnapshot, ServerStatusStore,
+    validate_motion_timeline_request, ChangeCharacterRequest, MotionTimelineKind,
+    MotionTimelineRequest, MotionTimelineStep, ServerCommandKind, ServerCommandStage,
+    ServerCommandStatus, ServerLifecyclePhase, ServerStatusSnapshot, ServerStatusStore,
 };
 
 #[test]
-fn change_skin_request_round_trips_as_json() {
-    let request = ChangeSkinRequest {
-        png_path: PathBuf::from("cache/demo/variation.png"),
+fn change_character_request_round_trips_as_json() {
+    let request = ChangeCharacterRequest {
+        character_name: "ずんだもん".to_string(),
     };
 
     let json = serde_json::to_string(&request).expect("request should serialize");
-    let decoded: ChangeSkinRequest =
+    let decoded: ChangeCharacterRequest =
         serde_json::from_str(&json).expect("request should deserialize");
 
     assert_eq!(decoded, request);
@@ -92,11 +92,13 @@ fn server_status_snapshot_round_trips_as_json() {
         PathBuf::from("config/mascot-render-server.toml"),
         PathBuf::from("config/mascot-render-server.runtime.json"),
         PathBuf::from("cache/demo/open.png"),
+        PathBuf::from("assets/zip/demo.zip"),
+        PathBuf::from("demo/basic.psd"),
     );
     snapshot.lifecycle = ServerLifecyclePhase::Running;
     snapshot.current_command = Some(ServerCommandStatus::queued(
-        ServerCommandKind::ChangeSkin,
-        "to=cache/demo/open.png",
+        ServerCommandKind::ChangeCharacter,
+        "character=demo",
     ));
 
     let json = serde_json::to_string(&snapshot).expect("snapshot should serialize");
@@ -127,6 +129,8 @@ fn server_status_store_returns_updated_snapshot() {
         PathBuf::from("config.toml"),
         PathBuf::from("runtime.json"),
         PathBuf::from("skin.png"),
+        PathBuf::from("demo.zip"),
+        PathBuf::from("demo.psd"),
     ));
 
     store

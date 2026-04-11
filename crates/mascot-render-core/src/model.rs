@@ -78,9 +78,8 @@ impl PsdEntry {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ZipEntry {
     pub zip_path: PathBuf,
-    pub zip_hash: String,
+    pub zip_cache_key: String,
     pub cache_dir: PathBuf,
-    pub source_zip_path: PathBuf,
     pub extracted_dir: PathBuf,
     pub psd_meta_path: PathBuf,
     pub psds: Vec<PsdEntry>,

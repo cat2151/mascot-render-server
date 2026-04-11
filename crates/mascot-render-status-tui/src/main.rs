@@ -144,14 +144,18 @@ fn handle_key(state: &mut StatusTuiState, test_posts: &mut TestPostSync, key: ev
             start_test_post(state, test_posts, TestPostAction::Hide);
         }
         KeyCode::Char('p') if key.modifiers == KeyModifiers::NONE => {
-            let Some(png_path) = state.current_png_path() else {
+            let Some(character_name) = state.configured_character_name() else {
                 state.record_test_post_failed(
-                    TestPostAction::change_skin_label(),
-                    "current_png_path unavailable: wait for the first status snapshot".to_string(),
+                    TestPostAction::change_character_label(),
+                    "configured_character_name unavailable: wait for a status snapshot with configured source paths".to_string(),
                 );
                 return;
             };
-            start_test_post(state, test_posts, TestPostAction::ChangeSkin(png_path));
+            start_test_post(
+                state,
+                test_posts,
+                TestPostAction::ChangeCharacter(character_name),
+            );
         }
         KeyCode::Char('t') if key.modifiers == KeyModifiers::NONE => {
             start_test_post(state, test_posts, TestPostAction::ShakeTimeline);

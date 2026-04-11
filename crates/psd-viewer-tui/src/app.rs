@@ -338,7 +338,7 @@ impl App {
         save_workspace_state(
             self.core.cache_dir(),
             self.selected_zip_entry()
-                .map(|entry| entry.zip_hash.as_str()),
+                .map(|entry| entry.zip_cache_key.as_str()),
             self.selected_psd_entry().map(|entry| entry.path.as_path()),
         )
     }

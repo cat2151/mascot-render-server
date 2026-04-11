@@ -7,13 +7,14 @@ use mascot_render_protocol::{
 };
 use mascot_render_server::window_history::current_viewport_info;
 
+use super::character::configured_character_name_for_status;
 use super::MascotApp;
 
 impl MascotApp {
     pub(super) fn refresh_status_snapshot(
         &self,
         ctx: &egui::Context,
-        current_png_path: PathBuf,
+        displayed_png_path: PathBuf,
         blink_closed: bool,
         mouth_flap_open: Option<bool>,
     ) {
@@ -28,7 +29,14 @@ impl MascotApp {
             snapshot.captured_at_unix_ms = heartbeat_at_unix_ms;
             snapshot.heartbeat_at_unix_ms = heartbeat_at_unix_ms;
             snapshot.lifecycle = ServerLifecyclePhase::Running;
-            snapshot.current_png_path = current_png_path;
+            snapshot.configured_character_name = configured_character_name_for_status(
+                &self.config.zip_path,
+                &self.config.psd_path_in_zip,
+            );
+            snapshot.configured_png_path = self.config.png_path.clone();
+            snapshot.configured_zip_path = self.config.zip_path.clone();
+            snapshot.configured_psd_path_in_zip = self.config.psd_path_in_zip.clone();
+            snapshot.displayed_png_path = displayed_png_path;
             snapshot.favorite_ensemble_enabled = self.config.favorite_ensemble_enabled;
             snapshot.favorite_ensemble_loaded = self.favorite_ensemble.is_some();
             snapshot.scale = self.scale;

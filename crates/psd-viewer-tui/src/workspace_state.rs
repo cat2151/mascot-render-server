@@ -5,11 +5,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-const WORKSPACE_STATE_VERSION: u32 = 1;
+const WORKSPACE_STATE_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct WorkspaceState {
-    pub(crate) selected_zip_hash: Option<String>,
+    pub(crate) selected_zip_cache_key: Option<String>,
     pub(crate) selected_psd_path: Option<PathBuf>,
     pub(crate) selected_node: Option<usize>,
 }
@@ -17,7 +17,7 @@ pub(crate) struct WorkspaceState {
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct WorkspaceStateFile {
     version: u32,
-    selected_zip_hash: Option<String>,
+    selected_zip_cache_key: Option<String>,
     selected_psd_path: Option<PathBuf>,
     #[serde(default, skip_serializing)]
     selected_node: Option<usize>,
@@ -34,7 +34,7 @@ pub(crate) fn load_workspace_state(cache_root: &Path) -> Result<WorkspaceState> 
         .with_context(|| format!("failed to read workspace state {}", path.display()))?;
     match serde_json::from_slice::<WorkspaceStateFile>(&bytes) {
         Ok(file) if file.version == WORKSPACE_STATE_VERSION => Ok(WorkspaceState {
-            selected_zip_hash: file.selected_zip_hash,
+            selected_zip_cache_key: file.selected_zip_cache_key,
             selected_psd_path: file.selected_psd_path,
             selected_node: file.selected_node,
         }),
@@ -45,7 +45,7 @@ pub(crate) fn load_workspace_state(cache_root: &Path) -> Result<WorkspaceState> 
 
 pub(crate) fn save_workspace_state(
     cache_root: &Path,
-    selected_zip_hash: Option<&str>,
+    selected_zip_cache_key: Option<&str>,
     selected_psd_path: Option<&Path>,
 ) -> Result<()> {
     fs::create_dir_all(cache_root)
@@ -53,7 +53,7 @@ pub(crate) fn save_workspace_state(
 
     let file = WorkspaceStateFile {
         version: WORKSPACE_STATE_VERSION,
-        selected_zip_hash: selected_zip_hash.map(ToOwned::to_owned),
+        selected_zip_cache_key: selected_zip_cache_key.map(ToOwned::to_owned),
         selected_psd_path: selected_psd_path.map(Path::to_path_buf),
         selected_node: None,
         updated_at: unix_timestamp(),

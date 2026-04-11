@@ -4,7 +4,7 @@ mod client;
 mod tests;
 
 pub use client::{
-    change_skin_mascot_render_server, change_skin_mascot_render_server_at,
+    change_character_mascot_render_server, change_character_mascot_render_server_at,
     hide_mascot_render_server, hide_mascot_render_server_at, mascot_render_server_address,
     mascot_render_server_healthcheck, mascot_render_server_healthcheck_at,
     mascot_render_server_status, mascot_render_server_status_at,

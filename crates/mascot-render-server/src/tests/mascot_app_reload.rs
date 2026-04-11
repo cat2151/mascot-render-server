@@ -1,6 +1,8 @@
 use std::time::{Duration, Instant, SystemTime};
 
-use crate::mascot_app::should_reload_config_for_test;
+use crate::mascot_app::{
+    should_refresh_auxiliary_skins_now_for_test, should_reload_config_for_test,
+};
 
 #[test]
 fn reload_check_reacts_to_psd_viewer_tui_activity_changes_immediately() {
@@ -31,4 +33,11 @@ fn reload_check_polls_even_when_files_are_unchanged() {
     );
 
     assert!(should_reload);
+}
+
+#[test]
+fn auxiliary_skin_refresh_waits_until_after_config_reload_frame() {
+    assert!(!should_refresh_auxiliary_skins_now_for_test(true, true));
+    assert!(should_refresh_auxiliary_skins_now_for_test(false, true));
+    assert!(!should_refresh_auxiliary_skins_now_for_test(false, false));
 }

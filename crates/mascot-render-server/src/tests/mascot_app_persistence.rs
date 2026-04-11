@@ -8,7 +8,7 @@ use mascot_render_core::{
 };
 
 use crate::mascot_app::{
-    persist_requested_skin_change_for_test, verify_persisted_skin_change_for_test,
+    persist_requested_character_change_for_test, verify_persisted_character_change_for_test,
 };
 
 fn unique_test_config_path(test_name: &str) -> PathBuf {
@@ -39,7 +39,7 @@ fn sample_config() -> MascotConfig {
 }
 
 #[test]
-fn persist_requested_skin_change_updates_runtime_state_png_path() {
+fn persist_requested_character_change_updates_runtime_state_source_paths() {
     let config_path = unique_test_config_path("persist");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
     if let Some(parent) = config_path.parent() {
@@ -48,12 +48,11 @@ fn persist_requested_skin_change_updates_runtime_state_png_path() {
     let _ = fs::remove_file(&runtime_state_path);
 
     let config = sample_config();
-    let requested_png_path = PathBuf::from("cache/demo/other.png");
-    persist_requested_skin_change_for_test(&config_path, &config, &requested_png_path)
-        .expect("should persist requested skin change");
+    persist_requested_character_change_for_test(&config_path, &config)
+        .expect("should persist requested character change");
     let loaded = load_mascot_config(&config_path).expect("persisted config should load");
 
-    assert_eq!(loaded.png_path, requested_png_path);
+    assert_eq!(loaded.png_path, config.png_path);
     assert_eq!(loaded.scale, config.scale);
     assert_eq!(
         loaded.favorite_ensemble_scale,
@@ -70,7 +69,7 @@ fn persist_requested_skin_change_updates_runtime_state_png_path() {
 }
 
 #[test]
-fn test_verify_persisted_skin_change_with_matching_path() {
+fn test_verify_persisted_character_change_with_matching_source() {
     let config_path = unique_test_config_path("verify-match");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
     if let Some(parent) = config_path.parent() {
@@ -79,14 +78,15 @@ fn test_verify_persisted_skin_change_with_matching_path() {
     let _ = fs::remove_file(&runtime_state_path);
 
     let config = sample_config();
-    let requested_png_path = PathBuf::from("cache/demo/requested.png");
-    persist_requested_skin_change_for_test(&config_path, &config, &requested_png_path)
+    persist_requested_character_change_for_test(&config_path, &config)
         .expect("should seed matching runtime state");
 
-    let persisted_png_path =
-        verify_persisted_skin_change_for_test(&config_path, &requested_png_path)
-            .expect("matching persisted state should verify");
-    assert_eq!(persisted_png_path, requested_png_path);
+    let persisted = verify_persisted_character_change_for_test(&config_path, &config)
+        .expect("matching persisted state should verify");
+    assert_eq!(persisted.png_path, config.png_path);
+    assert_eq!(persisted.zip_path, config.zip_path);
+    assert_eq!(persisted.psd_path_in_zip, config.psd_path_in_zip);
+    assert_eq!(persisted.display_diff_path, config.display_diff_path);
 
     if let Some(parent) = config_path.parent() {
         let _ = fs::remove_dir_all(parent);
@@ -95,7 +95,7 @@ fn test_verify_persisted_skin_change_with_matching_path() {
 }
 
 #[test]
-fn verify_persisted_skin_change_reports_mismatch() {
+fn verify_persisted_character_change_reports_mismatch() {
     let config_path = unique_test_config_path("verify-mismatch");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
     if let Some(parent) = config_path.parent() {
@@ -103,23 +103,34 @@ fn verify_persisted_skin_change_reports_mismatch() {
     }
     let _ = fs::remove_file(&runtime_state_path);
 
-    let config = sample_config();
-    let persisted_png_path = PathBuf::from("cache/demo/persisted.png");
-    let requested_png_path = PathBuf::from("cache/demo/requested.png");
-    persist_requested_skin_change_for_test(&config_path, &config, &persisted_png_path)
+    let mut persisted_config = sample_config();
+    persisted_config.png_path = PathBuf::from("cache/demo/persisted.png");
+    persisted_config.zip_path = PathBuf::from("assets/zip/anko.zip");
+    persisted_config.psd_path_in_zip = PathBuf::from("anko/basic.psd");
+    let mut requested_config = sample_config();
+    requested_config.png_path = PathBuf::from("cache/demo/requested.png");
+    requested_config.zip_path = PathBuf::from("assets/zip/zunda.zip");
+    requested_config.psd_path_in_zip = PathBuf::from("zunda/basic.psd");
+    persist_requested_character_change_for_test(&config_path, &persisted_config)
         .expect("should seed runtime state");
 
-    let error = verify_persisted_skin_change_for_test(&config_path, &requested_png_path)
+    let error = verify_persisted_character_change_for_test(&config_path, &requested_config)
         .expect_err("mismatch should be rejected");
     assert!(error
         .to_string()
-        .contains("persisted mascot runtime state did not match the requested png_path"));
+        .contains("persisted mascot runtime state did not match the requested character source"));
     assert!(error
         .to_string()
-        .contains("requested=cache/demo/requested.png"));
+        .contains("requested_png=cache/demo/requested.png"));
     assert!(error
         .to_string()
-        .contains("persisted=cache/demo/persisted.png"));
+        .contains("persisted_png=cache/demo/persisted.png"));
+    assert!(error
+        .to_string()
+        .contains("requested_zip=assets/zip/zunda.zip"));
+    assert!(error
+        .to_string()
+        .contains("persisted_zip=assets/zip/anko.zip"));
 
     if let Some(parent) = config_path.parent() {
         let _ = fs::remove_dir_all(parent);

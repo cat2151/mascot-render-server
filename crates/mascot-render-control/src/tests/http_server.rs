@@ -7,7 +7,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use mascot_render_client::{
-    change_skin_mascot_render_server_at, hide_mascot_render_server_at,
+    change_character_mascot_render_server_at, hide_mascot_render_server_at,
     mascot_render_server_healthcheck_at, mascot_render_server_status_at,
     play_timeline_mascot_render_server_at, show_mascot_render_server_at,
 };
@@ -22,7 +22,7 @@ use crate::http_server::{
 };
 
 #[test]
-fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
+fn mascot_control_server_accepts_show_hide_change_character_and_timeline() {
     let (tx, rx) = mpsc::channel();
     let status_store = test_status_store();
     let (address, _handle) =
@@ -37,23 +37,23 @@ fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
         MascotControlCommand::show()
     );
 
-    let preview_path = PathBuf::from("cache/demo/variation.png");
+    let character_name = "ずんだもん".to_string();
     let preview_request = {
-        let preview_path = preview_path.clone();
-        thread::spawn(move || change_skin_mascot_render_server_at(address, &preview_path))
+        let character_name = character_name.clone();
+        thread::spawn(move || change_character_mascot_render_server_at(address, &character_name))
     };
     let preview_command = rx
         .recv_timeout(Duration::from_secs(1))
-        .expect("change-skin command should arrive");
+        .expect("change-character command should arrive");
     assert_eq!(
         preview_command,
-        MascotControlCommand::change_skin(preview_path.clone())
+        MascotControlCommand::change_character(character_name.clone())
     );
     preview_command.finish(Ok(()));
     preview_request
         .join()
-        .expect("change-skin request thread should complete")
-        .expect("change-skin request should succeed");
+        .expect("change-character request thread should complete")
+        .expect("change-character request should succeed");
 
     let timeline = MotionTimelineRequest {
         steps: vec![MotionTimelineStep {
@@ -112,7 +112,7 @@ fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
 }
 
 #[test]
-fn mascot_control_server_reports_change_skin_apply_failure_to_http_caller() {
+fn mascot_control_server_reports_change_character_apply_failure_to_http_caller() {
     let (tx, rx) = mpsc::channel();
     let (address, _handle) = start_mascot_control_server_on(
         SocketAddr::from(([127, 0, 0, 1], 0)),
@@ -122,25 +122,25 @@ fn mascot_control_server_reports_change_skin_apply_failure_to_http_caller() {
     .expect("should start mascot control server");
     wait_for_healthcheck(address);
 
-    let preview_path = PathBuf::from("cache/demo/variation.png");
+    let character_name = "ずんだもん".to_string();
     let request_thread = {
-        let preview_path = preview_path.clone();
-        thread::spawn(move || change_skin_mascot_render_server_at(address, &preview_path))
+        let character_name = character_name.clone();
+        thread::spawn(move || change_character_mascot_render_server_at(address, &character_name))
     };
 
     let command = rx
         .recv_timeout(Duration::from_secs(1))
-        .expect("change-skin command should arrive");
+        .expect("change-character command should arrive");
     assert_eq!(
         command,
-        MascotControlCommand::change_skin(preview_path.clone())
+        MascotControlCommand::change_character(character_name.clone())
     );
     command.finish(Err("failed to load requested skin".to_string()));
 
     let error = request_thread
         .join()
         .expect("request thread should complete")
-        .expect_err("change-skin request should report apply failure");
+        .expect_err("change-character request should report apply failure");
     assert!(
         error.to_string().contains("HTTP 500"),
         "unexpected error: {error:#}"
@@ -225,7 +225,7 @@ fn mascot_control_server_reports_status_snapshot() {
 
     assert_eq!(status.lifecycle, ServerLifecyclePhase::Running);
     assert_eq!(
-        status.current_png_path,
+        status.displayed_png_path,
         PathBuf::from("cache/demo/open.png")
     );
 }
@@ -283,5 +283,7 @@ fn test_status_store() -> ServerStatusStore {
         PathBuf::from("config/mascot-render-server.toml"),
         PathBuf::from("config/mascot-render-server.runtime.json"),
         PathBuf::from("cache/demo/open.png"),
+        PathBuf::from("assets/zip/demo.zip"),
+        PathBuf::from("demo/basic.psd"),
     ))
 }

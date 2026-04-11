@@ -1,13 +1,12 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
-use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 use mascot_render_protocol::{
-    validate_motion_timeline_request, ChangeSkinRequest, MotionTimelineKind, MotionTimelineRequest,
-    MotionTimelineStep, ServerStatusSnapshot,
+    validate_motion_timeline_request, ChangeCharacterRequest, MotionTimelineKind,
+    MotionTimelineRequest, MotionTimelineStep, ServerStatusSnapshot,
 };
 
 pub const MASCOT_RENDER_SERVER_PORT: u16 = 62152;
@@ -39,8 +38,8 @@ pub fn hide_mascot_render_server() -> Result<()> {
     hide_mascot_render_server_at(mascot_render_server_address())
 }
 
-pub fn change_skin_mascot_render_server(png_path: &Path) -> Result<()> {
-    change_skin_mascot_render_server_at(mascot_render_server_address(), png_path)
+pub fn change_character_mascot_render_server(character_name: &str) -> Result<()> {
+    change_character_mascot_render_server_at(mascot_render_server_address(), character_name)
 }
 
 pub fn play_timeline_mascot_render_server(request: &MotionTimelineRequest) -> Result<()> {
@@ -74,12 +73,22 @@ pub fn hide_mascot_render_server_at(address: SocketAddr) -> Result<()> {
     send_http_request(address, "POST", "/hide", None, IO_TIMEOUT).map(|_| ())
 }
 
-pub fn change_skin_mascot_render_server_at(address: SocketAddr, png_path: &Path) -> Result<()> {
-    let body = serde_json::to_vec(&ChangeSkinRequest {
-        png_path: png_path.to_path_buf(),
+pub fn change_character_mascot_render_server_at(
+    address: SocketAddr,
+    character_name: &str,
+) -> Result<()> {
+    let body = serde_json::to_vec(&ChangeCharacterRequest {
+        character_name: character_name.to_string(),
     })
-    .context("failed to serialize mascot change-skin request")?;
-    send_http_request(address, "POST", "/change-skin", Some(&body), APPLY_TIMEOUT).map(|_| ())
+    .context("failed to serialize mascot change-character request")?;
+    send_http_request(
+        address,
+        "POST",
+        "/change-character",
+        Some(&body),
+        APPLY_TIMEOUT,
+    )
+    .map(|_| ())
 }
 
 pub fn play_timeline_mascot_render_server_at(

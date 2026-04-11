@@ -1,11 +1,9 @@
-use std::path::PathBuf;
-
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeSkinRequest {
-    pub png_path: PathBuf,
+pub struct ChangeCharacterRequest {
+    pub character_name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

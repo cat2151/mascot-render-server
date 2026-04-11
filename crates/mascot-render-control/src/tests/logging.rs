@@ -49,7 +49,7 @@ fn append_log_record_prefixes_each_multiline_line() {
     append_log_record_for_test(
         &log_path,
         "INFO",
-        "request:\n{\n  \"png_path\": \"cache/demo/variation.png\"\n}",
+        "request:\n{\n  \"character_name\": \"ずんだもん\"\n}",
     )
     .expect("multiline server log write should succeed");
 

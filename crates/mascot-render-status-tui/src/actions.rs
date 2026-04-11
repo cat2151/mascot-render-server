@@ -1,10 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread;
 
 use anyhow::Result as AnyhowResult;
 use mascot_render_client::{
-    change_skin_mascot_render_server, hide_mascot_render_server,
+    change_character_mascot_render_server, hide_mascot_render_server,
     play_timeline_mascot_render_server, preview_mouth_flap_timeline_request,
     show_mascot_render_server,
 };
@@ -18,7 +18,7 @@ const TEST_TIMELINE_FPS: u16 = 20;
 pub(crate) enum TestPostAction {
     Show,
     Hide,
-    ChangeSkin(PathBuf),
+    ChangeCharacter(String),
     ShakeTimeline,
     MouthFlapTimeline,
 }
@@ -86,24 +86,26 @@ impl TestPostAction {
         match self {
             Self::Show => "show".to_string(),
             Self::Hide => "hide".to_string(),
-            Self::ChangeSkin(_) => Self::change_skin_label(),
+            Self::ChangeCharacter(_) => Self::change_character_label(),
             Self::ShakeTimeline => "timeline shake".to_string(),
             Self::MouthFlapTimeline => "timeline mouth-flap".to_string(),
         }
     }
 
-    pub(crate) fn change_skin_label() -> String {
-        "change-skin current_png_path".to_string()
+    pub(crate) fn change_character_label() -> String {
+        "change-character configured_character_name".to_string()
     }
 }
 
-fn run_test_post_action(config_path: &Path, action: TestPostAction) -> AnyhowResult<()> {
+fn run_test_post_action(config_path: &std::path::Path, action: TestPostAction) -> AnyhowResult<()> {
     ensure_mascot_render_server_running(config_path)?;
 
     match action {
         TestPostAction::Show => show_mascot_render_server(),
         TestPostAction::Hide => hide_mascot_render_server(),
-        TestPostAction::ChangeSkin(png_path) => change_skin_mascot_render_server(&png_path),
+        TestPostAction::ChangeCharacter(character_name) => {
+            change_character_mascot_render_server(&character_name)
+        }
         TestPostAction::ShakeTimeline => {
             play_timeline_mascot_render_server(&shake_timeline_request())
         }

@@ -17,7 +17,7 @@ const HELP_LINES: &[&str] = &[
     "q / Ctrl-C quit",
     "s POST /show",
     "h POST /hide",
-    "p POST /change-skin current_png_path",
+    "p POST /change-character configured_character_name",
     "t POST /timeline shake",
     "m POST /timeline mouth-flap",
     "",
@@ -77,7 +77,7 @@ pub(crate) fn draw(frame: &mut ratatui::Frame, state: &StatusTuiState) {
     );
 
     let footer = Paragraph::new(format!(
-        "test POST: {}\n? help | q quit | s show | h hide | p change-skin current PNG | t shake | m mouth-flap | Ctrl-C quit",
+        "test POST: {}\n? help | q quit | s show | h hide | p change-character configured name | t shake | m mouth-flap | Ctrl-C quit",
         state.test_post_status_label()
     ))
         .block(Block::default().borders(Borders::ALL).title("Keys"));
@@ -177,8 +177,24 @@ fn mascot_lines(state: &StatusTuiState) -> Vec<String> {
 
     vec![
         format!(
-            "current_png_path: {}",
-            path_text(&snapshot.current_png_path)
+            "configured_character_name: {}",
+            snapshot.configured_character_name.as_deref().unwrap_or("-")
+        ),
+        format!(
+            "configured_png_path: {}",
+            path_text(&snapshot.configured_png_path)
+        ),
+        format!(
+            "displayed_png_path: {}",
+            path_text(&snapshot.displayed_png_path)
+        ),
+        format!(
+            "configured_zip_path: {}",
+            path_text(&snapshot.configured_zip_path)
+        ),
+        format!(
+            "configured_psd_path_in_zip: {}",
+            path_text(&snapshot.configured_psd_path_in_zip)
         ),
         format!(
             "favorite_ensemble_enabled: {}",
@@ -313,7 +329,7 @@ fn command_kind_text(kind: ServerCommandKind) -> &'static str {
     match kind {
         ServerCommandKind::Show => "show",
         ServerCommandKind::Hide => "hide",
-        ServerCommandKind::ChangeSkin => "change_skin",
+        ServerCommandKind::ChangeCharacter => "change_character",
         ServerCommandKind::Timeline => "timeline",
     }
 }

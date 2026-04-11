@@ -153,7 +153,7 @@ impl App {
         self.selected_favorite_index = previous.selected_favorite_index;
         let previous_selection = previous.workspace_state_snapshot();
         if previous_selection.selected_psd_path.is_some()
-            || previous_selection.selected_zip_hash.is_some()
+            || previous_selection.selected_zip_cache_key.is_some()
         {
             self.restore_selection(previous_selection);
         }
@@ -163,9 +163,9 @@ impl App {
 
     fn workspace_state_snapshot(&self) -> WorkspaceState {
         WorkspaceState {
-            selected_zip_hash: self
+            selected_zip_cache_key: self
                 .selected_zip_entry()
-                .map(|entry| entry.zip_hash.clone()),
+                .map(|entry| entry.zip_cache_key.clone()),
             selected_psd_path: self.selected_psd_entry().map(|entry| entry.path.clone()),
             selected_node: self.selected_layer_selection(),
         }

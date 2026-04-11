@@ -1,12 +1,9 @@
 use std::fs;
-use std::fs::File;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::archive::{collect_psd_files, collect_zip_files, extract_zip_to_dir};
 use crate::model::{PsdEntry, ZipEntry};
@@ -17,13 +14,20 @@ pub fn default_cache_root() -> PathBuf {
     workspace_cache_root()
 }
 
-const ZIP_META_VERSION: u32 = 3;
+const ZIP_META_VERSION: u32 = 4;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct ZipSourceStamp {
+    pub(crate) file_name: String,
+    pub(crate) modified_unix_nanos: Option<u64>,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ZipMetaFile {
     version: u32,
     zip_path: PathBuf,
-    zip_hash: String,
+    zip_cache_key: String,
+    source: ZipSourceStamp,
     psds: Vec<PsdEntry>,
     updated_at: u64,
 }
@@ -64,20 +68,20 @@ pub(crate) fn load_cached_zip_entries_snapshot(cache_root: &Path) -> Result<Vec<
         let Some(meta) = load_zip_meta_file(&psd_meta_path)? else {
             continue;
         };
-        if !snapshot_meta_is_usable(&meta) {
+        if !snapshot_meta_is_usable(&cache_dir, &meta) {
             continue;
         }
-        let psds = snapshot_psds(meta.psds);
+        let psds = meta.psds;
         if psds.is_empty() {
             continue;
         }
+        let zip_cache_key = meta.zip_cache_key;
         let zip_path = meta.zip_path;
 
         zip_entries.push(ZipEntry {
             zip_path: zip_path.clone(),
-            zip_hash: meta.zip_hash,
+            zip_cache_key,
             cache_dir: cache_dir.clone(),
-            source_zip_path: zip_path,
             extracted_dir: cache_dir.join("extracted"),
             psd_meta_path,
             psds,
@@ -90,21 +94,19 @@ pub(crate) fn load_cached_zip_entries_snapshot(cache_root: &Path) -> Result<Vec<
 }
 
 pub(crate) fn load_zip_entry(zip_path: &Path, cache_root: &Path) -> Result<ZipEntry> {
-    let zip_hash = hash_file(zip_path)?;
-    let cache_dir = cache_root.join(&zip_hash);
-    let source_zip_path = zip_path.to_path_buf();
+    let source = zip_source_stamp(zip_path)?;
+    let zip_cache_key = zip_cache_key(&source);
+    let cache_dir = cache_root.join(&zip_cache_key);
     let extracted_dir = cache_dir.join("extracted");
     let psd_meta_path = cache_dir.join("psd-meta.json");
-    let legacy_source_zip_path = cache_dir.join("source.zip");
 
     fs::create_dir_all(&cache_dir)
         .with_context(|| format!("failed to create cache dir {}", cache_dir.display()))?;
-    remove_legacy_source_zip(&legacy_source_zip_path)?;
 
     let cached_meta = load_zip_meta_file(&psd_meta_path)?;
     let meta_is_reusable = cached_meta
         .as_ref()
-        .is_some_and(|meta| zip_meta_is_reusable(meta, zip_path, &zip_hash));
+        .is_some_and(|meta| zip_meta_is_reusable(meta, zip_path, &zip_cache_key, &source));
 
     if !meta_is_reusable {
         if extracted_dir.exists() {
@@ -114,11 +116,12 @@ pub(crate) fn load_zip_entry(zip_path: &Path, cache_root: &Path) -> Result<ZipEn
         extract_zip_to_dir(zip_path, &extracted_dir)?;
     }
 
-    let psds = match cached_meta {
-        Some(meta) if meta_is_reusable => meta.psds,
+    let (psds, updated_at) = match cached_meta {
+        Some(meta) if meta_is_reusable => (meta.psds, meta.updated_at),
         _ => rebuild_zip_meta(
             zip_path,
-            &zip_hash,
+            &zip_cache_key,
+            &source,
             &cache_dir,
             &extracted_dir,
             &psd_meta_path,
@@ -127,23 +130,23 @@ pub(crate) fn load_zip_entry(zip_path: &Path, cache_root: &Path) -> Result<ZipEn
 
     Ok(ZipEntry {
         zip_path: zip_path.to_path_buf(),
-        zip_hash,
+        zip_cache_key,
         cache_dir,
-        source_zip_path,
         extracted_dir,
         psd_meta_path,
         psds,
-        updated_at: unix_timestamp(),
+        updated_at,
     })
 }
 
 fn rebuild_zip_meta(
     zip_path: &Path,
-    zip_hash: &str,
+    zip_cache_key: &str,
+    source: &ZipSourceStamp,
     cache_dir: &Path,
     extracted_dir: &Path,
     psd_meta_path: &Path,
-) -> Result<Vec<PsdEntry>> {
+) -> Result<(Vec<PsdEntry>, u64)> {
     let render_root = cache_dir.join("renders");
     fs::create_dir_all(&render_root)
         .with_context(|| format!("failed to create {}", render_root.display()))?;
@@ -154,87 +157,89 @@ fn rebuild_zip_meta(
         .collect::<Vec<_>>();
     psds.sort_by(|left, right| left.path.cmp(&right.path));
 
+    let updated_at = unix_timestamp();
     let meta = ZipMetaFile {
         version: ZIP_META_VERSION,
         zip_path: zip_path.to_path_buf(),
-        zip_hash: zip_hash.to_string(),
+        zip_cache_key: zip_cache_key.to_string(),
+        source: source.clone(),
         psds: psds.clone(),
-        updated_at: unix_timestamp(),
+        updated_at,
     };
     write_zip_meta_file(psd_meta_path, &meta)?;
 
-    Ok(psds)
+    Ok((psds, updated_at))
 }
 
-fn zip_meta_is_reusable(meta: &ZipMetaFile, zip_path: &Path, zip_hash: &str) -> bool {
+fn zip_meta_is_reusable(
+    meta: &ZipMetaFile,
+    zip_path: &Path,
+    zip_cache_key: &str,
+    source: &ZipSourceStamp,
+) -> bool {
     meta.version == ZIP_META_VERSION
-        && meta.zip_hash == zip_hash
+        && meta.zip_cache_key == zip_cache_key
         && meta.zip_path == zip_path
-        && meta.psds.iter().all(psd_entry_is_reusable)
+        && meta.source == *source
 }
 
-fn psd_entry_is_reusable(entry: &PsdEntry) -> bool {
-    entry.path.exists()
-        && match entry.rendered_png_path.as_ref() {
-            Some(path) => path.exists(),
-            None => true,
-        }
+fn snapshot_meta_is_usable(cache_dir: &Path, meta: &ZipMetaFile) -> bool {
+    meta.version == ZIP_META_VERSION
+        && cache_dir
+            .file_name()
+            .is_some_and(|name| name == meta.zip_cache_key.as_str())
+        && meta.zip_cache_key == zip_cache_key(&meta.source)
+        && zip_source_stamp(&meta.zip_path)
+            .ok()
+            .is_some_and(|source| source == meta.source)
 }
 
-fn snapshot_meta_is_usable(meta: &ZipMetaFile) -> bool {
-    meta.version == ZIP_META_VERSION && meta.zip_path.exists()
+pub(crate) fn zip_source_stamp(path: &Path) -> Result<ZipSourceStamp> {
+    let metadata = fs::metadata(path)
+        .with_context(|| format!("failed to read metadata {}", path.display()))?;
+    Ok(ZipSourceStamp {
+        file_name: source_file_name(path),
+        modified_unix_nanos: metadata.modified().ok().and_then(system_time_unix_nanos),
+    })
 }
 
-fn snapshot_psds(psds: Vec<PsdEntry>) -> Vec<PsdEntry> {
-    psds.into_iter()
-        .filter_map(|mut psd| {
-            if !psd.path.exists() {
-                return None;
-            }
+fn zip_cache_key(source: &ZipSourceStamp) -> String {
+    let name = sanitize_cache_component(&source.file_name);
+    let timestamp = source
+        .modified_unix_nanos
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    format!("{name}__mtime_{timestamp}")
+}
 
-            if psd
-                .rendered_png_path
-                .as_ref()
-                .is_some_and(|path| !path.exists())
-            {
-                psd.rendered_png_path = None;
-            }
+fn source_file_name(path: &Path) -> String {
+    path.file_name()
+        .unwrap_or(path.as_os_str())
+        .to_string_lossy()
+        .into_owned()
+}
 
-            Some(psd)
+fn system_time_unix_nanos(time: SystemTime) -> Option<u64> {
+    let nanos = time.duration_since(UNIX_EPOCH).ok()?.as_nanos();
+    u64::try_from(nanos).ok()
+}
+
+fn sanitize_cache_component(value: &str) -> String {
+    let sanitized = value
+        .chars()
+        .map(|ch| match ch {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '_',
+            _ => ch,
         })
-        .collect()
-}
+        .collect::<String>()
+        .trim_matches([' ', '.'])
+        .to_string();
 
-fn remove_legacy_source_zip(source_zip_path: &Path) -> Result<()> {
-    if source_zip_path.is_file() {
-        if let Err(error) = fs::remove_file(source_zip_path) {
-            eprintln!(
-                "warning: failed to remove legacy source zip '{}': {error}",
-                source_zip_path.display()
-            );
-        }
+    if sanitized.is_empty() {
+        "zip".to_string()
+    } else {
+        sanitized
     }
-    Ok(())
-}
-
-fn hash_file(path: &Path) -> Result<String> {
-    let mut file =
-        File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 8192];
-
-    loop {
-        let read = file
-            .read(&mut buffer)
-            .with_context(|| format!("failed to read {}", path.display()))?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-
-    let digest = hasher.finalize();
-    Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 fn load_zip_meta_file(path: &Path) -> Result<Option<ZipMetaFile>> {
@@ -261,4 +266,14 @@ fn unix_timestamp() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_secs())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+pub(crate) fn zip_cache_key_for_test(path: &Path) -> Result<String> {
+    Ok(zip_cache_key(&zip_source_stamp(path)?))
+}
+
+#[cfg(test)]
+pub(crate) fn zip_source_stamp_for_test(path: &Path) -> Result<ZipSourceStamp> {
+    zip_source_stamp(path)
 }

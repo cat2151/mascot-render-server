@@ -212,11 +212,11 @@ impl App {
                 self.selected_zip_index = zip_index;
                 self.selected_psd_index = psd_index;
             }
-        } else if let Some(zip_hash) = selection.selected_zip_hash {
+        } else if let Some(zip_cache_key) = selection.selected_zip_cache_key {
             if let Some(index) = self
                 .zip_entries
                 .iter()
-                .position(|entry| entry.zip_hash == zip_hash)
+                .position(|entry| entry.zip_cache_key == zip_cache_key)
             {
                 self.selected_zip_index = index;
                 self.selected_psd_index = 0;
@@ -307,7 +307,7 @@ mod tests {
     fn restore_selection_keeps_layer_cursor_before_layer_rows_load() {
         let mut app = App::loading(None);
         app.zip_entries = vec![ZipEntry {
-            zip_hash: "zip-a".to_string(),
+            zip_cache_key: "zip-a".to_string(),
             psds: vec![PsdEntry {
                 path: PathBuf::from("a/body.psd"),
                 file_name: "body.psd".to_string(),

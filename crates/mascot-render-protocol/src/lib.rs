@@ -6,8 +6,8 @@ mod store;
 mod tests;
 
 pub use command::{
-    validate_motion_timeline_request, ChangeSkinRequest, MotionTimelineKind, MotionTimelineRequest,
-    MotionTimelineStep,
+    validate_motion_timeline_request, ChangeCharacterRequest, MotionTimelineKind,
+    MotionTimelineRequest, MotionTimelineStep,
 };
 pub use status::{
     now_unix_ms, ServerCommandKind, ServerCommandStage, ServerCommandStatus, ServerLifecyclePhase,

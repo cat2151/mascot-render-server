@@ -12,6 +12,9 @@ mod mouth_flap;
 #[path = "tests/always_bend.rs"]
 mod always_bend_tests;
 #[cfg(test)]
+#[path = "tests/character_resolver.rs"]
+mod character_resolver_tests;
+#[cfg(test)]
 #[path = "tests/cli.rs"]
 mod cli_tests;
 #[cfg(test)]
@@ -97,6 +100,8 @@ fn main() -> Result<()> {
         config_path.clone(),
         mascot_runtime_state_path(&config_path),
         config.png_path.clone(),
+        config.zip_path.clone(),
+        config.psd_path_in_zip.clone(),
     ));
     let image = load_mascot_image(&config.png_path)?;
     let initial_window_layout = if let Some(favorite_ensemble) = &favorite_ensemble {

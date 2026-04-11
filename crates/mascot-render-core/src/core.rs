@@ -1,9 +1,12 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use crate::api::{PsdDocument, PsdSummary, RenderRequest, RenderedPng};
 use crate::cache::{
     default_cache_root, load_cached_zip_entries_snapshot, load_zip_entries, load_zip_entry,
+    zip_source_stamp, ZipSourceStamp,
 };
 use crate::model::{PsdEntry, ZipEntry};
 use crate::psd::{analyze_psd, effective_visibility_with_overrides};
@@ -32,6 +35,7 @@ impl Default for CoreConfig {
 #[derive(Debug, Clone)]
 pub struct Core {
     cache_dir: PathBuf,
+    zip_entry_cache: Arc<Mutex<HashMap<PathBuf, CachedZipEntry>>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -40,10 +44,17 @@ struct CustomRenderMeta {
     warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+struct CachedZipEntry {
+    source: ZipSourceStamp,
+    entry: ZipEntry,
+}
+
 impl Core {
     pub fn new(config: CoreConfig) -> Self {
         Self {
             cache_dir: config.cache_dir,
+            zip_entry_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -52,15 +63,26 @@ impl Core {
     }
 
     pub fn load_zip_entries(&self, zip_sources: &[PathBuf]) -> Result<Vec<ZipEntry>> {
-        load_zip_entries(zip_sources, &self.cache_dir)
+        let entries = load_zip_entries(zip_sources, &self.cache_dir)?;
+        self.cache_zip_entries(&entries)?;
+        Ok(entries)
     }
 
     pub fn load_cached_zip_entries_snapshot(&self) -> Result<Vec<ZipEntry>> {
-        load_cached_zip_entries_snapshot(&self.cache_dir)
+        let entries = load_cached_zip_entries_snapshot(&self.cache_dir)?;
+        self.cache_zip_entries(&entries)?;
+        Ok(entries)
     }
 
     pub fn load_zip_entry(&self, zip_path: &Path) -> Result<ZipEntry> {
-        load_zip_entry(zip_path, &self.cache_dir)
+        let source = zip_source_stamp(zip_path)?;
+        if let Some(entry) = self.cached_zip_entry(zip_path, &source)? {
+            return Ok(entry);
+        }
+
+        let entry = load_zip_entry(zip_path, &self.cache_dir)?;
+        self.cache_zip_entry(entry.clone(), source)?;
+        Ok(entry)
     }
 
     pub fn list_psds(&self, zip_path: &Path) -> Result<Vec<PsdSummary>> {
@@ -162,6 +184,48 @@ impl Core {
             warnings: render_result.warnings,
             cache_hit: false,
         })
+    }
+
+    fn cached_zip_entry(
+        &self,
+        zip_path: &Path,
+        source: &ZipSourceStamp,
+    ) -> Result<Option<ZipEntry>> {
+        let cache = self
+            .zip_entry_cache
+            .lock()
+            .map_err(|_| anyhow!("zip entry cache lock was poisoned"))?;
+        Ok(cache
+            .get(zip_path)
+            .filter(|cached| cached.source == *source)
+            .map(|cached| cached.entry.clone()))
+    }
+
+    fn cache_zip_entry(&self, entry: ZipEntry, source: ZipSourceStamp) -> Result<()> {
+        let mut cache = self
+            .zip_entry_cache
+            .lock()
+            .map_err(|_| anyhow!("zip entry cache lock was poisoned"))?;
+        cache.insert(entry.zip_path.clone(), CachedZipEntry { source, entry });
+        Ok(())
+    }
+
+    fn cache_zip_entries(&self, entries: &[ZipEntry]) -> Result<()> {
+        let mut cache = self
+            .zip_entry_cache
+            .lock()
+            .map_err(|_| anyhow!("zip entry cache lock was poisoned"))?;
+        for entry in entries {
+            let source = zip_source_stamp(&entry.zip_path)?;
+            cache.insert(
+                entry.zip_path.clone(),
+                CachedZipEntry {
+                    source,
+                    entry: entry.clone(),
+                },
+            );
+        }
+        Ok(())
     }
 }
 

@@ -59,6 +59,37 @@ impl MascotApp {
         Ok(())
     }
 
+    pub(super) fn queue_auxiliary_skin_refresh(&mut self) {
+        self.clear_auxiliary_skins();
+        self.pending_auxiliary_skin_refresh = !self.config.favorite_ensemble_enabled;
+    }
+
+    pub(super) fn has_pending_auxiliary_skin_refresh(&self) -> bool {
+        self.pending_auxiliary_skin_refresh
+    }
+
+    pub(super) fn refresh_pending_auxiliary_skins(&mut self, ctx: &egui::Context) -> Result<()> {
+        if !self.pending_auxiliary_skin_refresh {
+            return Ok(());
+        }
+
+        self.pending_auxiliary_skin_refresh = false;
+        if self.config.favorite_ensemble_enabled {
+            self.clear_auxiliary_skins();
+            return Ok(());
+        }
+
+        self.refresh_closed_eye_skin(ctx)?;
+        self.refresh_mouth_flap_skins(ctx)
+    }
+
+    fn clear_auxiliary_skins(&mut self) {
+        self.eye_blink.reset(Instant::now());
+        self.closed_skin = None;
+        self.mouth_open_skin = None;
+        self.mouth_closed_skin = None;
+    }
+
     pub(super) fn load_closed_eye_skin_for_config(
         &mut self,
         ctx: &egui::Context,

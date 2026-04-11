@@ -11,7 +11,11 @@ pub struct ServerStatusSnapshot {
     pub current_command: Option<ServerCommandStatus>,
     pub last_completed_command: Option<ServerCommandStatus>,
     pub last_failed_command: Option<ServerCommandStatus>,
-    pub current_png_path: PathBuf,
+    pub configured_character_name: Option<String>,
+    pub configured_png_path: PathBuf,
+    pub configured_zip_path: PathBuf,
+    pub configured_psd_path_in_zip: PathBuf,
+    pub displayed_png_path: PathBuf,
     pub favorite_ensemble_enabled: bool,
     pub favorite_ensemble_loaded: bool,
     pub scale: f32,
@@ -46,7 +50,7 @@ pub struct ServerCommandStatus {
 pub enum ServerCommandKind {
     Show,
     Hide,
-    ChangeSkin,
+    ChangeCharacter,
     Timeline,
 }
 
@@ -76,7 +80,9 @@ impl ServerStatusSnapshot {
     pub fn starting(
         config_path: PathBuf,
         runtime_state_path: PathBuf,
-        current_png_path: PathBuf,
+        configured_png_path: PathBuf,
+        configured_zip_path: PathBuf,
+        configured_psd_path_in_zip: PathBuf,
     ) -> Self {
         let now = now_unix_ms();
         Self {
@@ -86,7 +92,11 @@ impl ServerStatusSnapshot {
             current_command: None,
             last_completed_command: None,
             last_failed_command: None,
-            current_png_path,
+            configured_character_name: None,
+            configured_png_path: configured_png_path.clone(),
+            configured_zip_path,
+            configured_psd_path_in_zip,
+            displayed_png_path: configured_png_path,
             favorite_ensemble_enabled: false,
             favorite_ensemble_loaded: false,
             scale: 1.0,

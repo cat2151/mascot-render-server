@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::time::Instant;
 
 use mascot_render_protocol::ServerStatusSnapshot;
@@ -117,10 +116,10 @@ impl StatusTuiState {
         }
     }
 
-    pub(crate) fn current_png_path(&self) -> Option<PathBuf> {
+    pub(crate) fn configured_character_name(&self) -> Option<String> {
         self.last_snapshot
             .as_ref()
-            .map(|snapshot| snapshot.current_png_path.clone())
+            .and_then(|snapshot| snapshot.configured_character_name.clone())
     }
 
     pub(crate) fn toggle_help(&mut self) {

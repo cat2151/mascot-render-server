@@ -5,9 +5,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 use mascot_render_client::{
-    change_skin_mascot_render_server, mascot_render_server_address,
-    mascot_render_server_healthcheck_at, play_timeline_mascot_render_server,
-    show_mascot_render_server,
+    mascot_render_server_address, mascot_render_server_healthcheck_at,
+    play_timeline_mascot_render_server, show_mascot_render_server,
 };
 use mascot_render_protocol::MotionTimelineRequest;
 
@@ -42,14 +41,13 @@ pub fn ensure_mascot_render_server_running(config_path: &Path) -> Result<()> {
 
 pub fn sync_mascot_render_server_preview(
     config_path: &Path,
-    png_path: Option<&Path>,
+    preview_ready: Option<&Path>,
 ) -> Result<()> {
-    let Some(png_path) = png_path else {
+    if preview_ready.is_none() {
         return Ok(());
-    };
+    }
 
-    ensure_mascot_render_server_visible(config_path)?;
-    change_skin_mascot_render_server(png_path)
+    ensure_mascot_render_server_visible(config_path)
 }
 
 pub fn play_mascot_render_server_timeline(

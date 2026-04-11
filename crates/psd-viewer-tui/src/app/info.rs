@@ -24,9 +24,9 @@ impl App {
         let mut lines = Vec::new();
         if let Some(zip) = self.selected_zip_entry() {
             lines.push(Line::from(format!(
-                "Selected ZIP: {} | hash={}",
+                "Selected ZIP: {} | cache_key={}",
                 display_path(&zip.zip_path),
-                zip.zip_hash
+                zip.zip_cache_key
             )));
         }
 

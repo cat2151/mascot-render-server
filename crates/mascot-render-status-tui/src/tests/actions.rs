@@ -7,8 +7,8 @@ fn test_post_action_labels_match_key_descriptions() {
     assert_eq!(TestPostAction::Show.label(), "show");
     assert_eq!(TestPostAction::Hide.label(), "hide");
     assert_eq!(
-        TestPostAction::change_skin_label(),
-        "change-skin current_png_path"
+        TestPostAction::change_character_label(),
+        "change-character configured_character_name"
     );
     assert_eq!(TestPostAction::ShakeTimeline.label(), "timeline shake");
     assert_eq!(

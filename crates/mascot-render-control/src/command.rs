@@ -1,5 +1,4 @@
 use std::fmt;
-use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::time::Duration;
 
@@ -31,8 +30,8 @@ pub enum MascotControlCommand {
     Hide {
         status: ServerCommandStatus,
     },
-    ChangeSkin {
-        png_path: PathBuf,
+    ChangeCharacter {
+        character_name: String,
         completion: Option<ControlCommandCompletion>,
         status: ServerCommandStatus,
     },
@@ -52,12 +51,12 @@ impl MascotControlCommand {
         Self::hide_with_status(ServerCommandStatus::queued(ServerCommandKind::Hide, "hide"))
     }
 
-    pub fn change_skin(png_path: PathBuf) -> Self {
-        let summary = change_skin_summary(&png_path);
-        Self::change_skin_with_status(
-            png_path,
+    pub fn change_character(character_name: String) -> Self {
+        let summary = change_character_summary(&character_name);
+        Self::change_character_with_status(
+            character_name,
             None,
-            ServerCommandStatus::queued(ServerCommandKind::ChangeSkin, summary),
+            ServerCommandStatus::queued(ServerCommandKind::ChangeCharacter, summary),
         )
     }
 
@@ -78,12 +77,12 @@ impl MascotControlCommand {
         Self::Hide { status }
     }
 
-    pub(crate) fn change_skin_with_completion(
-        png_path: PathBuf,
+    pub(crate) fn change_character_with_completion(
+        character_name: String,
         completion: ControlCommandCompletion,
         status: ServerCommandStatus,
     ) -> Self {
-        Self::change_skin_with_status(png_path, Some(completion), status)
+        Self::change_character_with_status(character_name, Some(completion), status)
     }
 
     pub(crate) fn play_timeline_with_completion(
@@ -94,13 +93,13 @@ impl MascotControlCommand {
         Self::play_timeline_with_status(request, Some(completion), status)
     }
 
-    fn change_skin_with_status(
-        png_path: PathBuf,
+    fn change_character_with_status(
+        character_name: String,
         completion: Option<ControlCommandCompletion>,
         status: ServerCommandStatus,
     ) -> Self {
-        Self::ChangeSkin {
-            png_path,
+        Self::ChangeCharacter {
+            character_name,
             completion,
             status,
         }
@@ -122,14 +121,14 @@ impl MascotControlCommand {
         match self {
             Self::Show { status }
             | Self::Hide { status }
-            | Self::ChangeSkin { status, .. }
+            | Self::ChangeCharacter { status, .. }
             | Self::PlayTimeline { status, .. } => status,
         }
     }
 
     pub fn finish(&self, result: ControlCommandApplyResult) {
         match self {
-            Self::ChangeSkin {
+            Self::ChangeCharacter {
                 completion: Some(completion),
                 ..
             }
@@ -139,7 +138,7 @@ impl MascotControlCommand {
             } => completion.finish(result),
             Self::Show { .. }
             | Self::Hide { .. }
-            | Self::ChangeSkin {
+            | Self::ChangeCharacter {
                 completion: None, ..
             }
             | Self::PlayTimeline {
@@ -154,9 +153,13 @@ impl PartialEq for MascotControlCommand {
         match (self, other) {
             (Self::Show { .. }, Self::Show { .. }) | (Self::Hide { .. }, Self::Hide { .. }) => true,
             (
-                Self::ChangeSkin { png_path: left, .. },
-                Self::ChangeSkin {
-                    png_path: right, ..
+                Self::ChangeCharacter {
+                    character_name: left,
+                    ..
+                },
+                Self::ChangeCharacter {
+                    character_name: right,
+                    ..
                 },
             ) => left == right,
             (
@@ -218,8 +221,8 @@ impl ControlCommandWaitError {
     }
 }
 
-pub(crate) fn change_skin_summary(png_path: &Path) -> String {
-    format!("to={}", png_path.display())
+pub(crate) fn change_character_summary(character_name: &str) -> String {
+    format!("character={character_name}")
 }
 
 pub(crate) fn timeline_summary(request: &MotionTimelineRequest) -> String {

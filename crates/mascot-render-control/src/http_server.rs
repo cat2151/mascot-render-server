@@ -9,13 +9,13 @@ use std::time::Duration;
 use anyhow::{anyhow, bail, Context, Result};
 use mascot_render_client::mascot_render_server_address;
 use mascot_render_protocol::{
-    validate_motion_timeline_request, ChangeSkinRequest, MotionTimelineRequest, ServerCommandKind,
-    ServerCommandStage, ServerCommandStatus, ServerStatusStore,
+    validate_motion_timeline_request, ChangeCharacterRequest, MotionTimelineRequest,
+    ServerCommandKind, ServerCommandStage, ServerCommandStatus, ServerStatusStore,
 };
 use serde::Serialize;
 
 use crate::command::{
-    change_skin_summary, timeline_summary, ControlCommandCompletion, ControlCommandWaitError,
+    change_character_summary, timeline_summary, ControlCommandCompletion, ControlCommandWaitError,
     MascotControlCommand,
 };
 use crate::logging::{log_control_error, log_control_info};
@@ -205,32 +205,31 @@ fn route_request(
                 notify,
             )
         }
-        ("POST", "/change-skin") => {
-            let request: ChangeSkinRequest = serde_json::from_slice(&request.body)
-                .context("failed to parse mascot change-skin request JSON")?;
-            let png_path = request.png_path.clone();
+        ("POST", "/change-character") => {
+            let request: ChangeCharacterRequest = serde_json::from_slice(&request.body)
+                .context("failed to parse mascot change-character request JSON")?;
+            let character_name = request.character_name.clone();
             let status = ServerCommandStatus::queued(
-                ServerCommandKind::ChangeSkin,
-                change_skin_summary(&png_path),
+                ServerCommandKind::ChangeCharacter,
+                change_character_summary(&character_name),
             );
-            log_request_payload(peer, "change_skin", &request);
+            log_request_payload(peer, "change_character", &request);
             let response = enqueue_apply_command(
                 peer,
-                "change_skin",
+                "change_character",
                 command_tx,
                 status_store,
                 notify,
                 |completion| {
-                    MascotControlCommand::change_skin_with_completion(
-                        png_path.clone(),
+                    MascotControlCommand::change_character_with_completion(
+                        character_name.clone(),
                         completion,
                         status,
                     )
                 },
             )?;
             log_control_info(format!(
-                "event=control_request stage=applied peer={peer} action=change_skin png_path={}",
-                png_path.display()
+                "event=control_request stage=applied peer={peer} action=change_character character_name={character_name}"
             ));
             Ok(response)
         }

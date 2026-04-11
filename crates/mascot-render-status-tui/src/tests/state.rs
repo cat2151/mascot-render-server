@@ -97,16 +97,15 @@ fn test_post_status_tracks_background_post_result() {
 }
 
 #[test]
-fn current_png_path_is_none_until_first_snapshot() {
+fn configured_character_name_is_none_until_first_snapshot() {
     let mut state = StatusTuiState::new();
-    assert_eq!(state.current_png_path(), None);
+    assert_eq!(state.configured_character_name(), None);
 
-    state.record_poll_success(sample_snapshot(), Instant::now());
+    let mut snapshot = sample_snapshot();
+    snapshot.configured_character_name = Some("demo".to_string());
+    state.record_poll_success(snapshot, Instant::now());
 
-    assert_eq!(
-        state.current_png_path(),
-        Some(PathBuf::from("cache/demo/open.png"))
-    );
+    assert_eq!(state.configured_character_name(), Some("demo".to_string()));
 }
 
 #[test]
@@ -185,6 +184,8 @@ fn sample_snapshot() -> ServerStatusSnapshot {
         PathBuf::from("config/mascot-render-server.toml"),
         PathBuf::from("config/mascot-render-server.runtime.json"),
         PathBuf::from("cache/demo/open.png"),
+        PathBuf::from("assets/zip/demo.zip"),
+        PathBuf::from("demo/basic.psd"),
     );
     snapshot.lifecycle = ServerLifecyclePhase::Running;
     snapshot

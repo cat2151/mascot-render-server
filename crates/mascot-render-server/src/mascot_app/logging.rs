@@ -5,26 +5,26 @@ use mascot_render_control::{log_server_error, log_server_info, log_server_skin_i
 
 use super::MascotApp;
 
-pub(crate) fn change_skin_stage_message(
+pub(crate) fn change_character_stage_message(
     previous_png_path: &Path,
     png_path: &Path,
     stage: &str,
 ) -> String {
     format!(
-        "trigger=control_command action=change_skin skin変更を処理中です: stage={stage} from={} to={}",
+        "trigger=control_command action=change_character character変更を処理中です: stage={stage} from={} to={}",
         previous_png_path.display(),
         png_path.display()
     )
 }
 
-pub(crate) fn change_skin_success_message(
+pub(crate) fn change_character_success_message(
     previous_png_path: &Path,
     png_path: &Path,
     runtime_state_path: &Path,
     persisted_png_path: &Path,
 ) -> String {
     format!(
-        "trigger=control_command action=change_skin skin変更に成功しました: from={} to={} runtime_state_path={} persisted_png_path={}",
+        "trigger=control_command action=change_character character変更に成功しました: from={} to={} runtime_state_path={} persisted_png_path={}",
         previous_png_path.display(),
         png_path.display(),
         runtime_state_path.display(),
@@ -32,14 +32,14 @@ pub(crate) fn change_skin_success_message(
     )
 }
 
-pub(crate) fn change_skin_failure_message(
+pub(crate) fn change_character_failure_message(
     previous_png_path: &Path,
     png_path: &Path,
     stage: &str,
     error_detail: &str,
 ) -> String {
     format!(
-        "trigger=control_command action=change_skin skin変更に失敗しました: stage={stage} from={} to={} error={error_detail}",
+        "trigger=control_command action=change_character character変更に失敗しました: stage={stage} from={} to={} error={error_detail}",
         previous_png_path.display(),
         png_path.display()
     )
@@ -56,19 +56,19 @@ pub(crate) fn rendered_skin_message(png_path: &Path) -> String {
     )
 }
 
-pub(crate) fn run_change_skin_stage<T>(
+pub(crate) fn run_change_character_stage<T>(
     previous_png_path: &Path,
     png_path: &Path,
     stage: &str,
     operation: impl FnOnce() -> Result<T>,
 ) -> Result<T> {
-    log_server_info(change_skin_stage_message(
+    log_server_info(change_character_stage_message(
         previous_png_path,
         png_path,
         stage,
     ));
     operation().map_err(|error| {
-        log_server_error(change_skin_failure_message(
+        log_server_error(change_character_failure_message(
             previous_png_path,
             png_path,
             stage,
@@ -116,11 +116,11 @@ pub(crate) fn clear_rendered_skin_path(last_logged_skin_path: &mut Option<PathBu
 }
 
 #[cfg(test)]
-pub(crate) use change_skin_failure_message as change_skin_failure_message_for_test;
+pub(crate) use change_character_failure_message as change_character_failure_message_for_test;
 #[cfg(test)]
-pub(crate) use change_skin_stage_message as change_skin_stage_message_for_test;
+pub(crate) use change_character_stage_message as change_character_stage_message_for_test;
 #[cfg(test)]
-pub(crate) use change_skin_success_message as change_skin_success_message_for_test;
+pub(crate) use change_character_success_message as change_character_success_message_for_test;
 #[cfg(test)]
 pub(crate) use clear_rendered_skin_path as clear_rendered_skin_path_for_test;
 #[cfg(test)]

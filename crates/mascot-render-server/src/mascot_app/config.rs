@@ -79,6 +79,13 @@ pub(super) fn should_reload_config(
         || now.duration_since(last_effective_config_check_at) >= EFFECTIVE_CONFIG_POLL_INTERVAL
 }
 
+pub(super) fn should_refresh_auxiliary_skins_now(
+    config_reloaded_this_frame: bool,
+    pending_auxiliary_skin_refresh: bool,
+) -> bool {
+    pending_auxiliary_skin_refresh && !config_reloaded_this_frame
+}
+
 #[cfg(test)]
 pub(crate) fn should_reload_config_for_test(
     current: [Option<SystemTime>; 5],
@@ -104,4 +111,12 @@ pub(crate) fn should_reload_config_for_test(
         last_effective_config_check_at,
         now,
     )
+}
+
+#[cfg(test)]
+pub(crate) fn should_refresh_auxiliary_skins_now_for_test(
+    config_reloaded_this_frame: bool,
+    pending_auxiliary_skin_refresh: bool,
+) -> bool {
+    should_refresh_auxiliary_skins_now(config_reloaded_this_frame, pending_auxiliary_skin_refresh)
 }
