@@ -2,7 +2,8 @@ use std::ffi::OsString;
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -16,6 +17,24 @@ pub(crate) struct SpawnedMascotRenderServer {
     pub(crate) pid: u32,
     pub(crate) command_summary: String,
     pub(crate) diagnostics_path: PathBuf,
+    exit_rx: Receiver<SpawnExitEvent>,
+}
+
+pub(crate) enum SpawnExitEvent {
+    Exited {
+        status: ExitStatus,
+        elapsed: Duration,
+    },
+    WaitFailed(String),
+}
+
+impl SpawnedMascotRenderServer {
+    pub(crate) fn try_recv_exit(&self) -> Option<SpawnExitEvent> {
+        match self.exit_rx.try_recv() {
+            Ok(event) => Some(event),
+            Err(TryRecvError::Empty) | Err(TryRecvError::Disconnected) => None,
+        }
+    }
 }
 
 pub(crate) fn spawn_mascot_render_server(config_path: &Path) -> Result<SpawnedMascotRenderServer> {
@@ -37,7 +56,7 @@ pub(crate) fn spawn_mascot_render_server(config_path: &Path) -> Result<SpawnedMa
                     "event=server_startup stage=spawned pid={pid} command={command_summary} diagnostics_path={}",
                     diagnostics_path.display()
                 ));
-                spawn_exit_logger(
+                let exit_rx = spawn_exit_logger(
                     child,
                     pid,
                     command_summary.clone(),
@@ -47,6 +66,7 @@ pub(crate) fn spawn_mascot_render_server(config_path: &Path) -> Result<SpawnedMa
                     pid,
                     command_summary,
                     diagnostics_path,
+                    exit_rx,
                 });
             }
             Err(error) => {
@@ -124,36 +144,48 @@ fn prepare_diagnostics_file(path: &Path, command_summary: &str) -> Result<()> {
     Ok(())
 }
 
-fn spawn_exit_logger(child: Child, pid: u32, command_summary: String, diagnostics_path: PathBuf) {
+fn spawn_exit_logger(
+    mut child: Child,
+    pid: u32,
+    command_summary: String,
+    diagnostics_path: PathBuf,
+) -> Receiver<SpawnExitEvent> {
+    let (exit_tx, exit_rx) = mpsc::channel();
     thread::spawn(move || {
         let started_at = Instant::now();
-        match child.wait_with_output() {
-            Ok(output) => {
+        match child.wait() {
+            Ok(status) => {
                 let elapsed = started_at.elapsed();
                 let stage = if elapsed <= EARLY_EXIT_WINDOW {
                     "child_exit_during_startup"
                 } else {
                     "child_exit"
                 };
-                let level = if output.status.success() { "INFO" } else { "ERROR" };
+                let level = if status.success() { "INFO" } else { "ERROR" };
                 let message = format!(
                     "event=server_startup stage={stage} level={level} pid={pid} status={} command={} diagnostics_path={}",
-                    output.status,
+                    status,
                     command_summary,
                     diagnostics_path.display()
                 );
-                if output.status.success() {
+                let _ = exit_tx.send(SpawnExitEvent::Exited { status, elapsed });
+                if status.success() {
                     log_control_info(message);
                 } else {
                     log_control_error(message);
                 }
             }
-            Err(error) => log_control_error(format!(
-                "event=server_startup stage=wait_failed pid={pid} command={command_summary} diagnostics_path={} error={error:#}",
-                diagnostics_path.display()
-            )),
+            Err(error) => {
+                let error = format!("{error:#}");
+                let _ = exit_tx.send(SpawnExitEvent::WaitFailed(error.clone()));
+                log_control_error(format!(
+                    "event=server_startup stage=wait_failed pid={pid} command={command_summary} diagnostics_path={} error={error}",
+                    diagnostics_path.display()
+                ));
+            }
         }
     });
+    exit_rx
 }
 
 fn startup_diagnostics_path() -> PathBuf {

@@ -1,0 +1,13 @@
+[package]
+name = "mascot-render-status-tui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+crossterm = "0.29"
+mascot-render-client = { path = "../mascot-render-client" }
+mascot-render-control = { path = "../mascot-render-control" }
+mascot-render-core = { path = "../mascot-render-core" }
+mascot-render-protocol = { path = "../mascot-render-protocol" }
+ratatui = "0.30"

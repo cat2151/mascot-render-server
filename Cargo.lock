@@ -2493,6 +2493,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mascot-render-status-tui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossterm",
+ "mascot-render-client",
+ "mascot-render-control",
+ "mascot-render-core",
+ "mascot-render-protocol",
+ "ratatui",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
