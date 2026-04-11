@@ -1,10 +1,15 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 
 use anyhow::Result;
-use mascot_render_core::{display_path, existing_zip_sources, Core, CoreConfig};
+use mascot_render_core::{
+    display_path, existing_zip_sources, Core, CoreConfig, PsdEntry, PsdLoadProgress, ZipEntry,
+    ZipLoadEvent, ZipLoadProgress,
+};
 
+use super::library::selection_from_psd_path;
 use super::{App, FocusPane, PreviewBackend};
 use crate::favorites::{favorites_path, load_favorites};
 use crate::tui_config::{
@@ -16,6 +21,7 @@ use crate::workspace_state::{load_workspace_state, WorkspaceState};
 pub(crate) enum StartupEvent {
     Progress(String),
     Snapshot(App),
+    Loader(ZipLoadEvent),
     Ready(Result<App>),
 }
 
@@ -33,6 +39,7 @@ pub(crate) fn spawn_startup_loader(screen_height_px: Option<u16>) -> Receiver<St
     thread::spawn(move || {
         let progress_tx = tx.clone();
         let snapshot_tx = tx.clone();
+        let loader_tx = tx.clone();
         let result = App::load_with_progress(
             screen_height_px,
             |message| {
@@ -40,6 +47,9 @@ pub(crate) fn spawn_startup_loader(screen_height_px: Option<u16>) -> Receiver<St
             },
             |snapshot| {
                 let _ = snapshot_tx.send(StartupEvent::Snapshot(snapshot));
+            },
+            |event| {
+                let _ = loader_tx.send(StartupEvent::Loader(event));
             },
         );
         let _ = tx.send(StartupEvent::Ready(result));
@@ -60,10 +70,193 @@ impl App {
         self.status = format!("Startup load failed: {error:#}");
     }
 
+    pub(crate) fn apply_startup_loader_event(&mut self, event: ZipLoadEvent) -> Result<bool> {
+        self.startup_loading = true;
+        match event {
+            ZipLoadEvent::ZipStarted(progress) => {
+                self.ensure_startup_zip_entry(&progress);
+                self.startup_notice =
+                    Some(format!("Loading ZIP: {}", display_path(&progress.zip_path)));
+                self.status = self.startup_notice.clone().unwrap_or_default();
+                self.sync_selection_bounds();
+                Ok(false)
+            }
+            ZipLoadEvent::ZipExtracted(progress) => {
+                self.ensure_startup_zip_entry(&progress);
+                self.startup_notice = Some(format!(
+                    "Extracted ZIP: {}",
+                    display_path(&progress.zip_path)
+                ));
+                self.status = self.startup_notice.clone().unwrap_or_default();
+                Ok(false)
+            }
+            ZipLoadEvent::PsdDiscovered(progress) => self.apply_psd_discovered(progress),
+            ZipLoadEvent::PsdReady(progress, psd) => self.apply_psd_ready(progress, *psd),
+            ZipLoadEvent::ZipReady(zip_entry) => self.apply_zip_ready(zip_entry),
+            ZipLoadEvent::Finished(zip_entries) => self.apply_startup_finished(zip_entries),
+        }
+    }
+
+    pub(crate) fn is_psd_pending(&self, path: &Path) -> bool {
+        self.startup_pending_psd_paths.contains(path)
+    }
+
+    pub(crate) fn selected_psd_is_pending(&self) -> bool {
+        self.selected_psd_entry()
+            .is_some_and(|entry| self.is_psd_pending(&entry.path))
+    }
+
+    fn apply_psd_discovered(&mut self, progress: PsdLoadProgress) -> Result<bool> {
+        let zip_index = self.ensure_startup_zip_entry(&progress.zip);
+        let psd_index = self.ensure_pending_psd_entry(zip_index, &progress);
+        self.startup_pending_psd_paths
+            .insert(progress.psd_path.clone());
+        self.startup_notice = Some(format!("Parsing PSD: {}", progress.file_name));
+        self.status = self.startup_notice.clone().unwrap_or_default();
+        if self.selected_psd_entry().is_none() {
+            self.selected_zip_index = zip_index;
+            self.selected_psd_index = psd_index;
+            self.selected_layer_index = 0;
+            self.refresh_selected_psd_state()?;
+        } else {
+            self.sync_selection_bounds();
+        }
+        Ok(false)
+    }
+
+    fn apply_psd_ready(&mut self, progress: PsdLoadProgress, psd: PsdEntry) -> Result<bool> {
+        let selected_path = self.selected_psd_entry().map(|entry| entry.path.clone());
+        let ready_path = psd.path.clone();
+        let zip_index = self.ensure_startup_zip_entry(&progress.zip);
+        self.replace_or_insert_psd_entry(zip_index, psd);
+        self.startup_pending_psd_paths.remove(&ready_path);
+        self.status = format!("PSD ready: {}", progress.file_name);
+
+        if selected_path.as_deref() == Some(ready_path.as_path()) {
+            self.select_psd_path(&ready_path);
+            self.refresh_selected_psd_state()?;
+            return Ok(true);
+        }
+
+        self.sync_selection_bounds();
+        Ok(false)
+    }
+
+    fn apply_zip_ready(&mut self, zip_entry: ZipEntry) -> Result<bool> {
+        let selected_path = self.selected_psd_entry().map(|entry| entry.path.clone());
+        let zip_path = zip_entry.zip_path.clone();
+        let extracted_dir = zip_entry.extracted_dir.clone();
+        self.replace_or_insert_zip_entry(zip_entry);
+        self.startup_pending_psd_paths
+            .retain(|path| !path.starts_with(&extracted_dir));
+        self.status = format!("ZIP ready: {}", display_path(&zip_path));
+
+        if let Some(path) = selected_path.as_deref() {
+            self.select_psd_path(path);
+            self.refresh_selected_psd_state()?;
+            return Ok(!self.selected_psd_is_pending());
+        }
+
+        self.sync_selection_bounds();
+        Ok(false)
+    }
+
+    fn apply_startup_finished(&mut self, zip_entries: Vec<ZipEntry>) -> Result<bool> {
+        let selected_path = self.selected_psd_entry().map(|entry| entry.path.clone());
+        self.zip_entries = zip_entries;
+        self.startup_pending_psd_paths.clear();
+        self.startup_loading = false;
+        self.startup_notice = None;
+        self.status = format!(
+            "Loaded {} ZIPs / {} PSDs.",
+            self.zip_entries.len(),
+            self.zip_entries
+                .iter()
+                .map(|zip| zip.psds.len())
+                .sum::<usize>()
+        );
+
+        if let Some(path) = selected_path.as_deref() {
+            self.select_psd_path(path);
+        }
+        self.sync_selection_bounds();
+        self.refresh_selected_psd_state()?;
+        Ok(self.selected_psd_entry().is_some())
+    }
+
+    fn ensure_startup_zip_entry(&mut self, progress: &ZipLoadProgress) -> usize {
+        if let Some(index) = self.zip_entries.iter().position(|entry| {
+            entry.zip_cache_key == progress.zip_cache_key || entry.zip_path == progress.zip_path
+        }) {
+            return index;
+        }
+
+        self.zip_entries.push(ZipEntry {
+            zip_path: progress.zip_path.clone(),
+            zip_cache_key: progress.zip_cache_key.clone(),
+            cache_dir: progress.cache_dir.clone(),
+            extracted_dir: progress.extracted_dir.clone(),
+            psd_meta_path: progress.psd_meta_path.clone(),
+            psds: Vec::new(),
+            updated_at: 0,
+        });
+        self.zip_entries.len() - 1
+    }
+
+    fn ensure_pending_psd_entry(&mut self, zip_index: usize, progress: &PsdLoadProgress) -> usize {
+        let zip_entry = &mut self.zip_entries[zip_index];
+        if let Some(index) = zip_entry
+            .psds
+            .iter()
+            .position(|entry| entry.path == progress.psd_path)
+        {
+            return index;
+        }
+
+        zip_entry.psds.push(PsdEntry {
+            path: progress.psd_path.clone(),
+            file_name: progress.file_name.clone(),
+            metadata: "Parsing...".to_string(),
+            ..PsdEntry::default()
+        });
+        zip_entry.psds.len() - 1
+    }
+
+    fn replace_or_insert_psd_entry(&mut self, zip_index: usize, psd: PsdEntry) {
+        let zip_entry = &mut self.zip_entries[zip_index];
+        if let Some(existing) = zip_entry
+            .psds
+            .iter_mut()
+            .find(|entry| entry.path == psd.path)
+        {
+            *existing = psd;
+        } else {
+            zip_entry.psds.push(psd);
+        }
+    }
+
+    fn replace_or_insert_zip_entry(&mut self, zip_entry: ZipEntry) {
+        if let Some(existing) = self.zip_entries.iter_mut().find(|entry| {
+            entry.zip_cache_key == zip_entry.zip_cache_key || entry.zip_path == zip_entry.zip_path
+        }) {
+            *existing = zip_entry;
+        } else {
+            self.zip_entries.push(zip_entry);
+        }
+    }
+
+    fn select_psd_path(&mut self, psd_path: &Path) {
+        if let Some((zip_index, psd_index)) = selection_from_psd_path(&self.zip_entries, psd_path) {
+            self.selected_zip_index = zip_index;
+            self.selected_psd_index = psd_index;
+        }
+    }
+
     fn load_with_progress(
         screen_height_px: Option<u16>,
         mut progress: impl FnMut(String),
         mut snapshot_ready: impl FnMut(App),
+        loader_event: impl FnMut(ZipLoadEvent),
     ) -> Result<Self> {
         let core = Core::new(CoreConfig::default());
         let tui_config_path = tui_config_path();
@@ -113,7 +306,7 @@ impl App {
             "Loading ZIP/PSD cache index from {} source directories...",
             zip_sources.len()
         ));
-        let zip_entries = core.load_zip_entries(&zip_sources)?;
+        let zip_entries = core.load_zip_entries_incremental(&zip_sources, loader_event)?;
 
         progress(format!(
             "Loaded {} ZIPs / {} PSDs. Preparing selected PSD state...",
@@ -212,6 +405,7 @@ impl App {
             layer_scroll_offset: 0,
             screen_height_px,
             variations: HashMap::new(),
+            startup_pending_psd_paths: Default::default(),
             layer_rows: Vec::new(),
             favorites,
             favorite_selection_lookup: HashMap::new(),

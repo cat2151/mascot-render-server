@@ -110,7 +110,12 @@ pub(crate) fn draw(
                         psd_index,
                     } => {
                         let psd_entry = &app.zip_entries[*zip_index].psds[*psd_index];
-                        ListItem::new(format!("  {}", psd_entry.file_name))
+                        let suffix = if app.is_psd_pending(&psd_entry.path) {
+                            " [parsing]"
+                        } else {
+                            ""
+                        };
+                        ListItem::new(format!("  {}{}", psd_entry.file_name, suffix))
                             .style(base_style(terminal_focused))
                     }
                 })
@@ -188,7 +193,9 @@ pub(crate) fn draw(
     };
 
     let layer_items = if app.selected_layer_rows().is_empty() {
-        let message = if app.is_startup_loading() {
+        let message = if app.selected_psd_is_pending() {
+            "Parsing selected PSD..."
+        } else if app.is_startup_loading() {
             "Loading layer tree..."
         } else {
             "No layer nodes found."

@@ -1,5 +1,6 @@
 mod archive;
 mod cache;
+mod cache_progress;
 mod core;
 mod eye_blink;
 mod logging;

@@ -46,6 +46,9 @@ mod mouth_flap_tests;
 #[path = "tests/server_preview_sync.rs"]
 mod server_preview_sync_tests;
 #[cfg(test)]
+#[path = "tests/startup_loader.rs"]
+mod startup_loader_tests;
+#[cfg(test)]
 #[path = "tests/tui_config.rs"]
 mod tui_config_tests;
 #[cfg(test)]
@@ -70,6 +73,7 @@ use server_preview_sync::ServerPreviewSync;
 use terminal::{Backend, TerminalGuard};
 
 const BUILD_COMMIT_HASH: &str = env!("BUILD_COMMIT_HASH");
+const STARTUP_LOADER_EVENTS_PER_FRAME: usize = 4;
 
 fn main() -> Result<()> {
     match parse_cli(std::env::args_os())? {
@@ -368,6 +372,18 @@ fn sync_runtime_targets(
     }
 }
 
+fn request_selected_preview_sync(
+    app: &App,
+    preview: &mut PreviewState,
+    server_preview_sync: &mut ServerPreviewSync,
+) {
+    if app.uses_server_preview() {
+        server_preview_sync.request(app.selected_preview_png_path());
+    } else {
+        preview.request_sync(app.selected_preview_png_path());
+    }
+}
+
 fn process_startup_events(
     app: &mut App,
     startup_rx: &mut Option<Receiver<StartupEvent>>,
@@ -379,20 +395,30 @@ fn process_startup_events(
     };
 
     let mut close_receiver = false;
+    let mut loader_events_processed = 0usize;
     loop {
         match rx.try_recv() {
             Ok(StartupEvent::Progress(message)) => app.apply_startup_progress(message),
+            Ok(StartupEvent::Loader(event)) => {
+                match app.apply_startup_loader_event(event) {
+                    Ok(needs_sync) if needs_sync => {
+                        request_selected_preview_sync(app, preview, server_preview_sync);
+                    }
+                    Ok(_) => {}
+                    Err(error) => app.finish_startup_error(error),
+                }
+                loader_events_processed += 1;
+                if loader_events_processed >= STARTUP_LOADER_EVENTS_PER_FRAME {
+                    break;
+                }
+            }
             Ok(StartupEvent::Snapshot(snapshot_app)) => {
                 let terminal_focused = app.is_terminal_focused();
                 let help_overlay_visible = app.is_help_overlay_visible();
                 *app = snapshot_app;
                 app.set_terminal_focus(terminal_focused);
                 app.set_help_overlay_visible(help_overlay_visible);
-                if app.uses_server_preview() {
-                    server_preview_sync.request(app.selected_preview_png_path());
-                } else {
-                    preview.request_sync(app.selected_preview_png_path());
-                }
+                request_selected_preview_sync(app, preview, server_preview_sync);
             }
             Ok(StartupEvent::Ready(result)) => {
                 close_receiver = true;
@@ -403,11 +429,7 @@ fn process_startup_events(
                             continue;
                         }
                         *app = loaded_app;
-                        if app.uses_server_preview() {
-                            server_preview_sync.request(app.selected_preview_png_path());
-                        } else {
-                            preview.request_sync(app.selected_preview_png_path());
-                        }
+                        request_selected_preview_sync(app, preview, server_preview_sync);
                     }
                     Err(error) => app.finish_startup_error(error),
                 }

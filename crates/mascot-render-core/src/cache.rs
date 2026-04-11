@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::archive::{collect_psd_files, collect_zip_files, extract_zip_to_dir};
+use crate::cache_progress::{PsdLoadProgress, ZipLoadEvent, ZipLoadProgress};
 use crate::model::{PsdEntry, ZipEntry};
 use crate::psd::build_psd_entry;
 use crate::workspace_paths::workspace_cache_root;
@@ -36,6 +37,14 @@ pub(crate) fn load_zip_entries(
     zip_sources: &[PathBuf],
     cache_root: &Path,
 ) -> Result<Vec<ZipEntry>> {
+    load_zip_entries_incremental(zip_sources, cache_root, |_| {})
+}
+
+pub(crate) fn load_zip_entries_incremental(
+    zip_sources: &[PathBuf],
+    cache_root: &Path,
+    mut on_event: impl FnMut(ZipLoadEvent),
+) -> Result<Vec<ZipEntry>> {
     fs::create_dir_all(cache_root)
         .with_context(|| format!("failed to create cache root {}", cache_root.display()))?;
 
@@ -43,9 +52,14 @@ pub(crate) fn load_zip_entries(
     let mut zip_entries = Vec::with_capacity(zip_files.len());
 
     for zip_path in zip_files {
-        zip_entries.push(load_zip_entry(&zip_path, cache_root)?);
+        zip_entries.push(load_zip_entry_incremental(
+            &zip_path,
+            cache_root,
+            &mut on_event,
+        )?);
     }
 
+    on_event(ZipLoadEvent::Finished(zip_entries.clone()));
     Ok(zip_entries)
 }
 
@@ -94,14 +108,30 @@ pub(crate) fn load_cached_zip_entries_snapshot(cache_root: &Path) -> Result<Vec<
 }
 
 pub(crate) fn load_zip_entry(zip_path: &Path, cache_root: &Path) -> Result<ZipEntry> {
+    load_zip_entry_incremental(zip_path, cache_root, |_| {})
+}
+
+fn load_zip_entry_incremental(
+    zip_path: &Path,
+    cache_root: &Path,
+    mut on_event: impl FnMut(ZipLoadEvent),
+) -> Result<ZipEntry> {
     let source = zip_source_stamp(zip_path)?;
     let zip_cache_key = zip_cache_key(&source);
     let cache_dir = cache_root.join(&zip_cache_key);
     let extracted_dir = cache_dir.join("extracted");
     let psd_meta_path = cache_dir.join("psd-meta.json");
+    let progress = ZipLoadProgress {
+        zip_path: zip_path.to_path_buf(),
+        zip_cache_key: zip_cache_key.clone(),
+        cache_dir: cache_dir.clone(),
+        extracted_dir: extracted_dir.clone(),
+        psd_meta_path: psd_meta_path.clone(),
+    };
 
     fs::create_dir_all(&cache_dir)
         .with_context(|| format!("failed to create cache dir {}", cache_dir.display()))?;
+    on_event(ZipLoadEvent::ZipStarted(progress.clone()));
 
     let cached_meta = load_zip_meta_file(&psd_meta_path)?;
     let meta_is_reusable = cached_meta
@@ -114,21 +144,26 @@ pub(crate) fn load_zip_entry(zip_path: &Path, cache_root: &Path) -> Result<ZipEn
                 .with_context(|| format!("failed to remove {}", extracted_dir.display()))?;
         }
         extract_zip_to_dir(zip_path, &extracted_dir)?;
+        on_event(ZipLoadEvent::ZipExtracted(progress.clone()));
     }
 
     let (psds, updated_at) = match cached_meta {
         Some(meta) if meta_is_reusable => (meta.psds, meta.updated_at),
         _ => rebuild_zip_meta(
-            zip_path,
-            &zip_cache_key,
-            &source,
-            &cache_dir,
-            &extracted_dir,
-            &psd_meta_path,
+            ZipMetaBuildContext {
+                zip_path,
+                zip_cache_key: &zip_cache_key,
+                source: &source,
+                cache_dir: &cache_dir,
+                extracted_dir: &extracted_dir,
+                psd_meta_path: &psd_meta_path,
+                progress: &progress,
+            },
+            &mut on_event,
         )?,
     };
 
-    Ok(ZipEntry {
+    let entry = ZipEntry {
         zip_path: zip_path.to_path_buf(),
         zip_cache_key,
         cache_dir,
@@ -136,37 +171,53 @@ pub(crate) fn load_zip_entry(zip_path: &Path, cache_root: &Path) -> Result<ZipEn
         psd_meta_path,
         psds,
         updated_at,
-    })
+    };
+    on_event(ZipLoadEvent::ZipReady(entry.clone()));
+    Ok(entry)
+}
+
+struct ZipMetaBuildContext<'a> {
+    zip_path: &'a Path,
+    zip_cache_key: &'a str,
+    source: &'a ZipSourceStamp,
+    cache_dir: &'a Path,
+    extracted_dir: &'a Path,
+    psd_meta_path: &'a Path,
+    progress: &'a ZipLoadProgress,
 }
 
 fn rebuild_zip_meta(
-    zip_path: &Path,
-    zip_cache_key: &str,
-    source: &ZipSourceStamp,
-    cache_dir: &Path,
-    extracted_dir: &Path,
-    psd_meta_path: &Path,
+    context: ZipMetaBuildContext<'_>,
+    on_event: &mut impl FnMut(ZipLoadEvent),
 ) -> Result<(Vec<PsdEntry>, u64)> {
-    let render_root = cache_dir.join("renders");
+    let render_root = context.cache_dir.join("renders");
     fs::create_dir_all(&render_root)
         .with_context(|| format!("failed to create {}", render_root.display()))?;
 
-    let mut psds = collect_psd_files(extracted_dir)?
-        .into_iter()
-        .map(|path| build_psd_entry(&path, &render_root))
-        .collect::<Vec<_>>();
+    let mut psds = Vec::new();
+    for path in collect_psd_files(context.extracted_dir)? {
+        let progress = PsdLoadProgress {
+            zip: context.progress.clone(),
+            file_name: source_file_name(&path),
+            psd_path: path.clone(),
+        };
+        on_event(ZipLoadEvent::PsdDiscovered(progress.clone()));
+        let psd = build_psd_entry(&path, &render_root);
+        on_event(ZipLoadEvent::PsdReady(progress, Box::new(psd.clone())));
+        psds.push(psd);
+    }
     psds.sort_by(|left, right| left.path.cmp(&right.path));
 
     let updated_at = unix_timestamp();
     let meta = ZipMetaFile {
         version: ZIP_META_VERSION,
-        zip_path: zip_path.to_path_buf(),
-        zip_cache_key: zip_cache_key.to_string(),
-        source: source.clone(),
+        zip_path: context.zip_path.to_path_buf(),
+        zip_cache_key: context.zip_cache_key.to_string(),
+        source: context.source.clone(),
         psds: psds.clone(),
         updated_at,
     };
-    write_zip_meta_file(psd_meta_path, &meta)?;
+    write_zip_meta_file(context.psd_meta_path, &meta)?;
 
     Ok((psds, updated_at))
 }

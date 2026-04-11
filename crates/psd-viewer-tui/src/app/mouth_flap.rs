@@ -98,6 +98,11 @@ impl App {
     }
 
     pub(crate) fn event_poll_timeout(&self, default_timeout: Duration) -> Duration {
+        let default_timeout = if self.startup_loading {
+            default_timeout.min(Duration::from_millis(50))
+        } else {
+            default_timeout
+        };
         let mouth_flap_timeout = self
             .mouth_flap
             .as_ref()

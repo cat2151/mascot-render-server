@@ -15,7 +15,7 @@ pub(crate) use favorites::saved_window_positions_match_for_test;
 #[cfg(test)]
 pub(crate) use favorites::{apply_favorite_variation, apply_favorite_window_position};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -78,6 +78,7 @@ pub(crate) struct App {
     layer_scroll_offset: usize,
     screen_height_px: Option<u16>,
     variations: HashMap<PathBuf, DisplayDiff>,
+    startup_pending_psd_paths: HashSet<PathBuf>,
     layer_rows: Vec<LayerRow>,
     favorites: Vec<FavoriteEntry>,
     favorite_selection_lookup: HashMap<FavoriteKey, (usize, usize)>,
@@ -128,6 +129,7 @@ impl App {
             layer_scroll_offset: 0,
             screen_height_px,
             variations: HashMap::new(),
+            startup_pending_psd_paths: HashSet::new(),
             layer_rows: Vec::new(),
             favorites: Vec::new(),
             favorite_selection_lookup: HashMap::new(),
@@ -386,6 +388,11 @@ impl App {
             return Ok(());
         };
         let psd_path = psd_entry.path.clone();
+        if self.startup_pending_psd_paths.contains(&psd_path) {
+            self.status = format!("Parsing selected PSD: {}", psd_entry.file_name);
+            self.sync_selection_bounds();
+            return Ok(());
+        }
         let psd_path_in_zip = psd_path_in_zip(&psd_path, &extracted_dir, &psd_path);
         let document = psd_entry.to_document(&zip_path, &psd_path_in_zip);
         let variation = self.variations.entry(psd_path.clone()).or_default().clone();

@@ -5,9 +5,10 @@ use std::sync::{Arc, Mutex};
 
 use crate::api::{PsdDocument, PsdSummary, RenderRequest, RenderedPng};
 use crate::cache::{
-    default_cache_root, load_cached_zip_entries_snapshot, load_zip_entries, load_zip_entry,
-    zip_source_stamp, ZipSourceStamp,
+    default_cache_root, load_cached_zip_entries_snapshot, load_zip_entries,
+    load_zip_entries_incremental, load_zip_entry, zip_source_stamp, ZipSourceStamp,
 };
+use crate::cache_progress::ZipLoadEvent;
 use crate::model::{PsdEntry, ZipEntry};
 use crate::psd::{analyze_psd, effective_visibility_with_overrides};
 use crate::render::render_png as render_png_with_visibility;
@@ -64,6 +65,16 @@ impl Core {
 
     pub fn load_zip_entries(&self, zip_sources: &[PathBuf]) -> Result<Vec<ZipEntry>> {
         let entries = load_zip_entries(zip_sources, &self.cache_dir)?;
+        self.cache_zip_entries(&entries)?;
+        Ok(entries)
+    }
+
+    pub fn load_zip_entries_incremental(
+        &self,
+        zip_sources: &[PathBuf],
+        on_event: impl FnMut(ZipLoadEvent),
+    ) -> Result<Vec<ZipEntry>> {
+        let entries = load_zip_entries_incremental(zip_sources, &self.cache_dir, on_event)?;
         self.cache_zip_entries(&entries)?;
         Ok(entries)
     }

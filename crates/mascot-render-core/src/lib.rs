@@ -1,6 +1,7 @@
 mod api;
 mod archive;
 mod cache;
+mod cache_progress;
 mod core;
 mod eye_blink;
 mod layer_name_format;
@@ -24,6 +25,7 @@ pub use api::{
     RenderedPng, VariationSpec, DISPLAY_DIFF_VERSION, VARIATION_SPEC_VERSION,
 };
 pub use archive::{display_path, existing_zip_sources};
+pub use cache_progress::{PsdLoadProgress, ZipLoadEvent, ZipLoadProgress};
 pub use core::{Core, CoreConfig};
 pub use eye_blink::{
     auto_generate_eye_blink_target, auto_generate_eye_blink_target_with_keywords,
