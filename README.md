@@ -13,7 +13,7 @@ A simplified desktop mascot, written in Rust.
 Rust is required.
 
 ```
-cargo install --force --git https://github.com/cat2151/mascot-render-server mascot-render-server psd-viewer-tui
+cargo install --force --git https://github.com/cat2151/mascot-render-server mascot-render-server psd-viewer-tui mascot-render-status-tui
 ```
 
 ## Preparation
