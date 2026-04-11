@@ -54,15 +54,15 @@ fn fake_check_failure(
     Err(Box::new(FakeCheckError))
 }
 
-fn fake_update_success(owner: &str, repo: &str, bins: &[&str]) -> Result<(), Box<dyn Error>> {
+fn fake_update_success(owner: &str, repo: &str, crates: &[&str]) -> Result<(), Box<dyn Error>> {
     assert_eq!(owner, "cat2151");
     assert_eq!(repo, "mascot-render-server");
-    assert_eq!(bins, ["mascot-render-server", "psd-viewer-tui"]);
+    assert_eq!(crates, ["mascot-render-server", "psd-viewer-tui"]);
 
     Ok(())
 }
 
-fn fake_update_failure(_owner: &str, _repo: &str, _bins: &[&str]) -> Result<(), Box<dyn Error>> {
+fn fake_update_failure(_owner: &str, _repo: &str, _crates: &[&str]) -> Result<(), Box<dyn Error>> {
     Err(Box::new(FakeCheckError))
 }
 
@@ -89,7 +89,7 @@ fn check_workspace_update_adds_context_to_errors() {
 }
 
 #[test]
-fn run_workspace_update_uses_workspace_repo_and_binary_arguments() {
+fn run_workspace_update_uses_workspace_repo_and_crate_arguments() {
     run_workspace_update_with(fake_update_success).expect("workspace update should succeed");
 }
 
