@@ -107,11 +107,13 @@ impl StatusTuiState {
     pub(crate) fn test_post_status_label(&self) -> String {
         match &self.test_post_status {
             TestPostStatus::Idle => "idle".to_string(),
-            TestPostStatus::Running(label) => format!("{label}: running"),
+            TestPostStatus::Running(label) => format!("running: {label}"),
             TestPostStatus::Succeeded { label, elapsed_ms } => {
-                format!("{label}: ok ({})", format_duration_ms(*elapsed_ms))
+                format!("ok ({}): {label}", format_duration_ms(*elapsed_ms))
             }
-            TestPostStatus::Failed { label, error } => format!("{label}: failed: {error}"),
+            TestPostStatus::Failed { label, error } => {
+                format!("failed: {error} | action={label}")
+            }
         }
     }
 

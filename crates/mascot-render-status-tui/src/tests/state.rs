@@ -84,15 +84,29 @@ fn test_post_status_tracks_background_post_result() {
     let mut state = StatusTuiState::new();
 
     state.record_test_post_started("show".to_string());
-    assert_eq!(state.test_post_status_label(), "show: running");
+    assert_eq!(state.test_post_status_label(), "running: show");
 
     state.record_test_post_success("show".to_string(), 1_234);
-    assert_eq!(state.test_post_status_label(), "show: ok (1.2s)");
+    assert_eq!(state.test_post_status_label(), "ok (1.2s): show");
 
     state.record_test_post_failed("hide".to_string(), "connection refused".to_string());
     assert_eq!(
         state.test_post_status_label(),
-        "hide: failed: connection refused"
+        "failed: connection refused | action=hide"
+    );
+}
+
+#[test]
+fn test_post_status_keeps_result_visible_before_long_action_detail() {
+    let mut state = StatusTuiState::new();
+    let long_detail = "change-character random cached PSD: generated_character_name=demo eligible_psd_count=10 selectable_psd_count=9 random_zip=cache/demo.zip random_psd=demo/body.psd random_png=cache/demo/body.png";
+
+    state.record_test_post_success(long_detail.to_string(), 1_234);
+
+    assert!(
+        state.test_post_status_label().starts_with("ok (1.2s): "),
+        "result should be visible before details: {}",
+        state.test_post_status_label()
     );
 }
 

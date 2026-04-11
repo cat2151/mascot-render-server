@@ -26,10 +26,14 @@ const HELP_LINES: &[&str] = &[
     "Poll interval: 250ms",
     "Disconnected starts mascot-render-server once.",
 ];
+const KEY_HINT_TEXT: &str = "? help | q quit | s show | h hide | p change-character configured name | r random cached PSD | t shake | m mouth-flap | Ctrl-C quit";
+const MIN_POST_RESULT_PANEL_HEIGHT: u16 = 6;
 
 pub(crate) fn draw(frame: &mut ratatui::Frame, state: &StatusTuiState) {
     let root_block = Block::default().borders(Borders::ALL).title("Status");
     frame.render_widget(root_block.clone(), frame.area());
+    let root_area = root_block.inner(frame.area());
+    let post_result_height = post_result_panel_height(root_area.height);
 
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -37,9 +41,10 @@ pub(crate) fn draw(frame: &mut ratatui::Frame, state: &StatusTuiState) {
             Constraint::Length(3),
             Constraint::Min(8),
             Constraint::Length(9),
-            Constraint::Length(4),
+            Constraint::Length(post_result_height),
+            Constraint::Length(3),
         ])
-        .split(root_block.inner(frame.area()));
+        .split(root_area);
 
     render_header(frame, layout[0], state);
 
@@ -84,16 +89,27 @@ pub(crate) fn draw(frame: &mut ratatui::Frame, state: &StatusTuiState) {
         failed_command_lines(state),
     );
 
-    let footer = Paragraph::new(format!(
-        "test POST: {}\n? help | q quit | s show | h hide | p change-character configured name | r random cached PSD | t shake | m mouth-flap | Ctrl-C quit",
-        state.test_post_status_label()
-    ))
-        .block(Block::default().borders(Borders::ALL).title("Keys"));
-    frame.render_widget(footer, layout[3]);
+    render_panel(
+        frame,
+        layout[3],
+        "Test POST Result",
+        vec![state.test_post_status_label()],
+    );
+    let keys = Paragraph::new(KEY_HINT_TEXT)
+        .block(Block::default().borders(Borders::ALL).title("Keys"))
+        .wrap(Wrap { trim: false });
+    frame.render_widget(keys, layout[4]);
 
     if state.is_help_visible() {
         render_help_overlay(frame, frame.area());
     }
+}
+
+pub(crate) fn post_result_panel_height(root_height: u16) -> u16 {
+    let target_height = root_height / 4;
+    target_height
+        .max(MIN_POST_RESULT_PANEL_HEIGHT)
+        .min(root_height)
 }
 
 fn render_help_overlay(frame: &mut ratatui::Frame, area: Rect) {
