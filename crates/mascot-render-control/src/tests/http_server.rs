@@ -8,8 +8,12 @@ use std::time::{Duration, Instant};
 
 use mascot_render_client::{
     change_skin_mascot_render_server_at, hide_mascot_render_server_at,
-    mascot_render_server_healthcheck_at, play_timeline_mascot_render_server_at,
-    show_mascot_render_server_at, MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep,
+    mascot_render_server_healthcheck_at, mascot_render_server_status_at,
+    play_timeline_mascot_render_server_at, show_mascot_render_server_at,
+};
+use mascot_render_protocol::{
+    MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep, ServerCommandStage,
+    ServerLifecyclePhase, ServerStatusSnapshot, ServerStatusStore,
 };
 
 use crate::command::MascotControlCommand;
@@ -20,8 +24,9 @@ use crate::http_server::{
 #[test]
 fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
     let (tx, rx) = mpsc::channel();
+    let status_store = test_status_store();
     let (address, _handle) =
-        start_mascot_control_server_on(SocketAddr::from(([127, 0, 0, 1], 0)), tx)
+        start_mascot_control_server_on(SocketAddr::from(([127, 0, 0, 1], 0)), tx, status_store)
             .expect("should start mascot control server");
     wait_for_healthcheck(address);
 
@@ -29,7 +34,7 @@ fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
     assert_eq!(
         rx.recv_timeout(Duration::from_secs(1))
             .expect("show command should arrive"),
-        MascotControlCommand::Show
+        MascotControlCommand::show()
     );
 
     let preview_path = PathBuf::from("cache/demo/variation.png");
@@ -102,16 +107,19 @@ fn mascot_control_server_accepts_show_hide_change_skin_and_timeline() {
     assert_eq!(
         rx.recv_timeout(Duration::from_secs(1))
             .expect("hide command should arrive"),
-        MascotControlCommand::Hide
+        MascotControlCommand::hide()
     );
 }
 
 #[test]
 fn mascot_control_server_reports_change_skin_apply_failure_to_http_caller() {
     let (tx, rx) = mpsc::channel();
-    let (address, _handle) =
-        start_mascot_control_server_on(SocketAddr::from(([127, 0, 0, 1], 0)), tx)
-            .expect("should start mascot control server");
+    let (address, _handle) = start_mascot_control_server_on(
+        SocketAddr::from(([127, 0, 0, 1], 0)),
+        tx,
+        test_status_store(),
+    )
+    .expect("should start mascot control server");
     wait_for_healthcheck(address);
 
     let preview_path = PathBuf::from("cache/demo/variation.png");
@@ -146,9 +154,12 @@ fn mascot_control_server_reports_change_skin_apply_failure_to_http_caller() {
 #[test]
 fn mascot_control_server_reports_health() {
     let (tx, _rx) = mpsc::channel();
-    let (address, _handle) =
-        start_mascot_control_server_on(SocketAddr::from(([127, 0, 0, 1], 0)), tx)
-            .expect("should start mascot control server");
+    let (address, _handle) = start_mascot_control_server_on(
+        SocketAddr::from(([127, 0, 0, 1], 0)),
+        tx,
+        test_status_store(),
+    )
+    .expect("should start mascot control server");
     wait_for_healthcheck(address);
 
     mascot_render_server_healthcheck_at(address).expect("healthcheck should succeed");
@@ -157,12 +168,15 @@ fn mascot_control_server_reports_health() {
 #[test]
 fn mascot_control_server_bind_error_mentions_existing_server() {
     let (tx, _rx) = mpsc::channel();
-    let (address, _handle) =
-        start_mascot_control_server_on(SocketAddr::from(([127, 0, 0, 1], 0)), tx)
-            .expect("should start mascot control server");
+    let (address, _handle) = start_mascot_control_server_on(
+        SocketAddr::from(([127, 0, 0, 1], 0)),
+        tx,
+        test_status_store(),
+    )
+    .expect("should start mascot control server");
 
     let (tx2, _rx2) = mpsc::channel();
-    let error = start_mascot_control_server_on(address, tx2)
+    let error = start_mascot_control_server_on(address, tx2, test_status_store())
         .expect_err("second server on the same address should fail");
 
     assert!(
@@ -184,6 +198,7 @@ fn mascot_control_server_notifies_ui_when_commands_arrive() {
     let (address, _handle) = start_mascot_control_server_on_with_notify(
         SocketAddr::from(([127, 0, 0, 1], 0)),
         tx,
+        test_status_store(),
         Some(notify),
     )
     .expect("should start mascot control server");
@@ -191,6 +206,52 @@ fn mascot_control_server_notifies_ui_when_commands_arrive() {
 
     show_mascot_render_server_at(address).expect("show request should succeed");
     wait_for_notify(&notified);
+}
+
+#[test]
+fn mascot_control_server_reports_status_snapshot() {
+    let (tx, _rx) = mpsc::channel();
+    let status_store = test_status_store();
+    status_store
+        .update(|snapshot| snapshot.lifecycle = ServerLifecyclePhase::Running)
+        .expect("status update should succeed");
+    let (address, _handle) =
+        start_mascot_control_server_on(SocketAddr::from(([127, 0, 0, 1], 0)), tx, status_store)
+            .expect("should start mascot control server");
+    wait_for_healthcheck(address);
+
+    let status =
+        mascot_render_server_status_at(address).expect("status request should return JSON");
+
+    assert_eq!(status.lifecycle, ServerLifecyclePhase::Running);
+    assert_eq!(
+        status.current_png_path,
+        PathBuf::from("cache/demo/open.png")
+    );
+}
+
+#[test]
+fn mascot_control_server_records_queued_command_status() {
+    let (tx, _rx) = mpsc::channel();
+    let status_store = test_status_store();
+    let (address, _handle) = start_mascot_control_server_on(
+        SocketAddr::from(([127, 0, 0, 1], 0)),
+        tx,
+        status_store.clone(),
+    )
+    .expect("should start mascot control server");
+    wait_for_healthcheck(address);
+
+    show_mascot_render_server_at(address).expect("show request should succeed");
+    let status = status_store.snapshot().expect("status should be readable");
+
+    assert_eq!(
+        status
+            .current_command
+            .expect("current command should be recorded")
+            .stage,
+        ServerCommandStage::Queued
+    );
 }
 
 fn wait_for_healthcheck(address: SocketAddr) {
@@ -215,4 +276,12 @@ fn wait_for_notify(notified: &AtomicUsize) {
     }
 
     panic!("mascot control server did not notify ui");
+}
+
+fn test_status_store() -> ServerStatusStore {
+    ServerStatusStore::new(ServerStatusSnapshot::starting(
+        PathBuf::from("config/mascot-render-server.toml"),
+        PathBuf::from("config/mascot-render-server.runtime.json"),
+        PathBuf::from("cache/demo/open.png"),
+    ))
 }

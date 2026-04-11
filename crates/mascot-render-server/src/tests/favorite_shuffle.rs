@@ -6,7 +6,8 @@ use std::time::Instant;
 mod helpers;
 
 use self::helpers::{
-    create_invalid_favorites_path, favorite, mascot_config, unique_test_root, TestFixtureCleanup,
+    create_invalid_favorites_path, favorite, mascot_config, replace_path_with_directory,
+    unique_test_root, TestFixtureCleanup,
 };
 use crate::favorite_shuffle::{
     build_playlist, favorites_path_for, load_favorites, suppress_rotation_for_active_display_diff,
@@ -265,14 +266,7 @@ fn favorite_shuffle_ignores_unreadable_psd_viewer_tui_activity() {
     let config_path = unique_test_root("test-favorite-shuffle-unreadable-tui").join("mascot.toml");
     let activity_path = psd_viewer_tui_activity_path(&config_path);
     let _cleanup = TestFixtureCleanup(activity_path.clone());
-    fs::remove_dir_all(
-        activity_path
-            .parent()
-            .expect("activity path should have a parent directory"),
-    )
-    .ok();
-    fs::create_dir_all(&activity_path)
-        .expect("should create directory at activity path to simulate unreadable heartbeat file");
+    replace_path_with_directory(&activity_path);
 
     assert!(
         !suppress_rotation_for_psd_viewer_tui_activity_path(&activity_path, 106)

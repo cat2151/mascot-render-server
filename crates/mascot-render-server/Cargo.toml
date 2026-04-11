@@ -12,8 +12,8 @@ path = "src/main.rs"
 anyhow = "1"
 clap = { version = "4.6.0", features = ["derive"] }
 eframe = "0.33"
-mascot-render-client = { path = "../mascot-render-client" }
 mascot-render-control = { path = "../mascot-render-control" }
+mascot-render-protocol = { path = "../mascot-render-protocol" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 mascot-render-core = { path = "../mascot-render-core" }

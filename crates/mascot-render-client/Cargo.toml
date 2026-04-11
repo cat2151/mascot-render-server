@@ -5,6 +5,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-serde = { version = "1", features = ["derive"] }
+mascot-render-protocol = { path = "../mascot-render-protocol" }
 serde_json = "1"
 

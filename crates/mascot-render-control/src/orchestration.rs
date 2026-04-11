@@ -6,8 +6,9 @@ use anyhow::{anyhow, Context, Result};
 use mascot_render_client::{
     change_skin_mascot_render_server, mascot_render_server_address,
     mascot_render_server_healthcheck_at, play_timeline_mascot_render_server,
-    show_mascot_render_server, wait_for_mascot_render_server_healthcheck_at, MotionTimelineRequest,
+    show_mascot_render_server, wait_for_mascot_render_server_healthcheck_at,
 };
+use mascot_render_protocol::MotionTimelineRequest;
 
 use crate::logging::{log_control_error, log_control_info};
 use crate::spawn::{spawn_mascot_render_server, SpawnedMascotRenderServer};

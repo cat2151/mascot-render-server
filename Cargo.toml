@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/mascot-render-core",
+    "crates/mascot-render-protocol",
     "crates/psd-viewer-tui",
     "crates/mascot-render-client",
     "crates/mascot-render-control",

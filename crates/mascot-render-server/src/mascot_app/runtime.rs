@@ -24,7 +24,7 @@ impl App for MascotApp {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Err(error) = self.apply_control_commands(ctx) {
-            log_server_error(format!("{error:#}"));
+            self.record_and_log_status_error(format!("{error:#}"));
         }
 
         if let Err(error) = self.favorite_shuffle.update(
@@ -33,20 +33,20 @@ impl App for MascotApp {
             &self.config,
             Instant::now(),
         ) {
-            log_server_error(format!("{error:#}"));
+            self.record_and_log_status_error(format!("{error:#}"));
         }
 
         if let Err(error) = self.reload_config_if_needed(ctx) {
-            log_server_error(format!("{error:#}"));
+            self.record_and_log_status_error(format!("{error:#}"));
         }
         self.apply_pending_restored_anchor_position(ctx);
 
         let now = Instant::now();
         if let Err(error) = self.sync_window_history(ctx, now) {
-            log_server_error(format!("{error:#}"));
+            self.record_and_log_status_error(format!("{error:#}"));
         }
         if let Err(error) = self.persist_pending_scale_if_due(now) {
-            log_server_error(format!("{error:#}"));
+            self.record_and_log_status_error(format!("{error:#}"));
         }
         if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -63,7 +63,7 @@ impl App for MascotApp {
             )
         });
         if let Err(error) = self.apply_scale_steps(ctx, now, keyboard_steps) {
-            log_server_error(format!("{error:#}"));
+            self.record_and_log_status_error(format!("{error:#}"));
         }
         let blink_closed = self.closed_skin.is_some() && self.eye_blink.is_closed(now);
         let mouth_flap_open = mouth_flap_skin_state(
@@ -177,10 +177,16 @@ impl App for MascotApp {
             if interaction {
                 let scroll_steps = ctx.input(|input| scroll_scale_steps(input.raw_scroll_delta.y));
                 if let Err(error) = self.apply_scale_steps(ctx, now, scroll_steps) {
-                    log_server_error(format!("{error:#}"));
+                    self.record_and_log_status_error(format!("{error:#}"));
                 }
             }
 
+            self.refresh_status_snapshot(
+                ctx,
+                self.config.png_path.clone(),
+                blink_closed,
+                mouth_flap_open,
+            );
             let repaint_after = self
                 .favorite_ensemble
                 .as_mut()
@@ -229,6 +235,7 @@ impl App for MascotApp {
         let texture_id = active_skin.texture.id();
         let active_image_size = active_skin.image_size;
         let active_alpha_mask = Arc::clone(&active_skin.alpha_mask);
+        let active_status_png_path = active_skin.path.clone();
         let active_skin_path = should_log_active_skin.then(|| active_skin.path.clone());
         if let Some(active_skin_path) = active_skin_path.as_deref() {
             self.log_rendered_skin_if_changed(active_skin_path);
@@ -310,11 +317,12 @@ impl App for MascotApp {
                     let scroll_steps =
                         ctx.input(|input| scroll_scale_steps(input.raw_scroll_delta.y));
                     if let Err(error) = self.apply_scale_steps(ctx, now, scroll_steps) {
-                        log_server_error(format!("{error:#}"));
+                        self.record_and_log_status_error(format!("{error:#}"));
                     }
                 }
             });
 
+        self.refresh_status_snapshot(ctx, active_status_png_path, blink_closed, mouth_flap_open);
         let repaint_after = self
             .motion
             .repaint_after(
@@ -343,14 +351,22 @@ impl App for MascotApp {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.record_lifecycle_stopping();
         if let Some(scale) = self.pending_persisted_scale {
             if let Err(error) = self.persist_pending_scale(scale) {
-                log_server_error(format!("{error:#}"));
+                self.record_and_log_status_error(format!("{error:#}"));
             }
         }
         if let Err(error) = self.window_history.flush() {
-            log_server_error(format!("{error:#}"));
+            self.record_and_log_status_error(format!("{error:#}"));
         }
+    }
+}
+
+impl MascotApp {
+    fn record_and_log_status_error(&self, message: String) {
+        self.record_status_error(message.clone());
+        log_server_error(message);
     }
 }
 

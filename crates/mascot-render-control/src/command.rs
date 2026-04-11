@@ -1,10 +1,10 @@
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::time::Duration;
 
 use anyhow::{anyhow, Error};
-use mascot_render_client::MotionTimelineRequest;
+use mascot_render_protocol::{MotionTimelineRequest, ServerCommandKind, ServerCommandStatus};
 
 type ControlCommandApplyResult = std::result::Result<(), String>;
 
@@ -25,50 +25,105 @@ pub(crate) enum ControlCommandWaitError {
 
 #[derive(Debug)]
 pub enum MascotControlCommand {
-    Show,
-    Hide,
+    Show {
+        status: ServerCommandStatus,
+    },
+    Hide {
+        status: ServerCommandStatus,
+    },
     ChangeSkin {
         png_path: PathBuf,
         completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
     },
     PlayTimeline {
         request: MotionTimelineRequest,
         completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
     },
 }
 
 impl MascotControlCommand {
+    pub fn show() -> Self {
+        Self::show_with_status(ServerCommandStatus::queued(ServerCommandKind::Show, "show"))
+    }
+
+    pub fn hide() -> Self {
+        Self::hide_with_status(ServerCommandStatus::queued(ServerCommandKind::Hide, "hide"))
+    }
+
     pub fn change_skin(png_path: PathBuf) -> Self {
-        Self::ChangeSkin {
+        let summary = change_skin_summary(&png_path);
+        Self::change_skin_with_status(
             png_path,
-            completion: None,
-        }
+            None,
+            ServerCommandStatus::queued(ServerCommandKind::ChangeSkin, summary),
+        )
     }
 
     pub fn play_timeline(request: MotionTimelineRequest) -> Self {
-        Self::PlayTimeline {
+        let summary = timeline_summary(&request);
+        Self::play_timeline_with_status(
             request,
-            completion: None,
-        }
+            None,
+            ServerCommandStatus::queued(ServerCommandKind::Timeline, summary),
+        )
+    }
+
+    pub(crate) fn show_with_status(status: ServerCommandStatus) -> Self {
+        Self::Show { status }
+    }
+
+    pub(crate) fn hide_with_status(status: ServerCommandStatus) -> Self {
+        Self::Hide { status }
     }
 
     pub(crate) fn change_skin_with_completion(
         png_path: PathBuf,
         completion: ControlCommandCompletion,
+        status: ServerCommandStatus,
     ) -> Self {
-        Self::ChangeSkin {
-            png_path,
-            completion: Some(completion),
-        }
+        Self::change_skin_with_status(png_path, Some(completion), status)
     }
 
     pub(crate) fn play_timeline_with_completion(
         request: MotionTimelineRequest,
         completion: ControlCommandCompletion,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::play_timeline_with_status(request, Some(completion), status)
+    }
+
+    fn change_skin_with_status(
+        png_path: PathBuf,
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::ChangeSkin {
+            png_path,
+            completion,
+            status,
+        }
+    }
+
+    fn play_timeline_with_status(
+        request: MotionTimelineRequest,
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
     ) -> Self {
         Self::PlayTimeline {
             request,
-            completion: Some(completion),
+            completion,
+            status,
+        }
+    }
+
+    pub fn status(&self) -> &ServerCommandStatus {
+        match self {
+            Self::Show { status }
+            | Self::Hide { status }
+            | Self::ChangeSkin { status, .. }
+            | Self::PlayTimeline { status, .. } => status,
         }
     }
 
@@ -82,8 +137,8 @@ impl MascotControlCommand {
                 completion: Some(completion),
                 ..
             } => completion.finish(result),
-            Self::Show
-            | Self::Hide
+            Self::Show { .. }
+            | Self::Hide { .. }
             | Self::ChangeSkin {
                 completion: None, ..
             }
@@ -97,7 +152,7 @@ impl MascotControlCommand {
 impl PartialEq for MascotControlCommand {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Show, Self::Show) | (Self::Hide, Self::Hide) => true,
+            (Self::Show { .. }, Self::Show { .. }) | (Self::Hide { .. }, Self::Hide { .. }) => true,
             (
                 Self::ChangeSkin { png_path: left, .. },
                 Self::ChangeSkin {
@@ -161,4 +216,18 @@ impl ControlCommandWaitError {
             ),
         }
     }
+}
+
+pub(crate) fn change_skin_summary(png_path: &Path) -> String {
+    format!("to={}", png_path.display())
+}
+
+pub(crate) fn timeline_summary(request: &MotionTimelineRequest) -> String {
+    let Some(step) = request.steps.first() else {
+        return "timeline steps=0".to_string();
+    };
+    format!(
+        "{:?} duration_ms={} fps={}",
+        step.kind, step.duration_ms, step.fps
+    )
 }

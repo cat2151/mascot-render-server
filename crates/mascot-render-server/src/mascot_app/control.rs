@@ -30,7 +30,12 @@ impl MascotApp {
         let mut first_error = None;
 
         while let Ok(command) = self.control_rx.try_recv() {
+            self.record_command_applying(&command);
             let result = self.apply_control_command(ctx, &command);
+            match &result {
+                Ok(()) => self.record_command_applied(&command),
+                Err(error) => self.record_command_failed(&command, format!("{error:#}")),
+            }
             command.finish(
                 result
                     .as_ref()
@@ -57,7 +62,7 @@ impl MascotApp {
         command: &MascotControlCommand,
     ) -> Result<()> {
         match command {
-            MascotControlCommand::Show => {
+            MascotControlCommand::Show { .. } => {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                 log_server_info(
@@ -65,7 +70,7 @@ impl MascotApp {
                 );
                 Ok(())
             }
-            MascotControlCommand::Hide => {
+            MascotControlCommand::Hide { .. } => {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                 log_server_info(
                     "trigger=control_command action=hide サーバウィンドウを非表示にしました",

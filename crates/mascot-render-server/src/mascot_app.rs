@@ -10,6 +10,7 @@ use mascot_render_core::{
     load_mascot_config, mascot_runtime_state_path, psd_viewer_tui_activity_path, Core, CoreConfig,
     MascotConfig, MascotImageData, MotionState,
 };
+use mascot_render_protocol::ServerStatusStore;
 use mascot_render_server::window_history::{
     current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
 };
@@ -43,6 +44,8 @@ mod runtime;
 mod scale;
 #[path = "mascot_app/skins.rs"]
 mod skins;
+#[path = "mascot_app/status.rs"]
+mod status;
 #[cfg(test)]
 pub(crate) use config::should_reload_config_for_test;
 use config::{active_config_scale, active_display_scale, should_reload_config, ReloadInputs};
@@ -97,6 +100,13 @@ pub(crate) struct MascotApp {
     window_layout: MascotWindowLayout,
     window_history: WindowHistoryTracker,
     pending_restored_anchor_position: Option<Pos2>,
+    status_store: ServerStatusStore,
+}
+
+pub(crate) struct MascotAppStartup {
+    pub(crate) control_rx: Receiver<MascotControlCommand>,
+    pub(crate) saved_window_position: Option<Pos2>,
+    pub(crate) status_store: ServerStatusStore,
 }
 
 pub(crate) fn click_interaction_hit_test(image_rect: Rect, pointer_pos: Pos2) -> bool {
@@ -110,9 +120,13 @@ impl MascotApp {
         config: MascotConfig,
         image: MascotImageData,
         favorite_ensemble_data: Option<crate::favorite_ensemble::FavoriteEnsemble>,
-        control_rx: Receiver<MascotControlCommand>,
-        saved_window_position: Option<Pos2>,
+        startup: MascotAppStartup,
     ) -> Self {
+        let MascotAppStartup {
+            control_rx,
+            saved_window_position,
+            status_store,
+        } = startup;
         let now = Instant::now();
         let scale = active_display_scale(&config, image.width, image.height);
         let runtime_state_path = mascot_runtime_state_path(&config_path);
@@ -185,6 +199,7 @@ impl MascotApp {
             window_layout: initial_window_layout,
             window_history: WindowHistoryTracker::new(history_path, saved_window_position),
             pending_restored_anchor_position: saved_window_position,
+            status_store,
         };
         app.motion
             .set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);
@@ -202,6 +217,8 @@ impl MascotApp {
         app.transparent_hit_test.update(TransparentHitTestUpdate {
             now: Instant::now(),
         });
+        app.record_lifecycle_running();
+        app.refresh_status_snapshot(&cc.egui_ctx, app.config.png_path.clone(), false, None);
         app
     }
 

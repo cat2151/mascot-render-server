@@ -44,14 +44,15 @@ use cli::{parse_cli, CliAction};
 use eframe::egui;
 use eframe::NativeOptions;
 use favorite_ensemble::load_favorite_ensemble;
-use mascot_app::MascotApp;
+use mascot_app::{MascotApp, MascotAppStartup};
 use mascot_render_control::{
     init_server_log, log_server_error, log_server_info, start_mascot_control_server_with_notify,
 };
 use mascot_render_core::{
-    check_workspace_update, load_mascot_config, load_mascot_image, run_workspace_update, Core,
-    CoreConfig,
+    check_workspace_update, load_mascot_config, load_mascot_image, mascot_runtime_state_path,
+    run_workspace_update, Core, CoreConfig,
 };
+use mascot_render_protocol::{ServerStatusSnapshot, ServerStatusStore};
 use mascot_render_server::window_history::{
     load_window_position, outer_position_for_anchor, window_history_path,
 };
@@ -92,6 +93,11 @@ fn main() -> Result<()> {
     } else {
         None
     };
+    let status_store = ServerStatusStore::new(ServerStatusSnapshot::starting(
+        config_path.clone(),
+        mascot_runtime_state_path(&config_path),
+        config.png_path.clone(),
+    ));
     let image = load_mascot_image(&config.png_path)?;
     let initial_window_layout = if let Some(favorite_ensemble) = &favorite_ensemble {
         let scale = config.favorite_ensemble_scale.unwrap_or(1.0).max(0.01);
@@ -168,16 +174,22 @@ fn main() -> Result<()> {
             let (control_tx, control_rx) = mpsc::channel();
             let repaint_ctx = cc.egui_ctx.clone();
             let notify = Arc::new(move || repaint_ctx.request_repaint());
-            let _control_server =
-                start_mascot_control_server_with_notify(control_tx, Some(notify))?;
+            let _control_server = start_mascot_control_server_with_notify(
+                control_tx,
+                status_store.clone(),
+                Some(notify),
+            )?;
             Ok(Box::new(MascotApp::new(
                 cc,
                 config_path.clone(),
                 config,
                 image,
                 favorite_ensemble,
-                control_rx,
-                saved_window_position,
+                MascotAppStartup {
+                    control_rx,
+                    saved_window_position,
+                    status_store: status_store.clone(),
+                },
             )))
         }),
     )

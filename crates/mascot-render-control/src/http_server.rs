@@ -7,13 +7,17 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use anyhow::{anyhow, bail, Context, Result};
-use mascot_render_client::{
-    mascot_render_server_address, validate_motion_timeline_request, ChangeSkinRequest,
-    MotionTimelineRequest,
+use mascot_render_client::mascot_render_server_address;
+use mascot_render_protocol::{
+    validate_motion_timeline_request, ChangeSkinRequest, MotionTimelineRequest, ServerCommandKind,
+    ServerCommandStage, ServerCommandStatus, ServerStatusStore,
 };
 use serde::Serialize;
 
-use crate::command::{ControlCommandCompletion, ControlCommandWaitError, MascotControlCommand};
+use crate::command::{
+    change_skin_summary, timeline_summary, ControlCommandCompletion, ControlCommandWaitError,
+    MascotControlCommand,
+};
 use crate::logging::{log_control_error, log_control_info};
 
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -31,22 +35,26 @@ struct HttpRequest {
 struct HttpResponse {
     status_code: u16,
     status_text: &'static str,
+    content_type: &'static str,
     body: Vec<u8>,
 }
 
 pub fn start_mascot_control_server(
     command_tx: Sender<MascotControlCommand>,
+    status_store: ServerStatusStore,
 ) -> Result<JoinHandle<()>> {
-    start_mascot_control_server_with_notify(command_tx, None)
+    start_mascot_control_server_with_notify(command_tx, status_store, None)
 }
 
 pub fn start_mascot_control_server_with_notify(
     command_tx: Sender<MascotControlCommand>,
+    status_store: ServerStatusStore,
     notify: Option<Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<JoinHandle<()>> {
     let (_address, handle) = start_mascot_control_server_on_with_notify(
         mascot_render_server_address(),
         command_tx,
+        status_store,
         notify,
     )?;
     Ok(handle)
@@ -56,13 +64,15 @@ pub fn start_mascot_control_server_with_notify(
 pub(crate) fn start_mascot_control_server_on(
     address: SocketAddr,
     command_tx: Sender<MascotControlCommand>,
+    status_store: ServerStatusStore,
 ) -> Result<(SocketAddr, JoinHandle<()>)> {
-    start_mascot_control_server_on_with_notify(address, command_tx, None)
+    start_mascot_control_server_on_with_notify(address, command_tx, status_store, None)
 }
 
 pub(crate) fn start_mascot_control_server_on_with_notify(
     address: SocketAddr,
     command_tx: Sender<MascotControlCommand>,
+    status_store: ServerStatusStore,
     notify: Option<Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<(SocketAddr, JoinHandle<()>)> {
     let listener = bind_control_listener(address)?;
@@ -73,7 +83,7 @@ pub(crate) fn start_mascot_control_server_on_with_notify(
         .set_nonblocking(true)
         .with_context(|| format!("failed to set {bound_address} nonblocking"))?;
 
-    let handle = thread::spawn(move || accept_loop(listener, command_tx, notify));
+    let handle = thread::spawn(move || accept_loop(listener, command_tx, status_store, notify));
     Ok((bound_address, handle))
 }
 
@@ -89,6 +99,7 @@ fn bind_control_listener(address: SocketAddr) -> Result<TcpListener> {
 fn accept_loop(
     listener: TcpListener,
     command_tx: Sender<MascotControlCommand>,
+    status_store: ServerStatusStore,
     notify: Option<Arc<dyn Fn() + Send + Sync>>,
 ) {
     loop {
@@ -106,9 +117,13 @@ fn accept_loop(
                     ));
                     continue;
                 }
-                if let Err(error) =
-                    handle_connection(&mut stream, peer, &command_tx, notify.as_ref())
-                {
+                if let Err(error) = handle_connection(
+                    &mut stream,
+                    peer,
+                    &command_tx,
+                    &status_store,
+                    notify.as_ref(),
+                ) {
                     log_control_error(format!(
                         "event=control_connection stage=handle peer={peer} error={error:#}"
                     ));
@@ -129,10 +144,11 @@ fn handle_connection(
     stream: &mut TcpStream,
     peer: SocketAddr,
     command_tx: &Sender<MascotControlCommand>,
+    status_store: &ServerStatusStore,
     notify: Option<&Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<()> {
     let response = match read_http_request(stream) {
-        Ok(request) => match route_request(peer, request, command_tx, notify) {
+        Ok(request) => match route_request(peer, request, command_tx, status_store, notify) {
             Ok(response) => response,
             Err(error) => {
                 log_control_error(format!(
@@ -156,26 +172,62 @@ fn route_request(
     peer: SocketAddr,
     request: HttpRequest,
     command_tx: &Sender<MascotControlCommand>,
+    status_store: &ServerStatusStore,
     notify: Option<&Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<HttpResponse> {
     let path = canonical_path(&request.path);
     match (request.method.as_str(), path.as_str()) {
         ("GET", "/health") => Ok(HttpResponse::ok_text("ok")),
+        ("GET", "/status") => {
+            let body = serde_json::to_vec(&status_store.snapshot()?)
+                .context("failed to serialize mascot server status")?;
+            Ok(HttpResponse::ok_json(body))
+        }
         ("POST", "/show") => {
-            enqueue_command(peer, "show", MascotControlCommand::Show, command_tx, notify)
+            let status = ServerCommandStatus::queued(ServerCommandKind::Show, "show");
+            enqueue_command(
+                peer,
+                "show",
+                MascotControlCommand::show_with_status(status),
+                command_tx,
+                status_store,
+                notify,
+            )
         }
         ("POST", "/hide") => {
-            enqueue_command(peer, "hide", MascotControlCommand::Hide, command_tx, notify)
+            let status = ServerCommandStatus::queued(ServerCommandKind::Hide, "hide");
+            enqueue_command(
+                peer,
+                "hide",
+                MascotControlCommand::hide_with_status(status),
+                command_tx,
+                status_store,
+                notify,
+            )
         }
         ("POST", "/change-skin") => {
             let request: ChangeSkinRequest = serde_json::from_slice(&request.body)
                 .context("failed to parse mascot change-skin request JSON")?;
             let png_path = request.png_path.clone();
+            let status = ServerCommandStatus::queued(
+                ServerCommandKind::ChangeSkin,
+                change_skin_summary(&png_path),
+            );
             log_request_payload(peer, "change_skin", &request);
-            let response =
-                enqueue_apply_command(peer, "change_skin", command_tx, notify, |completion| {
-                    MascotControlCommand::change_skin_with_completion(png_path.clone(), completion)
-                })?;
+            let response = enqueue_apply_command(
+                peer,
+                "change_skin",
+                command_tx,
+                status_store,
+                notify,
+                |completion| {
+                    MascotControlCommand::change_skin_with_completion(
+                        png_path.clone(),
+                        completion,
+                        status,
+                    )
+                },
+            )?;
             log_control_info(format!(
                 "event=control_request stage=applied peer={peer} action=change_skin png_path={}",
                 png_path.display()
@@ -186,11 +238,21 @@ fn route_request(
             let request: MotionTimelineRequest = serde_json::from_slice(&request.body)
                 .context("failed to parse mascot motion timeline request JSON")?;
             validate_motion_timeline_request(&request)?;
+            let status = ServerCommandStatus::queued(
+                ServerCommandKind::Timeline,
+                timeline_summary(&request),
+            );
             log_request_payload(peer, "timeline", &request);
-            let response =
-                enqueue_apply_command(peer, "timeline", command_tx, notify, |completion| {
-                    MascotControlCommand::play_timeline_with_completion(request, completion)
-                })?;
+            let response = enqueue_apply_command(
+                peer,
+                "timeline",
+                command_tx,
+                status_store,
+                notify,
+                |completion| {
+                    MascotControlCommand::play_timeline_with_completion(request, completion, status)
+                },
+            )?;
             log_control_info(format!(
                 "event=control_request stage=applied peer={peer} action=timeline"
             ));
@@ -205,13 +267,31 @@ fn enqueue_command(
     action: &str,
     command: MascotControlCommand,
     command_tx: &Sender<MascotControlCommand>,
+    status_store: &ServerStatusStore,
     notify: Option<&Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<HttpResponse> {
     log_control_info(format!(
         "event=control_request stage=received peer={peer} action={action}"
     ));
+    let command_status = command.status().clone();
+    status_store.update(|snapshot| {
+        snapshot.current_command = Some(command_status.clone());
+        snapshot.last_error = None;
+    })?;
     command_tx
         .send(command)
+        .inspect_err(|error| {
+            let failed_status = command_status.with_stage(
+                ServerCommandStage::Failed,
+                mascot_render_protocol::now_unix_ms(),
+                Some(error.to_string()),
+            );
+            let _ = status_store.update(|snapshot| {
+                snapshot.current_command = None;
+                snapshot.last_failed_command = Some(failed_status);
+                snapshot.last_error = Some(error.to_string());
+            });
+        })
         .with_context(|| format!("failed to enqueue mascot {action} command"))?;
     log_control_info(format!(
         "event=control_request stage=queued peer={peer} action={action}"
@@ -224,11 +304,19 @@ fn enqueue_apply_command(
     peer: SocketAddr,
     action: &str,
     command_tx: &Sender<MascotControlCommand>,
+    status_store: &ServerStatusStore,
     notify: Option<&Arc<dyn Fn() + Send + Sync>>,
     build_command: impl FnOnce(ControlCommandCompletion) -> MascotControlCommand,
 ) -> Result<HttpResponse> {
     let (completion, waiter) = ControlCommandCompletion::pair();
-    enqueue_command(peer, action, build_command(completion), command_tx, notify)?;
+    enqueue_command(
+        peer,
+        action,
+        build_command(completion),
+        command_tx,
+        status_store,
+        notify,
+    )?;
     match waiter.wait(APPLY_WAIT_TIMEOUT) {
         Ok(()) => Ok(HttpResponse::ok_text("applied")),
         Err(ControlCommandWaitError::TimedOut(timeout)) => {
@@ -318,10 +406,11 @@ fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest> {
 
 fn write_http_response(stream: &mut TcpStream, response: &HttpResponse) -> Result<()> {
     let header = format!(
-        "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nContent-Type: {}\r\nConnection: close\r\n\r\n",
         response.status_code,
         response.status_text,
-        response.body.len()
+        response.body.len(),
+        response.content_type
     );
     stream
         .write_all(header.as_bytes())
@@ -345,7 +434,17 @@ impl HttpResponse {
         Self {
             status_code: 200,
             status_text: "OK",
+            content_type: "text/plain; charset=utf-8",
             body: body.as_bytes().to_vec(),
+        }
+    }
+
+    fn ok_json(body: Vec<u8>) -> Self {
+        Self {
+            status_code: 200,
+            status_text: "OK",
+            content_type: "application/json; charset=utf-8",
+            body,
         }
     }
 
@@ -353,6 +452,7 @@ impl HttpResponse {
         Self {
             status_code: 400,
             status_text: "Bad Request",
+            content_type: "text/plain; charset=utf-8",
             body: body.into_bytes(),
         }
     }
@@ -361,6 +461,7 @@ impl HttpResponse {
         Self {
             status_code: 500,
             status_text: "Internal Server Error",
+            content_type: "text/plain; charset=utf-8",
             body: body.into_bytes(),
         }
     }
@@ -369,6 +470,7 @@ impl HttpResponse {
         Self {
             status_code: 504,
             status_text: "Gateway Timeout",
+            content_type: "text/plain; charset=utf-8",
             body: body.into_bytes(),
         }
     }
@@ -377,6 +479,7 @@ impl HttpResponse {
         Self {
             status_code: 404,
             status_text: "Not Found",
+            content_type: "text/plain; charset=utf-8",
             body: body.as_bytes().to_vec(),
         }
     }

@@ -2433,7 +2433,7 @@ name = "mascot-render-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "serde",
+ "mascot-render-protocol",
  "serde_json",
 ]
 
@@ -2443,6 +2443,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mascot-render-client",
+ "mascot-render-protocol",
  "serde",
  "serde_json",
  "time",
@@ -2466,15 +2467,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "mascot-render-protocol"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mascot-render-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "eframe",
- "mascot-render-client",
  "mascot-render-control",
  "mascot-render-core",
+ "mascot-render-protocol",
  "raw-window-handle",
  "serde",
  "serde_json",
@@ -3388,6 +3398,7 @@ dependencies = [
  "mascot-render-client",
  "mascot-render-control",
  "mascot-render-core",
+ "mascot-render-protocol",
  "mascot-render-server",
  "ratatui",
  "ratatui-image",

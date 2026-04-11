@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::favorite_shuffle::FavoriteEntry;
@@ -49,11 +50,28 @@ pub(super) fn create_invalid_favorites_path(favorites_path: &Path) {
 }
 
 pub(super) fn unique_test_root(prefix: &str) -> PathBuf {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     let unique_suffix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system time should be after unix epoch")
         .as_nanos();
-    workspace_cache_root().join(format!("{prefix}-{unique_suffix}"))
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    workspace_cache_root().join(format!("{prefix}-{unique_suffix}-{id}"))
+}
+
+pub(super) fn replace_path_with_directory(path: &Path) {
+    if path.is_dir() {
+        fs::remove_dir_all(path).expect("should remove stale fixture directory");
+    } else {
+        fs::remove_file(path).ok();
+    }
+    fs::create_dir_all(
+        path.parent()
+            .expect("fixture path should have a parent directory"),
+    )
+    .expect("should create fixture parent directory");
+    fs::create_dir(path)
+        .expect("should create directory at fixture file path to simulate unreadable file");
 }
 
 /// RAII guard that removes a temporary test fixture path on drop.

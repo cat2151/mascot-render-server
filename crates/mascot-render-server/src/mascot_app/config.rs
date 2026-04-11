@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant, SystemTime};
 
-use mascot_render_client::{MotionTimelineKind, MotionTimelineRequest};
 use mascot_render_core::MascotConfig;
+use mascot_render_protocol::{MotionTimelineKind, MotionTimelineRequest};
 
 use super::effective_scale;
 
