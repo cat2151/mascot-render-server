@@ -3,19 +3,9 @@ use std::fmt;
 
 use cat_self_update_lib::CheckResult;
 
-use crate::workspace_update::{
-    check_workspace_update_with, run_workspace_update_with, workspace_install_command,
-};
+use crate::workspace_update::{check_workspace_update_with, run_workspace_update_with};
 
 const FAKE_CHECK_ERROR_MESSAGE: &str = "network down";
-
-#[test]
-fn workspace_install_command_matches_readme_install_command() {
-    assert_eq!(
-        workspace_install_command(),
-        "cargo install --force --git https://github.com/cat2151/mascot-render-server mascot-render-server psd-viewer-tui mascot-render-status-tui"
-    );
-}
 
 fn fake_check_success(
     owner: &str,
@@ -101,18 +91,11 @@ fn run_workspace_update_uses_workspace_repo_and_crate_arguments() {
 }
 
 #[test]
-fn run_workspace_update_adds_context_to_errors() {
+fn run_workspace_update_returns_update_error() {
     let error = run_workspace_update_with(fake_update_failure).expect_err("should fail");
 
     assert_eq!(
         error.to_string(),
-        format!("manual reinstall command: {}", workspace_install_command())
-    );
-    assert_eq!(
-        error
-            .source()
-            .expect("context should retain the update failure")
-            .to_string(),
         format!("failed to update workspace: {FAKE_CHECK_ERROR_MESSAGE}")
     );
 }

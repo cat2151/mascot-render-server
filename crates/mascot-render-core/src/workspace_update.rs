@@ -1,24 +1,16 @@
 use std::error::Error;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use cat_self_update_lib::{check_remote_commit, self_update, CheckResult};
 
 const UPDATE_REPO_OWNER: &str = "cat2151";
 const UPDATE_REPO_NAME: &str = "mascot-render-server";
 const UPDATE_BRANCH: &str = "main";
-const UPDATE_GIT_URL: &str = "https://github.com/cat2151/mascot-render-server";
 const UPDATE_TARGETS: [&str; 3] = [
     "mascot-render-server",
     "psd-viewer-tui",
     "mascot-render-status-tui",
 ];
-
-pub fn workspace_install_command() -> String {
-    format!(
-        "cargo install --force --git {UPDATE_GIT_URL} {}",
-        UPDATE_TARGETS.join(" ")
-    )
-}
 
 /// Function signature for checking the remote commit of the workspace repository.
 /// Parameters are `(owner, repo, branch, embedded_hash)`.
@@ -47,7 +39,6 @@ pub fn check_workspace_update(build_commit_hash: &str) -> Result<String> {
 pub(crate) fn run_workspace_update_with(updater: SelfUpdateFn) -> Result<()> {
     updater(UPDATE_REPO_OWNER, UPDATE_REPO_NAME, &UPDATE_TARGETS)
         .map_err(|error| anyhow!("failed to update workspace: {error}"))
-        .with_context(|| format!("manual reinstall command: {}", workspace_install_command()))
 }
 
 pub fn run_workspace_update() -> Result<()> {
