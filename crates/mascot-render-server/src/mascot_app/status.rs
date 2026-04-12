@@ -186,12 +186,7 @@ impl MascotApp {
     }
 
     pub(super) fn record_performance_stage(&mut self, stage: &'static str, elapsed_ms: u64) {
-        if let Some(trace) = self
-            .pending_performance_traces
-            .iter_mut()
-            .rev()
-            .find(|trace| trace.applied_at_unix_ms.is_none())
-        {
+        if let Some(trace) = self.pending_performance_traces.last_mut() {
             trace.stage_durations.push(PerformanceStageDuration {
                 name: stage,
                 elapsed_ms,

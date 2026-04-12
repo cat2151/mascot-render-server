@@ -77,7 +77,23 @@ impl App for MascotApp {
         if let Err(error) = self.apply_scale_steps(ctx, now, keyboard_steps) {
             self.record_and_log_status_error(format!("{error:#}"));
         }
-        let blink_closed = self.closed_skin.is_some() && self.eye_blink.is_closed(now);
+        let blink_requested_closed = self.eye_blink.is_closed(now);
+        if blink_requested_closed && self.closed_skin.is_none() && !self.closed_skin_unavailable {
+            let config = self.config.clone();
+            match self.load_closed_eye_skin_for_config(ctx, &config) {
+                Ok(Some(closed_skin)) => {
+                    self.closed_skin = Some(closed_skin);
+                }
+                Ok(None) => {
+                    self.closed_skin_unavailable = true;
+                }
+                Err(error) => {
+                    self.closed_skin_unavailable = true;
+                    self.record_and_log_status_error(format!("{error:#}"));
+                }
+            }
+        }
+        let blink_closed = blink_requested_closed && self.closed_skin.is_some();
         let mouth_flap_open = mouth_flap_skin_state(
             self.mouth_open_skin.is_some() || self.mouth_closed_skin.is_some(),
             &mut self.motion,

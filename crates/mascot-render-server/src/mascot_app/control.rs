@@ -5,6 +5,7 @@ use anyhow::{bail, Context, Result};
 use eframe::egui;
 use mascot_render_control::{log_server_info, MascotControlCommand};
 use mascot_render_core::MascotConfig;
+use mascot_render_protocol::{MotionTimelineKind, MotionTimelineRequest};
 use mascot_render_server::apply_motion_timeline_request;
 
 use super::character::{resolve_character_skin, ResolvedCharacterSkin};
@@ -88,6 +89,20 @@ impl MascotApp {
             }
             MascotControlCommand::PlayTimeline { request, .. } => {
                 let timeline_summary = describe_motion_timeline_request(request);
+                if request_contains_mouth_flap(request) {
+                    let refresh_started_at = Instant::now();
+                    self.ensure_mouth_flap_skins_for_timeline(ctx)
+                        .with_context(|| {
+                            format!(
+                                "failed to prepare mouth-flap skins before applying timeline: {}",
+                                timeline_summary
+                            )
+                        })?;
+                    self.record_performance_stage(
+                        "ensure_mouth_flap_skins_for_timeline",
+                        elapsed_ms_since(refresh_started_at),
+                    );
+                }
                 let stage_started_at = Instant::now();
                 let result = apply_motion_timeline_request(
                     &mut self.motion,
@@ -228,46 +243,15 @@ impl MascotApp {
                 })
             },
         )?;
-        let closed_skin = self.run_timed_change_character_stage(
-            previous_png_path,
-            &next_config.png_path,
-            "refresh_closed_eye_skin",
-            |app| {
-                app.load_closed_eye_skin_for_config(ctx, &next_config)
-                    .with_context(|| {
-                        format!(
-                            "failed to refresh closed-eye skin after changing to {}",
-                            next_config.png_path.display()
-                        )
-                    })
-            },
-        )?;
         log_server_info(format!(
-            "trigger=control_command action=change_character stage=refresh_closed_eye_skin selected_zip={} selected_psd={} derived_png_path={}",
+            "trigger=control_command action=change_character stage=defer_auxiliary_skins selected_zip={} selected_psd={} reason=show_default_png_first",
             next_config.zip_path.display(),
             next_config.psd_path_in_zip.display(),
-            optional_cached_skin_path(closed_skin.as_ref())
         ));
-        let (mouth_open_skin, mouth_closed_skin) = self.run_timed_change_character_stage(
-            previous_png_path,
-            &next_config.png_path,
-            "refresh_mouth_flap_skins",
-            |app| {
-                app.load_mouth_flap_skins_for_config(ctx, &next_config)
-                    .with_context(|| {
-                        format!(
-                            "failed to refresh mouth-flap skins after changing to {}",
-                            next_config.png_path.display()
-                        )
-                    })
-            },
-        )?;
         log_server_info(format!(
-            "trigger=control_command action=change_character stage=refresh_mouth_flap_skins selected_zip={} selected_psd={} derived_open_png_path={} derived_closed_png_path={}",
+            "trigger=control_command action=change_character stage=defer_mouth_flap_skins selected_zip={} selected_psd={} reason=lazy_generate_on_timeline",
             next_config.zip_path.display(),
             next_config.psd_path_in_zip.display(),
-            optional_cached_skin_path(mouth_open_skin.as_ref()),
-            optional_cached_skin_path(mouth_closed_skin.as_ref())
         ));
         self.run_timed_change_character_stage(
             previous_png_path,
@@ -308,9 +292,9 @@ impl MascotApp {
             ),
             next_config,
             open_skin,
-            closed_skin,
-            mouth_open_skin,
-            mouth_closed_skin,
+            closed_skin: None,
+            mouth_open_skin: None,
+            mouth_closed_skin: None,
             persisted_png_path: persisted.png_path,
         })
     }
@@ -326,6 +310,7 @@ impl MascotApp {
         self.config = prepared.next_config;
         self.open_skin = prepared.open_skin;
         self.closed_skin = prepared.closed_skin;
+        self.closed_skin_unavailable = false;
         self.mouth_open_skin = prepared.mouth_open_skin;
         self.mouth_closed_skin = prepared.mouth_closed_skin;
         self.base_size = prepared.base_size;
@@ -354,6 +339,23 @@ impl MascotApp {
     }
 }
 
+impl MascotApp {
+    fn ensure_mouth_flap_skins_for_timeline(&mut self, ctx: &egui::Context) -> Result<()> {
+        if self.config.favorite_ensemble_enabled
+            || (self.mouth_open_skin.is_some() && self.mouth_closed_skin.is_some())
+        {
+            return Ok(());
+        }
+
+        let config = self.config.clone();
+        let (mouth_open_skin, mouth_closed_skin) =
+            self.load_mouth_flap_skins_for_config(ctx, &config)?;
+        self.mouth_open_skin = mouth_open_skin;
+        self.mouth_closed_skin = mouth_closed_skin;
+        Ok(())
+    }
+}
+
 fn apply_resolved_character(config: &mut MascotConfig, resolved: &ResolvedCharacterSkin) {
     config.png_path = resolved.png_path.clone();
     config.zip_path = resolved.zip_path.clone();
@@ -371,14 +373,16 @@ fn config_matches_resolved_character(
         && config.display_diff_path == resolved.display_diff_path
 }
 
-fn optional_cached_skin_path(skin: Option<&CachedSkin>) -> String {
-    skin.map(|skin| skin.path.display().to_string())
-        .unwrap_or_else(|| "-".to_string())
-}
-
 fn optional_path_text(path: Option<&Path>) -> String {
     path.map(|path| path.display().to_string())
         .unwrap_or_else(|| "-".to_string())
+}
+
+fn request_contains_mouth_flap(request: &MotionTimelineRequest) -> bool {
+    request
+        .steps
+        .iter()
+        .any(|step| step.kind == MotionTimelineKind::MouthFlap)
 }
 
 fn elapsed_ms_since(started_at: Instant) -> u64 {

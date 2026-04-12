@@ -79,3 +79,35 @@ pub struct RenderedPng {
     pub warnings: Vec<String>,
     pub cache_hit: bool,
 }
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ZipEntryLoadReport {
+    pub elapsed_ms: u64,
+    pub memory_cache_hit: bool,
+    pub meta_cache_hit: bool,
+    pub zip_extracted: bool,
+    pub psd_meta_rebuilt: bool,
+    pub psd_entries_built: usize,
+    pub extract_ms: u64,
+    pub psd_entry_build_ms: u64,
+    pub rebuild_meta_ms: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PsdInspectReport {
+    pub elapsed_ms: u64,
+    pub zip_entry: ZipEntryLoadReport,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RenderPngReport {
+    pub elapsed_ms: u64,
+    pub zip_entry: ZipEntryLoadReport,
+    pub default_render: bool,
+    pub variation_cache_hit: bool,
+    pub save_variation_spec_ms: u64,
+    pub custom_psd_analyze_ms: u64,
+    pub effective_visibility_ms: u64,
+    pub compose_and_save_png_ms: u64,
+    pub write_render_meta_ms: u64,
+}

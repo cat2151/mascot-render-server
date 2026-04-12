@@ -7,7 +7,10 @@ use serde_json::json;
 use zip::ZipWriter;
 
 use crate::cache::{zip_cache_key_for_test, zip_source_stamp_for_test, ZipSourceStamp};
-use crate::{workspace_cache_root, Core, CoreConfig, PsdEntry};
+use crate::rgba_cache::write_default_rgba_cache_for_rgba;
+use crate::{
+    load_or_build_skin_details, workspace_cache_root, Core, CoreConfig, MascotImageData, PsdEntry,
+};
 
 #[test]
 fn load_cached_zip_entries_snapshot_trusts_matching_persisted_meta() {
@@ -20,7 +23,9 @@ fn load_cached_zip_entries_snapshot_trusts_matching_persisted_meta() {
     let live_source = zip_source_stamp_for_test(&live_zip_path).unwrap();
     let live_cache_dir = cache_dir.join(&live_cache_key);
     let live_psd_path = live_cache_dir.join("extracted/live/body.psd");
-    let missing_render_path = live_cache_dir.join("renders/live__body.png");
+    let live_render_path = live_cache_dir.join("renders/live__body.png");
+    create_file(&live_render_path);
+    create_default_render_sidecars(&live_render_path);
 
     let stale_zip_path = cache_dir.join("assets/stale.zip");
     create_file(&stale_zip_path);
@@ -40,7 +45,7 @@ fn load_cached_zip_entries_snapshot_trusts_matching_persisted_meta() {
         &live_zip_path,
         &live_cache_key,
         &live_source,
-        vec![sample_psd_entry(&live_psd_path, Some(missing_render_path))],
+        vec![sample_psd_entry(&live_psd_path, Some(live_render_path))],
     );
     write_snapshot_meta(
         &stale_cache_dir.join("psd-meta.json"),
@@ -62,6 +67,112 @@ fn load_cached_zip_entries_snapshot_trusts_matching_persisted_meta() {
     assert_eq!(
         zip_entries[0].psds[0].rendered_png_path,
         Some(live_cache_dir.join("renders/live__body.png"))
+    );
+
+    let _ = fs::remove_dir_all(&cache_dir);
+}
+
+#[test]
+fn load_cached_zip_entries_snapshot_rejects_meta_when_default_png_is_missing() {
+    let cache_dir = workspace_cache_root().join("test-snapshot-missing-default-png");
+    let _ = fs::remove_dir_all(&cache_dir);
+
+    let zip_path = cache_dir.join("assets/live.zip");
+    create_file(&zip_path);
+    let cache_key = zip_cache_key_for_test(&zip_path).unwrap();
+    let source = zip_source_stamp_for_test(&zip_path).unwrap();
+    let live_cache_dir = cache_dir.join(&cache_key);
+    let psd_path = live_cache_dir.join("extracted/live/body.psd");
+    let missing_render_path = live_cache_dir.join("renders/live__body.png");
+
+    write_snapshot_meta(
+        &live_cache_dir.join("psd-meta.json"),
+        &zip_path,
+        &cache_key,
+        &source,
+        vec![sample_psd_entry(&psd_path, Some(missing_render_path))],
+    );
+
+    let core = Core::new(CoreConfig {
+        cache_dir: cache_dir.clone(),
+    });
+    let zip_entries = core.load_cached_zip_entries_snapshot().unwrap();
+
+    assert!(
+        zip_entries.is_empty(),
+        "snapshot should not advertise a default PNG that is missing on disk"
+    );
+
+    let _ = fs::remove_dir_all(&cache_dir);
+}
+
+#[test]
+fn load_cached_zip_entries_snapshot_rejects_meta_when_default_skin_details_are_missing() {
+    let cache_dir = workspace_cache_root().join("test-snapshot-missing-default-skin-details");
+    let _ = fs::remove_dir_all(&cache_dir);
+
+    let zip_path = cache_dir.join("assets/live.zip");
+    create_file(&zip_path);
+    let cache_key = zip_cache_key_for_test(&zip_path).unwrap();
+    let source = zip_source_stamp_for_test(&zip_path).unwrap();
+    let live_cache_dir = cache_dir.join(&cache_key);
+    let psd_path = live_cache_dir.join("extracted/live/body.psd");
+    let render_path = live_cache_dir.join("renders/live__body.png");
+    create_file(&render_path);
+    create_raw_rgba_cache(&render_path);
+
+    write_snapshot_meta(
+        &live_cache_dir.join("psd-meta.json"),
+        &zip_path,
+        &cache_key,
+        &source,
+        vec![sample_psd_entry(&psd_path, Some(render_path))],
+    );
+
+    let core = Core::new(CoreConfig {
+        cache_dir: cache_dir.clone(),
+    });
+    let zip_entries = core.load_cached_zip_entries_snapshot().unwrap();
+
+    assert!(
+        zip_entries.is_empty(),
+        "snapshot should not be ready until default PNG skin details exist"
+    );
+
+    let _ = fs::remove_dir_all(&cache_dir);
+}
+
+#[test]
+fn load_cached_zip_entries_snapshot_rejects_meta_when_default_rgba_cache_is_missing() {
+    let cache_dir = workspace_cache_root().join("test-snapshot-missing-default-rgba-cache");
+    let _ = fs::remove_dir_all(&cache_dir);
+
+    let zip_path = cache_dir.join("assets/live.zip");
+    create_file(&zip_path);
+    let cache_key = zip_cache_key_for_test(&zip_path).unwrap();
+    let source = zip_source_stamp_for_test(&zip_path).unwrap();
+    let live_cache_dir = cache_dir.join(&cache_key);
+    let psd_path = live_cache_dir.join("extracted/live/body.psd");
+    let render_path = live_cache_dir.join("renders/live__body.png");
+    create_file(&render_path);
+    create_skin_details_cache(&render_path);
+
+    write_snapshot_meta(
+        &live_cache_dir.join("psd-meta.json"),
+        &zip_path,
+        &cache_key,
+        &source,
+        vec![sample_psd_entry(&psd_path, Some(render_path))],
+    );
+
+    let core = Core::new(CoreConfig {
+        cache_dir: cache_dir.clone(),
+    });
+    let zip_entries = core.load_cached_zip_entries_snapshot().unwrap();
+
+    assert!(
+        zip_entries.is_empty(),
+        "snapshot should not be ready until default PNG raw RGBA cache exists"
     );
 
     let _ = fs::remove_dir_all(&cache_dir);
@@ -188,6 +299,25 @@ fn create_file(path: &std::path::Path) {
         fs::create_dir_all(parent).unwrap();
     }
     fs::write(path, b"test").unwrap();
+}
+
+fn create_skin_details_cache(path: &std::path::Path) {
+    let image = MascotImageData {
+        path: path.to_path_buf(),
+        width: 1,
+        height: 1,
+        rgba: vec![255, 255, 255, 255],
+    };
+    load_or_build_skin_details(&image).unwrap();
+}
+
+fn create_raw_rgba_cache(path: &std::path::Path) {
+    write_default_rgba_cache_for_rgba(path, [1, 1], &[255, 255, 255, 255]).unwrap();
+}
+
+fn create_default_render_sidecars(path: &std::path::Path) {
+    create_skin_details_cache(path);
+    create_raw_rgba_cache(path);
 }
 
 fn create_empty_zip(path: &std::path::Path) {

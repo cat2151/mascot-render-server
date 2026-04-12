@@ -58,8 +58,8 @@ use mascot_render_control::{
     init_server_log, log_server_error, log_server_info, start_mascot_control_server_with_notify,
 };
 use mascot_render_core::{
-    check_workspace_update, load_mascot_config, load_mascot_image, mascot_runtime_state_path,
-    run_workspace_update, Core, CoreConfig,
+    check_workspace_update, load_mascot_config, load_mascot_image, load_or_build_skin_details,
+    mascot_runtime_state_path, run_workspace_update, Core, CoreConfig,
 };
 use mascot_render_protocol::{ServerStatusSnapshot, ServerStatusStore};
 use mascot_render_server::window_history::{
@@ -67,7 +67,9 @@ use mascot_render_server::window_history::{
 };
 use mascot_render_server::{AlphaBounds, MascotWindowLayout};
 
-use app_support::{alpha_mask, content_bounds, size_vec, window_title};
+use app_support::{
+    alpha_bounds_from_skin_bounds, alpha_mask, content_bounds, size_vec, window_title,
+};
 
 const BUILD_COMMIT_HASH: &str = env!("BUILD_COMMIT_HASH");
 
@@ -130,9 +132,17 @@ fn main() -> Result<()> {
         )
     } else {
         let base_size = size_vec(image.width, image.height, config.scale);
-        let initial_alpha_mask = alpha_mask(&image.rgba);
-        let initial_content_bounds =
-            content_bounds([image.width, image.height], initial_alpha_mask.as_ref());
+        let initial_content_bounds = match load_or_build_skin_details(&image) {
+            Ok((details, _)) => alpha_bounds_from_skin_bounds(details.content_bounds),
+            Err(error) => {
+                log_server_error(format!(
+                    "failed to load cached startup skin details for {}; rebuilding without persistent cache: {error:#}",
+                    image.path.display()
+                ));
+                let initial_alpha_mask = alpha_mask(&image.rgba);
+                content_bounds([image.width, image.height], initial_alpha_mask.as_ref())
+            }
+        };
         MascotWindowLayout::new(
             base_size,
             [image.width, image.height],

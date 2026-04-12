@@ -98,6 +98,7 @@ pub(crate) struct MascotApp {
     core: Core,
     open_skin: CachedSkin,
     closed_skin: Option<CachedSkin>,
+    closed_skin_unavailable: bool,
     mouth_open_skin: Option<CachedSkin>,
     mouth_closed_skin: Option<CachedSkin>,
     pending_auxiliary_skin_refresh: bool,
@@ -199,6 +200,7 @@ impl MascotApp {
             core: Core::new(CoreConfig::default()),
             open_skin,
             closed_skin: None,
+            closed_skin_unavailable: false,
             mouth_open_skin: None,
             mouth_closed_skin: None,
             pending_auxiliary_skin_refresh: false,
@@ -226,12 +228,6 @@ impl MascotApp {
         if let Some(favorite_ensemble) = &mut app.favorite_ensemble {
             favorite_ensemble
                 .set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);
-        }
-        if let Err(error) = app.refresh_closed_eye_skin(&cc.egui_ctx) {
-            log_server_error(format!("{error:#}"));
-        }
-        if let Err(error) = app.refresh_mouth_flap_skins(&cc.egui_ctx) {
-            log_server_error(format!("{error:#}"));
         }
         app.refresh_window_layout(&cc.egui_ctx, app.window_layout);
         app.transparent_hit_test.update(TransparentHitTestUpdate {

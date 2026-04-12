@@ -12,7 +12,7 @@ use crate::api::{LayerDescriptor, LayerVisibilityOverride};
 use crate::layer_name_format::{is_mandatory_kind, is_mandatory_name};
 use crate::logging::{clear_psd_failure_log, write_psd_failure_log, PsdFailureLog};
 use crate::model::{LayerKind, LayerNode, PsdEntry};
-use crate::render::render_png;
+use crate::render::{render_png, RenderSidecars};
 
 pub(crate) struct PsdAnalysis {
     pub(crate) file_name: String,
@@ -50,6 +50,7 @@ pub(crate) fn build_psd_entry(path: &Path, render_root: &Path) -> PsdEntry {
             &analysis.layers,
             &analysis.effective_visibility,
             &render_path,
+            RenderSidecars { raw_rgba: true },
         ) {
             Ok(render_result) => {
                 rendered_png_path = Some(render_result.output_path);

@@ -1,14 +1,17 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::api::ZipEntryLoadReport;
 use crate::archive::{collect_psd_files, collect_zip_files, extract_zip_to_dir};
 use crate::cache_progress::{PsdLoadProgress, ZipLoadEvent, ZipLoadProgress};
 use crate::model::{PsdEntry, ZipEntry};
 use crate::psd::build_psd_entry;
+use crate::rgba_cache::rgba_cache_exists;
+use crate::skin_details::skin_details_cache_exists;
 use crate::workspace_paths::workspace_cache_root;
 
 pub fn default_cache_root() -> PathBuf {
@@ -52,11 +55,8 @@ pub(crate) fn load_zip_entries_incremental(
     let mut zip_entries = Vec::with_capacity(zip_files.len());
 
     for zip_path in zip_files {
-        zip_entries.push(load_zip_entry_incremental(
-            &zip_path,
-            cache_root,
-            &mut on_event,
-        )?);
+        let (entry, _) = load_zip_entry_incremental(&zip_path, cache_root, &mut on_event)?;
+        zip_entries.push(entry);
     }
 
     on_event(ZipLoadEvent::Finished(zip_entries.clone()));
@@ -108,6 +108,13 @@ pub(crate) fn load_cached_zip_entries_snapshot(cache_root: &Path) -> Result<Vec<
 }
 
 pub(crate) fn load_zip_entry(zip_path: &Path, cache_root: &Path) -> Result<ZipEntry> {
+    load_zip_entry_with_report(zip_path, cache_root).map(|(entry, _)| entry)
+}
+
+pub(crate) fn load_zip_entry_with_report(
+    zip_path: &Path,
+    cache_root: &Path,
+) -> Result<(ZipEntry, ZipEntryLoadReport)> {
     load_zip_entry_incremental(zip_path, cache_root, |_| {})
 }
 
@@ -115,7 +122,9 @@ fn load_zip_entry_incremental(
     zip_path: &Path,
     cache_root: &Path,
     mut on_event: impl FnMut(ZipLoadEvent),
-) -> Result<ZipEntry> {
+) -> Result<(ZipEntry, ZipEntryLoadReport)> {
+    let started_at = Instant::now();
+    let mut report = ZipEntryLoadReport::default();
     let source = zip_source_stamp(zip_path)?;
     let zip_cache_key = zip_cache_key(&source);
     let cache_dir = cache_root.join(&zip_cache_key);
@@ -143,24 +152,38 @@ fn load_zip_entry_incremental(
             fs::remove_dir_all(&extracted_dir)
                 .with_context(|| format!("failed to remove {}", extracted_dir.display()))?;
         }
+        let extract_started_at = Instant::now();
         extract_zip_to_dir(zip_path, &extracted_dir)?;
+        report.zip_extracted = true;
+        report.extract_ms = elapsed_ms_since(extract_started_at);
         on_event(ZipLoadEvent::ZipExtracted(progress.clone()));
     }
 
     let (psds, updated_at) = match cached_meta {
-        Some(meta) if meta_is_reusable => (meta.psds, meta.updated_at),
-        _ => rebuild_zip_meta(
-            ZipMetaBuildContext {
-                zip_path,
-                zip_cache_key: &zip_cache_key,
-                source: &source,
-                cache_dir: &cache_dir,
-                extracted_dir: &extracted_dir,
-                psd_meta_path: &psd_meta_path,
-                progress: &progress,
-            },
-            &mut on_event,
-        )?,
+        Some(meta) if meta_is_reusable => {
+            report.meta_cache_hit = true;
+            (meta.psds, meta.updated_at)
+        }
+        _ => {
+            let rebuild_started_at = Instant::now();
+            let (psds, updated_at, rebuild_report) = rebuild_zip_meta(
+                ZipMetaBuildContext {
+                    zip_path,
+                    zip_cache_key: &zip_cache_key,
+                    source: &source,
+                    cache_dir: &cache_dir,
+                    extracted_dir: &extracted_dir,
+                    psd_meta_path: &psd_meta_path,
+                    progress: &progress,
+                },
+                &mut on_event,
+            )?;
+            report.psd_meta_rebuilt = true;
+            report.psd_entries_built = rebuild_report.psd_entries_built;
+            report.psd_entry_build_ms = rebuild_report.psd_entry_build_ms;
+            report.rebuild_meta_ms = elapsed_ms_since(rebuild_started_at);
+            (psds, updated_at)
+        }
     };
 
     let entry = ZipEntry {
@@ -173,7 +196,8 @@ fn load_zip_entry_incremental(
         updated_at,
     };
     on_event(ZipLoadEvent::ZipReady(entry.clone()));
-    Ok(entry)
+    report.elapsed_ms = elapsed_ms_since(started_at);
+    Ok((entry, report))
 }
 
 struct ZipMetaBuildContext<'a> {
@@ -189,12 +213,13 @@ struct ZipMetaBuildContext<'a> {
 fn rebuild_zip_meta(
     context: ZipMetaBuildContext<'_>,
     on_event: &mut impl FnMut(ZipLoadEvent),
-) -> Result<(Vec<PsdEntry>, u64)> {
+) -> Result<(Vec<PsdEntry>, u64, ZipMetaRebuildReport)> {
     let render_root = context.cache_dir.join("renders");
     fs::create_dir_all(&render_root)
         .with_context(|| format!("failed to create {}", render_root.display()))?;
 
     let mut psds = Vec::new();
+    let mut report = ZipMetaRebuildReport::default();
     for path in collect_psd_files(context.extracted_dir)? {
         let progress = PsdLoadProgress {
             zip: context.progress.clone(),
@@ -202,7 +227,12 @@ fn rebuild_zip_meta(
             psd_path: path.clone(),
         };
         on_event(ZipLoadEvent::PsdDiscovered(progress.clone()));
+        let build_started_at = Instant::now();
         let psd = build_psd_entry(&path, &render_root);
+        report.psd_entries_built += 1;
+        report.psd_entry_build_ms = report
+            .psd_entry_build_ms
+            .saturating_add(elapsed_ms_since(build_started_at));
         on_event(ZipLoadEvent::PsdReady(progress, Box::new(psd.clone())));
         psds.push(psd);
     }
@@ -219,7 +249,13 @@ fn rebuild_zip_meta(
     };
     write_zip_meta_file(context.psd_meta_path, &meta)?;
 
-    Ok((psds, updated_at))
+    Ok((psds, updated_at, report))
+}
+
+#[derive(Debug, Default)]
+struct ZipMetaRebuildReport {
+    psd_entries_built: usize,
+    psd_entry_build_ms: u64,
 }
 
 fn zip_meta_is_reusable(
@@ -232,6 +268,7 @@ fn zip_meta_is_reusable(
         && meta.zip_cache_key == zip_cache_key
         && meta.zip_path == zip_path
         && meta.source == *source
+        && default_render_cache_is_complete(&meta.psds)
 }
 
 fn snapshot_meta_is_usable(cache_dir: &Path, meta: &ZipMetaFile) -> bool {
@@ -243,6 +280,18 @@ fn snapshot_meta_is_usable(cache_dir: &Path, meta: &ZipMetaFile) -> bool {
         && zip_source_stamp(&meta.zip_path)
             .ok()
             .is_some_and(|source| source == meta.source)
+        && default_render_cache_is_complete(&meta.psds)
+}
+
+fn default_render_cache_is_complete(psds: &[PsdEntry]) -> bool {
+    psds.iter().all(|psd| {
+        if psd.error.is_some() {
+            return true;
+        }
+        psd.rendered_png_path.as_ref().is_some_and(|path| {
+            path.exists() && skin_details_cache_exists(path) && rgba_cache_exists(path)
+        })
+    })
 }
 
 pub(crate) fn zip_source_stamp(path: &Path) -> Result<ZipSourceStamp> {
@@ -317,6 +366,10 @@ fn unix_timestamp() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|value| value.as_secs())
         .unwrap_or_default()
+}
+
+fn elapsed_ms_since(started_at: Instant) -> u64 {
+    u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]

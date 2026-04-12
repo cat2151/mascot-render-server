@@ -2,16 +2,22 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
-use crate::api::{PsdDocument, PsdSummary, RenderRequest, RenderedPng};
+use crate::api::{
+    PsdDocument, PsdInspectReport, PsdSummary, RenderPngReport, RenderRequest, RenderedPng,
+    ZipEntryLoadReport,
+};
 use crate::cache::{
     default_cache_root, load_cached_zip_entries_snapshot, load_zip_entries,
-    load_zip_entries_incremental, load_zip_entry, zip_source_stamp, ZipSourceStamp,
+    load_zip_entries_incremental, load_zip_entry,
+    load_zip_entry_with_report as load_zip_entry_with_report_from_cache, zip_source_stamp,
+    ZipSourceStamp,
 };
 use crate::cache_progress::ZipLoadEvent;
 use crate::model::{PsdEntry, ZipEntry};
 use crate::psd::{analyze_psd, effective_visibility_with_overrides};
-use crate::render::render_png as render_png_with_visibility;
+use crate::render::{render_png as render_png_with_visibility, RenderSidecars};
 use crate::variation::{
     save_variation_spec, variation_png_path, variation_render_meta_path, variation_spec_path,
 };
@@ -106,15 +112,44 @@ impl Core {
     }
 
     pub fn inspect_psd(&self, zip_path: &Path, psd_path_in_zip: &Path) -> Result<PsdDocument> {
-        let zip_entry = self.load_zip_entry(zip_path)?;
+        self.inspect_psd_with_report(zip_path, psd_path_in_zip)
+            .map(|(document, _)| document)
+    }
+
+    pub fn inspect_psd_with_report(
+        &self,
+        zip_path: &Path,
+        psd_path_in_zip: &Path,
+    ) -> Result<(PsdDocument, PsdInspectReport)> {
+        let started_at = Instant::now();
+        let (zip_entry, zip_report) = self.load_zip_entry_with_report(zip_path)?;
         let normalized_path = normalize_relative_path(psd_path_in_zip)?;
         let psd_entry = find_psd_entry(&zip_entry, &normalized_path)?;
 
-        Ok(psd_entry.to_document(&zip_entry.zip_path, &normalized_path))
+        Ok((
+            psd_entry.to_document(&zip_entry.zip_path, &normalized_path),
+            PsdInspectReport {
+                elapsed_ms: elapsed_ms_since(started_at),
+                zip_entry: zip_report,
+            },
+        ))
     }
 
     pub fn render_png(&self, request: RenderRequest) -> Result<RenderedPng> {
-        let zip_entry = self.load_zip_entry(&request.zip_path)?;
+        self.render_png_with_report(request)
+            .map(|(rendered, _)| rendered)
+    }
+
+    pub fn render_png_with_report(
+        &self,
+        request: RenderRequest,
+    ) -> Result<(RenderedPng, RenderPngReport)> {
+        let started_at = Instant::now();
+        let (zip_entry, zip_report) = self.load_zip_entry_with_report(&request.zip_path)?;
+        let mut report = RenderPngReport {
+            zip_entry: zip_report,
+            ..RenderPngReport::default()
+        };
         let normalized_path = normalize_relative_path(&request.psd_path_in_zip)?;
         let psd_entry = find_psd_entry(&zip_entry, &normalized_path)?;
         if request.display_diff.is_default() {
@@ -124,11 +159,17 @@ impl Core {
                     normalized_path.display()
                 )
             })?;
-            return Ok(RenderedPng {
-                output_path,
-                warnings: psd_entry.render_warnings.clone(),
-                cache_hit: true,
-            });
+            report.default_render = true;
+            report.variation_cache_hit = true;
+            report.elapsed_ms = elapsed_ms_since(started_at);
+            return Ok((
+                RenderedPng {
+                    output_path,
+                    warnings: psd_entry.render_warnings.clone(),
+                    cache_hit: true,
+                },
+                report,
+            ));
         }
 
         let output_path = variation_png_path(
@@ -140,22 +181,31 @@ impl Core {
         let spec_path = variation_spec_path(&output_path);
         let meta_path = variation_render_meta_path(&output_path);
 
+        let save_spec_started_at = Instant::now();
         save_variation_spec(
             &spec_path,
             &zip_entry.zip_path,
             &normalized_path,
             &request.display_diff,
         )?;
+        report.save_variation_spec_ms = elapsed_ms_since(save_spec_started_at);
 
         if output_path.exists() {
-            return Ok(RenderedPng {
-                output_path,
-                warnings: load_custom_render_warnings(&meta_path)?,
-                cache_hit: true,
-            });
+            report.variation_cache_hit = true;
+            report.elapsed_ms = elapsed_ms_since(started_at);
+            return Ok((
+                RenderedPng {
+                    output_path,
+                    warnings: load_custom_render_warnings(&meta_path)?,
+                    cache_hit: true,
+                },
+                report,
+            ));
         }
 
+        let analyze_started_at = Instant::now();
         let analysis = analyze_psd(&psd_entry.path);
+        report.custom_psd_analyze_ms = elapsed_ms_since(analyze_started_at);
         if let Some(error) = analysis.visible_error() {
             let log_hint = psd_entry
                 .log_path
@@ -176,25 +226,58 @@ impl Core {
                 normalized_path.display()
             )
         })?;
+        let visibility_started_at = Instant::now();
         let effective_visibility = effective_visibility_with_overrides(
             &analysis.layers,
             &request.display_diff.visibility_overrides,
         )?;
+        report.effective_visibility_ms = elapsed_ms_since(visibility_started_at);
+        let render_started_at = Instant::now();
         let render_result = render_png_with_visibility(
             metadata,
             &analysis.layers,
             &effective_visibility,
             &output_path,
+            RenderSidecars::default(),
         )
         .map_err(|error| anyhow!("failed to render '{}': {error}", normalized_path.display()))?;
+        report.compose_and_save_png_ms = elapsed_ms_since(render_started_at);
 
+        let write_meta_started_at = Instant::now();
         write_custom_render_meta(&meta_path, &render_result.warnings)?;
+        report.write_render_meta_ms = elapsed_ms_since(write_meta_started_at);
+        report.elapsed_ms = elapsed_ms_since(started_at);
 
-        Ok(RenderedPng {
-            output_path: render_result.output_path,
-            warnings: render_result.warnings,
-            cache_hit: false,
-        })
+        Ok((
+            RenderedPng {
+                output_path: render_result.output_path,
+                warnings: render_result.warnings,
+                cache_hit: false,
+            },
+            report,
+        ))
+    }
+
+    fn load_zip_entry_with_report(
+        &self,
+        zip_path: &Path,
+    ) -> Result<(ZipEntry, ZipEntryLoadReport)> {
+        let started_at = Instant::now();
+        let source = zip_source_stamp(zip_path)?;
+        if let Some(entry) = self.cached_zip_entry(zip_path, &source)? {
+            return Ok((
+                entry,
+                ZipEntryLoadReport {
+                    elapsed_ms: elapsed_ms_since(started_at),
+                    memory_cache_hit: true,
+                    ..ZipEntryLoadReport::default()
+                },
+            ));
+        }
+
+        let (entry, report) = load_zip_entry_with_report_from_cache(zip_path, &self.cache_dir)?;
+        self.cache_zip_entry(entry.clone(), source)?;
+        Ok((entry, report))
     }
 
     fn cached_zip_entry(
@@ -330,4 +413,8 @@ fn write_custom_render_meta(meta_path: &Path, warnings: &[String]) -> Result<()>
     fs::write(meta_path, json)
         .with_context(|| format!("failed to write render metadata {}", meta_path.display()))?;
     Ok(())
+}
+
+fn elapsed_ms_since(started_at: Instant) -> u64 {
+    u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX)
 }

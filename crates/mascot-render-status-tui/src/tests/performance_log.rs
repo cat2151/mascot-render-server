@@ -37,6 +37,12 @@ fn compact_performance_log_line_prioritizes_elapsed_time() {
         "slowest internal stage should remain visible: {compact}"
     );
     assert!(
+        compact.contains(
+            "parts=refresh_mouth_flap_skins:18ms|refresh_closed_eye_skin:12ms|resolve_character_skin:4ms"
+        ),
+        "internal stage breakdown should remain visible: {compact}"
+    );
+    assert!(
         compact.contains("char=demo"),
         "target character should be visible without relying on long png paths: {compact}"
     );
@@ -44,6 +50,39 @@ fn compact_performance_log_line_prioritizes_elapsed_time() {
         !compact.contains("requested_at_unix_ms") && !compact.contains("N:\\cache\\very\\deep"),
         "compact line should avoid full path details: {compact}"
     );
+}
+
+#[test]
+fn compact_performance_log_line_breaks_down_mouth_flap_leaf_stages() {
+    let line = "[2026-04-12 00:00:00.000Z] INFO event=post_to_status_settled action=timeline_mouth_flap result=completed elapsed_ms=20000 queue_ms=1 apply_ms=2 settle_ms=19997 status_settled=true texture_changed=true stage_ms=refresh_pending_auxiliary_skins.refresh_mouth_flap_skins:20000ms,mouth_flap.inspect_psd:14000ms,mouth_flap.inspect_psd.zip_extract:6000ms,mouth_flap.inspect_psd.psd_entry_build:7000ms,mouth_flap.render_open_png:5000ms,mouth_flap.render_open_png.psd_analyze:4500ms,mouth_flap.render_closed_png.compose_save_png:3000ms displayed_png_path=N:\\cache\\latest.png command_summary=timeline=mouth_flap";
+
+    let compact = compact_performance_log_line(line);
+
+    assert!(
+        compact.contains("top=mouth_flap.inspect_psd.psd_entry_build:7000ms"),
+        "mouth-flap top should point at a leaf stage, not only the parent total: {compact}"
+    );
+    assert!(
+        compact.contains(
+            "parts=mouth_flap.inspect_psd.psd_entry_build:7000ms|mouth_flap.inspect_psd.zip_extract:6000ms|mouth_flap.render_open_png.psd_analyze:4500ms"
+        ),
+        "mouth-flap breakdown should show the slow leaf stages: {compact}"
+    );
+}
+
+#[test]
+fn compact_performance_log_line_breaks_down_skin_load() {
+    let line = "[2026-04-12 00:00:00.000Z] INFO event=skin_load stage=cache_miss_loaded elapsed_ms=984 cache_lookup_ms=0 raw_rgba_cache_hit=true raw_rgba_cache_status=hit raw_rgba_meta_read_ms=1 raw_rgba_read_ms=9 read_file_ms=0 decode_png_ms=0 detail_cache_hit=true detail_cache_read_ms=7 alpha_mask_ms=0 content_bounds_ms=0 detail_cache_write_ms=0 texture_alloc_ms=118 cache_insert_ms=1 file_bytes=123456 rgba_bytes=4194304 image_size=1024x1024 evicted_count=1 png_path=N:\\cache\\very\\long\\default.png";
+
+    let compact = compact_performance_log_line(line);
+
+    assert!(
+        compact.contains(
+            "skin file_load raw=hit raw_meta=1ms raw_read=9ms read=0ms decode=0ms detail_cache=true detail_read=7ms alpha=0ms bounds=0ms detail_write=0ms texture=118ms"
+        ),
+        "skin load breakdown should stay visible: {compact}"
+    );
+    assert!(compact.contains("png=default.png"));
 }
 
 #[test]

@@ -5,6 +5,9 @@ use std::path::{Path, PathBuf};
 use image::{ColorType, ImageFormat};
 use rawpsd::{LayerInfo, PsdMetadata};
 
+use crate::rgba_cache::write_default_rgba_cache_for_rgba;
+use crate::skin_details::write_skin_details_cache_for_rgba;
+
 const COLOR_MODE_GRAYSCALE: u16 = 1;
 const COLOR_MODE_RGB: u16 = 3;
 const COLOR_MODE_CMYK: u16 = 4;
@@ -15,11 +18,17 @@ pub(crate) struct RenderResult {
     pub(crate) warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct RenderSidecars {
+    pub(crate) raw_rgba: bool,
+}
+
 pub(crate) fn render_png(
     metadata: &PsdMetadata,
     layers: &[LayerInfo],
     effective_visibility: &[bool],
     output_path: &Path,
+    sidecars: RenderSidecars,
 ) -> Result<RenderResult, String> {
     let mut canvas = vec![0u8; (metadata.width * metadata.height * 4) as usize];
     let mut warnings = BTreeSet::new();
@@ -64,6 +73,13 @@ pub(crate) fn render_png(
         ImageFormat::Png,
     )
     .map_err(|error| error.to_string())?;
+
+    write_skin_details_cache_for_rgba(output_path, [metadata.width, metadata.height], &canvas)
+        .map_err(|error| error.to_string())?;
+    if sidecars.raw_rgba {
+        write_default_rgba_cache_for_rgba(output_path, [metadata.width, metadata.height], &canvas)
+            .map_err(|error| error.to_string())?;
+    }
 
     Ok(RenderResult {
         output_path: output_path.to_path_buf(),

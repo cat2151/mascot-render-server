@@ -94,6 +94,14 @@ pub(crate) fn tail_lines(contents: &str, max_lines: usize) -> Vec<String> {
 }
 
 pub(crate) fn compact_performance_log_line(line: &str) -> String {
+    if line.contains("event=skin_load") {
+        return compact_skin_load_log_line(line);
+    }
+
+    if line.contains("event=mouth_flap_png_generation") {
+        return compact_mouth_flap_log_line(line);
+    }
+
     if !line.contains("event=post_to_status_settled") {
         return shorten_middle(line, 120);
     }
@@ -109,7 +117,9 @@ pub(crate) fn compact_performance_log_line(line: &str) -> String {
     let settle_ms = duration_value(line, "settle_ms");
     let settled = key_value(line, "status_settled").unwrap_or("-");
     let texture_changed = key_value(line, "texture_changed").unwrap_or("-");
-    let top_stage = key_value(line, "stage_ms").and_then(slowest_stage);
+    let stage_ms = key_value(line, "stage_ms");
+    let top_stage = stage_ms.and_then(slowest_stage);
+    let stage_breakdown = stage_ms.and_then(|stage_ms| slowest_stages(stage_ms, 3));
     let target = compact_target(line);
 
     let mut compact =
@@ -117,6 +127,10 @@ pub(crate) fn compact_performance_log_line(line: &str) -> String {
     if let Some(top_stage) = top_stage {
         compact.push_str(" top=");
         compact.push_str(&top_stage);
+    }
+    if let Some(stage_breakdown) = stage_breakdown {
+        compact.push_str(" parts=");
+        compact.push_str(&stage_breakdown);
     }
     if settled != "true" {
         compact.push_str(" settled=");
@@ -133,6 +147,123 @@ pub(crate) fn compact_performance_log_line(line: &str) -> String {
         compact.push_str(&value);
     }
     compact
+}
+
+fn compact_skin_load_log_line(line: &str) -> String {
+    let timestamp = compact_timestamp(line);
+    let stage = key_value(line, "stage").unwrap_or("-");
+    let elapsed_ms = key_value(line, "elapsed_ms")
+        .map(|value| format!("{value}ms"))
+        .unwrap_or_else(|| "-".to_string());
+    match stage {
+        "memory_cache_hit" => {
+            let lookup_ms = duration_value(line, "cache_lookup_ms");
+            let target = key_value(line, "png_path")
+                .map(compact_path_tail)
+                .unwrap_or_else(|| "-".to_string());
+            format!("{timestamp} {elapsed_ms} skin memory_cache lookup={lookup_ms} png={target}")
+        }
+        "cache_miss_loaded" => {
+            let raw_cache = key_value(line, "raw_rgba_cache_status").unwrap_or("-");
+            let raw_meta_ms = duration_value(line, "raw_rgba_meta_read_ms");
+            let raw_read_ms = duration_value(line, "raw_rgba_read_ms");
+            let read_ms = duration_value(line, "read_file_ms");
+            let decode_ms = duration_value(line, "decode_png_ms");
+            let detail_cache = key_value(line, "detail_cache_hit").unwrap_or("-");
+            let detail_read_ms = duration_value(line, "detail_cache_read_ms");
+            let alpha_ms = duration_value(line, "alpha_mask_ms");
+            let bounds_ms = duration_value(line, "content_bounds_ms");
+            let detail_write_ms = duration_value(line, "detail_cache_write_ms");
+            let texture_ms = duration_value(line, "texture_alloc_ms");
+            let cache_insert_ms = duration_value(line, "cache_insert_ms");
+            let image_size = key_value(line, "image_size").unwrap_or("-");
+            let file_bytes = key_value(line, "file_bytes").unwrap_or("-");
+            let target = key_value(line, "png_path")
+                .map(compact_path_tail)
+                .unwrap_or_else(|| "-".to_string());
+            format!(
+                "{timestamp} {elapsed_ms} skin file_load raw={raw_cache} raw_meta={raw_meta_ms} raw_read={raw_read_ms} read={read_ms} decode={decode_ms} detail_cache={detail_cache} detail_read={detail_read_ms} alpha={alpha_ms} bounds={bounds_ms} detail_write={detail_write_ms} texture={texture_ms} cache={cache_insert_ms} size={image_size} bytes={file_bytes} png={target}"
+            )
+        }
+        _ => format!("{timestamp} {elapsed_ms} skin {stage}"),
+    }
+}
+
+fn compact_mouth_flap_log_line(line: &str) -> String {
+    let timestamp = compact_timestamp(line);
+    let stage = key_value(line, "stage").unwrap_or("-");
+    let elapsed_ms = key_value(line, "elapsed_ms")
+        .map(|value| format!("{value}ms"))
+        .unwrap_or_else(|| "-".to_string());
+
+    match stage {
+        "completed" => compact_mouth_flap_completed_line(line, &timestamp, &elapsed_ms),
+        "render_open_png" | "render_closed_png" => {
+            compact_mouth_flap_render_line(line, &timestamp, stage, &elapsed_ms)
+        }
+        "inspect_psd" => compact_mouth_flap_inspect_line(line, &timestamp, &elapsed_ms),
+        "find_target" => compact_mouth_flap_find_target_line(line, &timestamp, &elapsed_ms),
+        _ => format!("{timestamp} {elapsed_ms} mouth_flap {stage}"),
+    }
+}
+
+fn compact_mouth_flap_completed_line(line: &str, timestamp: &str, elapsed_ms: &str) -> String {
+    let miss_count = key_value(line, "variation_png_cache_miss_count").unwrap_or("-");
+    let zip_extracted = key_value(line, "any_zip_extracted").unwrap_or("-");
+    let psd_meta_rebuilt = key_value(line, "any_psd_meta_rebuilt").unwrap_or("-");
+    let open_cache = key_value(line, "open_render_cache_hit").unwrap_or("-");
+    let closed_cache = key_value(line, "closed_render_cache_hit").unwrap_or("-");
+    let target = key_value(line, "open_png_path")
+        .map(compact_path_tail)
+        .unwrap_or_else(|| "-".to_string());
+
+    format!(
+        "{timestamp} {elapsed_ms} mouth_flap completed miss={miss_count} zip={zip_extracted} psd_meta={psd_meta_rebuilt} open_cache={open_cache} closed_cache={closed_cache} png={target}"
+    )
+}
+
+fn compact_mouth_flap_render_line(
+    line: &str,
+    timestamp: &str,
+    stage: &str,
+    elapsed_ms: &str,
+) -> String {
+    let cache_hit = key_value(line, "render_cache_hit").unwrap_or("-");
+    let analyze_ms = duration_value(line, "custom_psd_analyze_ms");
+    let compose_ms = duration_value(line, "compose_and_save_png_ms");
+    let zip_extracted = key_value(line, "zip_extracted").unwrap_or("-");
+    let psd_meta_rebuilt = key_value(line, "psd_meta_rebuilt").unwrap_or("-");
+    let target = key_value(line, "output_path")
+        .map(compact_path_tail)
+        .unwrap_or_else(|| "-".to_string());
+
+    format!(
+        "{timestamp} {elapsed_ms} mouth_flap {stage} cache={cache_hit} analyze={analyze_ms} compose={compose_ms} zip={zip_extracted} psd_meta={psd_meta_rebuilt} png={target}"
+    )
+}
+
+fn compact_mouth_flap_inspect_line(line: &str, timestamp: &str, elapsed_ms: &str) -> String {
+    let layer_count = key_value(line, "layer_count").unwrap_or("-");
+    let zip_extracted = key_value(line, "zip_extracted").unwrap_or("-");
+    let psd_meta_rebuilt = key_value(line, "psd_meta_rebuilt").unwrap_or("-");
+    let psd_entries_built = key_value(line, "psd_entries_built").unwrap_or("-");
+    let zip_load_ms = duration_value(line, "zip_load_ms");
+
+    format!(
+        "{timestamp} {elapsed_ms} mouth_flap inspect layers={layer_count} zip_load={zip_load_ms} zip={zip_extracted} psd_meta={psd_meta_rebuilt} psds={psd_entries_built}"
+    )
+}
+
+fn compact_mouth_flap_find_target_line(line: &str, timestamp: &str, elapsed_ms: &str) -> String {
+    let open_layers = key_value(line, "open_layers").unwrap_or("-");
+    let closed_layers = key_value(line, "closed_layers").unwrap_or("-");
+    let psd_file = key_value(line, "psd_file")
+        .map(|value| shorten_middle(value, 28))
+        .unwrap_or_else(|| "-".to_string());
+
+    format!(
+        "{timestamp} {elapsed_ms} mouth_flap find_target open={open_layers} closed={closed_layers} psd={psd_file}"
+    )
 }
 
 pub(crate) fn compact_performance_log_lines(lines: Vec<String>) -> Vec<String> {
@@ -197,15 +328,58 @@ fn compact_target(line: &str) -> Option<(&'static str, String)> {
 }
 
 fn slowest_stage(stage_ms: &str) -> Option<String> {
+    slowest_stages(stage_ms, 1)
+}
+
+fn slowest_stages(stage_ms: &str, limit: usize) -> Option<String> {
     if stage_ms == "none" {
         return None;
     }
 
-    stage_ms
+    let stages = stage_ms
         .split(',')
         .filter_map(parse_stage_duration)
-        .max_by_key(|(_, elapsed_ms)| *elapsed_ms)
+        .collect::<Vec<_>>();
+    let mut stages = visible_stage_breakdown(stages);
+    stages.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(right.0)));
+    let summary = stages
+        .into_iter()
+        .take(limit)
         .map(|(stage, elapsed_ms)| format!("{stage}:{elapsed_ms}ms"))
+        .collect::<Vec<_>>()
+        .join("|");
+    (!summary.is_empty()).then_some(summary)
+}
+
+fn visible_stage_breakdown(stages: Vec<(&str, u64)>) -> Vec<(&str, u64)> {
+    if !stages
+        .iter()
+        .any(|(stage, _)| stage.starts_with("mouth_flap."))
+    {
+        return stages;
+    }
+
+    let leaf_stages = stages
+        .iter()
+        .copied()
+        .filter(|(stage, _)| !is_mouth_flap_aggregate_stage(stage))
+        .collect::<Vec<_>>();
+    if leaf_stages.is_empty() {
+        stages
+    } else {
+        leaf_stages
+    }
+}
+
+fn is_mouth_flap_aggregate_stage(stage: &str) -> bool {
+    matches!(
+        stage,
+        "refresh_mouth_flap_skins"
+            | "refresh_pending_auxiliary_skins.refresh_mouth_flap_skins"
+            | "mouth_flap.inspect_psd"
+            | "mouth_flap.render_open_png"
+            | "mouth_flap.render_closed_png"
+    )
 }
 
 fn parse_stage_duration(stage_ms: &str) -> Option<(&str, u64)> {

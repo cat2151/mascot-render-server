@@ -1,11 +1,14 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 
 use eframe::egui::{self, ColorImage, TextureHandle, TextureOptions, Vec2};
 #[cfg(not(test))]
 use mascot_render_control::log_server_info;
-use mascot_render_core::{mascot_window_size, MascotConfig, MascotImageData};
+use mascot_render_core::{
+    load_or_build_skin_details, mascot_window_size, MascotConfig, MascotImageData,
+    SkinContentBounds, SkinDetailsReport,
+};
 use mascot_render_server::{alpha_bounds_from_mask, AlphaBounds};
 
 const CONTENT_BOUNDS_ALPHA_THRESHOLD: u8 = 1;
@@ -17,6 +20,17 @@ pub(crate) struct CachedSkin {
     pub(crate) image_size: [u32; 2],
     pub(crate) alpha_mask: Arc<[u8]>,
     pub(crate) content_bounds: AlphaBounds,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct CachedSkinBuildReport {
+    pub(crate) elapsed_ms: u64,
+    pub(crate) alpha_mask_ms: u64,
+    pub(crate) content_bounds_ms: u64,
+    pub(crate) texture_alloc_ms: u64,
+    pub(crate) detail_cache_hit: bool,
+    pub(crate) detail_cache_read_ms: u64,
+    pub(crate) detail_cache_write_ms: u64,
 }
 
 pub(crate) fn window_title(config: &MascotConfig, config_path: &Path) -> String {
@@ -40,15 +54,62 @@ pub(crate) fn window_title(config: &MascotConfig, config_path: &Path) -> String 
 }
 
 pub(crate) fn cached_skin_from_image(ctx: &egui::Context, image: &MascotImageData) -> CachedSkin {
-    let alpha_mask = alpha_mask(&image.rgba);
-    let content_bounds = content_bounds([image.width, image.height], alpha_mask.as_ref());
-    CachedSkin {
+    cached_skin_from_image_with_report(ctx, image).0
+}
+
+pub(crate) fn cached_skin_from_image_with_report(
+    ctx: &egui::Context,
+    image: &MascotImageData,
+) -> (CachedSkin, CachedSkinBuildReport) {
+    let started_at = Instant::now();
+    let details_report;
+    let (alpha_mask, content_bounds) = match load_or_build_skin_details(image) {
+        Ok((details, report)) => {
+            details_report = report;
+            (
+                details.alpha_mask,
+                alpha_bounds_from_skin_bounds(details.content_bounds),
+            )
+        }
+        Err(error) => {
+            eprintln!(
+                "failed to load cached skin details for {}; rebuilding without persistent cache: {error:#}",
+                image.path.display()
+            );
+            let alpha_mask_started_at = Instant::now();
+            let alpha_mask = alpha_mask(&image.rgba);
+            let alpha_mask_ms = elapsed_ms_since(alpha_mask_started_at);
+            let content_bounds_started_at = Instant::now();
+            let content_bounds = content_bounds([image.width, image.height], alpha_mask.as_ref());
+            let content_bounds_ms = elapsed_ms_since(content_bounds_started_at);
+            details_report = SkinDetailsReport {
+                alpha_mask_ms,
+                content_bounds_ms,
+                ..SkinDetailsReport::default()
+            };
+            (alpha_mask, content_bounds)
+        }
+    };
+    let texture_started_at = Instant::now();
+    let texture = load_texture(ctx, image);
+    let texture_alloc_ms = elapsed_ms_since(texture_started_at);
+    let skin = CachedSkin {
         path: image.path.clone(),
-        texture: load_texture(ctx, image),
+        texture,
         image_size: [image.width, image.height],
         alpha_mask,
         content_bounds,
-    }
+    };
+    let report = CachedSkinBuildReport {
+        elapsed_ms: elapsed_ms_since(started_at),
+        alpha_mask_ms: details_report.alpha_mask_ms,
+        content_bounds_ms: details_report.content_bounds_ms,
+        texture_alloc_ms,
+        detail_cache_hit: details_report.cache_hit,
+        detail_cache_read_ms: details_report.cache_read_ms,
+        detail_cache_write_ms: details_report.cache_write_ms,
+    };
+    (skin, report)
 }
 
 pub(crate) fn size_vec(width: u32, height: u32, scale: Option<f32>) -> Vec2 {
@@ -117,4 +178,17 @@ pub(crate) fn content_bounds(image_size: [u32; 2], alpha_mask: &[u8]) -> AlphaBo
             AlphaBounds::full(image_size)
         },
     )
+}
+
+pub(crate) fn alpha_bounds_from_skin_bounds(bounds: SkinContentBounds) -> AlphaBounds {
+    AlphaBounds {
+        min_x: bounds.min_x,
+        min_y: bounds.min_y,
+        max_x: bounds.max_x,
+        max_y: bounds.max_y,
+    }
+}
+
+fn elapsed_ms_since(started_at: Instant) -> u64 {
+    u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX)
 }

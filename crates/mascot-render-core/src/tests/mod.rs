@@ -9,6 +9,8 @@ mod mascot_motion;
 mod mouth_flap;
 mod psd;
 mod render;
+mod rgba_cache;
+mod skin_details;
 mod variation;
 mod workspace_paths;
 mod workspace_update;

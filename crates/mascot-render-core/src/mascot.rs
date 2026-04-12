@@ -1,9 +1,9 @@
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use anyhow::{anyhow, bail, Context, Result};
-use image::ImageReader;
 
 use crate::mascot_motion::{
     AlwaysBendConfig, BounceAnimationConfig, IdleSinkAnimationConfig, SquashBounceAnimationConfig,
@@ -16,6 +16,8 @@ mod config_files;
 
 use config_files::{MascotRuntimeStateFile, MascotStaticConfigFile};
 
+use crate::rgba_cache::{load_rgba_cache, RgbaCacheLoadReport};
+
 const DEFAULT_MAX_EDGE: f32 = 480.0;
 const DEFAULT_SCREEN_HEIGHT_RATIO: f32 = 0.33;
 const MASCOT_RUNTIME_STATE_VERSION: u32 = 1;
@@ -25,6 +27,21 @@ pub struct MascotImageData {
     pub width: u32,
     pub height: u32,
     pub rgba: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MascotImageLoadReport {
+    pub elapsed_ms: u64,
+    pub read_file_ms: u64,
+    pub decode_png_ms: u64,
+    pub raw_rgba_cache_hit: bool,
+    pub raw_rgba_cache_status: String,
+    pub raw_rgba_meta_read_ms: u64,
+    pub raw_rgba_read_ms: u64,
+    pub file_bytes: usize,
+    pub rgba_bytes: usize,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -253,23 +270,96 @@ fn validate_mascot_target(target: &MascotTarget, state_path: &Path) -> Result<()
 }
 
 pub fn load_mascot_image(png_path: &Path) -> Result<MascotImageData> {
-    let image = ImageReader::open(png_path)
-        .with_context(|| format!("failed to open {}", png_path.display()))?
-        .decode()
+    load_mascot_image_with_report(png_path).map(|(image, _)| image)
+}
+
+pub fn load_mascot_image_with_report(
+    png_path: &Path,
+) -> Result<(MascotImageData, MascotImageLoadReport)> {
+    let started_at = Instant::now();
+    let (cached_rgba, raw_report) = match load_rgba_cache(png_path) {
+        Ok(result) => result,
+        Err(error) => {
+            eprintln!(
+                "failed to load rgba cache for {}; falling back to png decode: {error:#}",
+                png_path.display()
+            );
+            (
+                None,
+                RgbaCacheLoadReport {
+                    status: "error".to_string(),
+                    ..RgbaCacheLoadReport::default()
+                },
+            )
+        }
+    };
+    if let Some(cached_rgba) = cached_rgba {
+        if cached_rgba.width == 0 || cached_rgba.height == 0 {
+            return Err(anyhow!("image '{}' has zero size", png_path.display()));
+        }
+        let report = MascotImageLoadReport {
+            elapsed_ms: elapsed_ms_since(started_at),
+            read_file_ms: 0,
+            decode_png_ms: 0,
+            raw_rgba_cache_hit: raw_report.cache_hit,
+            raw_rgba_cache_status: raw_report.status,
+            raw_rgba_meta_read_ms: raw_report.meta_read_ms,
+            raw_rgba_read_ms: raw_report.data_read_ms,
+            file_bytes: cached_rgba.png_file_bytes,
+            rgba_bytes: cached_rgba.rgba.len(),
+            width: cached_rgba.width,
+            height: cached_rgba.height,
+        };
+        return Ok((
+            MascotImageData {
+                path: png_path.to_path_buf(),
+                width: cached_rgba.width,
+                height: cached_rgba.height,
+                rgba: cached_rgba.rgba,
+            },
+            report,
+        ));
+    }
+
+    let read_started_at = Instant::now();
+    let bytes =
+        fs::read(png_path).with_context(|| format!("failed to read {}", png_path.display()))?;
+    let read_file_ms = elapsed_ms_since(read_started_at);
+
+    let decode_started_at = Instant::now();
+    let image = image::load_from_memory(&bytes)
         .with_context(|| format!("failed to decode {}", png_path.display()))?
         .into_rgba8();
+    let decode_png_ms = elapsed_ms_since(decode_started_at);
 
     let (width, height) = image.dimensions();
     if width == 0 || height == 0 {
         return Err(anyhow!("image '{}' has zero size", png_path.display()));
     }
-
-    Ok(MascotImageData {
-        path: png_path.to_path_buf(),
+    let rgba = image.into_raw();
+    let report = MascotImageLoadReport {
+        elapsed_ms: elapsed_ms_since(started_at),
+        read_file_ms,
+        decode_png_ms,
+        raw_rgba_cache_hit: raw_report.cache_hit,
+        raw_rgba_cache_status: raw_report.status,
+        raw_rgba_meta_read_ms: raw_report.meta_read_ms,
+        raw_rgba_read_ms: raw_report.data_read_ms,
+        file_bytes: bytes.len(),
+        rgba_bytes: rgba.len(),
         width,
         height,
-        rgba: image.into_raw(),
-    })
+    };
+
+    Ok((
+        MascotImageData {
+            path: png_path.to_path_buf(),
+            width,
+            height,
+            rgba,
+        },
+        report,
+    ))
 }
 
 pub fn mascot_window_size(width: u32, height: u32, scale: Option<f32>) -> [f32; 2] {
@@ -300,6 +390,10 @@ fn legacy_fit_scale(width: u32, height: u32, max_edge: f32) -> f32 {
     }
 
     max_edge / largest_edge
+}
+
+fn elapsed_ms_since(started_at: Instant) -> u64 {
+    u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
 fn validate_scale(scale: Option<f32>, config_path: &Path) -> Result<()> {

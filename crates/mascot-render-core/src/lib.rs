@@ -13,6 +13,8 @@ mod model;
 mod mouth_flap;
 mod psd;
 mod render;
+mod rgba_cache;
+mod skin_details;
 mod variation;
 mod workspace_paths;
 mod workspace_update;
@@ -21,8 +23,9 @@ mod workspace_update;
 mod tests;
 
 pub use api::{
-    DisplayDiff, LayerDescriptor, LayerVisibilityOverride, PsdDocument, PsdSummary, RenderRequest,
-    RenderedPng, VariationSpec, DISPLAY_DIFF_VERSION, VARIATION_SPEC_VERSION,
+    DisplayDiff, LayerDescriptor, LayerVisibilityOverride, PsdDocument, PsdInspectReport,
+    PsdSummary, RenderPngReport, RenderRequest, RenderedPng, VariationSpec, ZipEntryLoadReport,
+    DISPLAY_DIFF_VERSION, VARIATION_SPEC_VERSION,
 };
 pub use archive::{display_path, existing_zip_sources};
 pub use cache_progress::{PsdLoadProgress, ZipLoadEvent, ZipLoadProgress};
@@ -40,9 +43,10 @@ pub use layer_name_format::{
 pub use logging::log_file_name;
 pub use mascot::{
     default_mascot_scale_for_screen_height, load_favorite_ensemble_enabled, load_mascot_config,
-    load_mascot_image, mascot_config_path, mascot_runtime_state_path, mascot_window_size,
-    parse_mascot_config_path, psd_viewer_tui_activity_path, set_favorite_ensemble_enabled,
-    unix_timestamp, write_mascot_config, MascotConfig, MascotImageData, MascotTarget,
+    load_mascot_image, load_mascot_image_with_report, mascot_config_path,
+    mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path,
+    psd_viewer_tui_activity_path, set_favorite_ensemble_enabled, unix_timestamp,
+    write_mascot_config, MascotConfig, MascotImageData, MascotImageLoadReport, MascotTarget,
 };
 pub use mascot_motion::{
     AlwaysBendConfig, BendConfig, BounceAlgorithm, BounceAnimationConfig, IdleAlgorithm,
@@ -59,6 +63,14 @@ pub use mouth_flap::{
     MOUTH_CLOSED_LAYER_ALT_2, MOUTH_CLOSED_LAYER_ALT_3, MOUTH_CLOSED_LAYER_ALT_4,
     MOUTH_GROUP_LAYER, MOUTH_OPEN_LAYER, MOUTH_OPEN_LAYER_ALT_1, MOUTH_OPEN_LAYER_ALT_2,
     MOUTH_OPEN_LAYER_ALT_3,
+};
+pub use rgba_cache::{
+    load_rgba_cache, rgba_cache_data_path, rgba_cache_exists, rgba_cache_meta_path, RgbaCacheImage,
+    RgbaCacheLoadReport,
+};
+pub use skin_details::{
+    load_or_build_skin_details, skin_details_alpha_path, skin_details_cache_exists,
+    skin_details_meta_path, SkinContentBounds, SkinDetails, SkinDetailsReport,
 };
 pub use variation::{
     load_variation_spec, save_variation_spec, variation_hash, variation_png_path,

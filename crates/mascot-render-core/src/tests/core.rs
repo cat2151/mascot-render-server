@@ -2,8 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::{
-    variation_spec_path, workspace_cache_root, workspace_path, Core, CoreConfig, DisplayDiff,
-    LayerVisibilityOverride, RenderRequest,
+    skin_details_alpha_path, skin_details_meta_path, variation_spec_path, workspace_cache_root,
+    workspace_path, Core, CoreConfig, DisplayDiff, LayerVisibilityOverride, RenderRequest,
 };
 
 fn sample_zip_path() -> Option<PathBuf> {
@@ -77,6 +77,8 @@ fn render_png_uses_default_render_for_default_variation() {
         rendered.cache_hit,
         "default variation should be treated as cache hit"
     );
+    assert!(skin_details_meta_path(&rendered.output_path).exists());
+    assert!(skin_details_alpha_path(&rendered.output_path).exists());
 }
 
 #[test]
@@ -131,4 +133,6 @@ fn render_png_reuses_cached_custom_render() {
         variation_spec_path(&first.output_path).exists(),
         "variation spec sidecar should exist"
     );
+    assert!(skin_details_meta_path(&first.output_path).exists());
+    assert!(skin_details_alpha_path(&first.output_path).exists());
 }
