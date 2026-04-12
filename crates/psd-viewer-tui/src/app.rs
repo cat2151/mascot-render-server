@@ -75,6 +75,7 @@ pub(crate) struct App {
     tui_runtime_state: TuiRuntimeState,
     mascot_scale: Option<f32>,
     layer_scroll_margin_ratio: f32,
+    library_scroll_offset: usize,
     eye_blink_preferred_open_layer_names: Vec<String>,
     eye_blink_closed_layer_keywords: Vec<String>,
     mouth_flap_open_layer_names: Vec<String>,
@@ -125,6 +126,7 @@ impl App {
             tui_runtime_state: TuiRuntimeState::default(),
             mascot_scale: None,
             layer_scroll_margin_ratio: DEFAULT_LAYER_SCROLL_MARGIN_RATIO,
+            library_scroll_offset: 0,
             eye_blink_preferred_open_layer_names: default_tui_config
                 .eye_blink_preferred_open_layer_names,
             eye_blink_closed_layer_keywords: default_tui_config.eye_blink_closed_layer_keywords,

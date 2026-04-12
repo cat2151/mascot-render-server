@@ -340,6 +340,7 @@ impl App {
         self.help_overlay_visible = previous.help_overlay_visible;
         self.log_overlay = previous.log_overlay.clone();
         self.tui_runtime_state = previous.tui_runtime_state.clone();
+        self.library_scroll_offset = previous.library_scroll_offset;
         self.layer_scroll_offset = previous.layer_scroll_offset;
         self.favorites = previous.favorites.clone();
         self.rebuild_favorite_selection_lookup();
@@ -400,6 +401,7 @@ impl App {
             tui_runtime_state,
             mascot_scale: None,
             layer_scroll_margin_ratio: tui_config.layer_scroll_margin_ratio,
+            library_scroll_offset: 0,
             eye_blink_preferred_open_layer_names: tui_config.eye_blink_preferred_open_layer_names,
             eye_blink_closed_layer_keywords: tui_config.eye_blink_closed_layer_keywords,
             mouth_flap_open_layer_names: tui_config.mouth_flap_open_layer_names,

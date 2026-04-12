@@ -5,7 +5,7 @@ mod style;
 use mascot_render_core::display_path;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
 use ratatui_image::{Image, StatefulImage};
 use tui_sixel_preview::PreviewState;
 
@@ -89,7 +89,10 @@ pub(crate) fn draw(
     } else {
         let library_rows = app.library_rows();
         if library_rows.is_empty() {
-            let message = app.startup_notice().unwrap_or("No PSD files found.");
+            let message = app
+                .startup_notice()
+                .unwrap_or("No PSD files found.")
+                .to_string();
             vec![ListItem::new(message).style(comment_style(terminal_focused))]
         } else {
             library_rows
@@ -122,24 +125,21 @@ pub(crate) fn draw(
                 .collect()
         }
     };
+    let library_block = pane_block(
+        if app.favorites_visible() {
+            "Favorites"
+        } else {
+            "ZIP / PSD"
+        },
+        terminal_focused,
+        app.focus == FocusPane::Library,
+    );
+    let library_inner = library_block.inner(library_area);
     let library_list = List::new(library_items)
-        .block(pane_block(
-            if app.favorites_visible() {
-                "Favorites"
-            } else {
-                "ZIP / PSD"
-            },
-            terminal_focused,
-            app.focus == FocusPane::Library,
-        ))
+        .block(library_block)
         .highlight_style(selected_style(terminal_focused))
         .highlight_symbol("> ");
-    let mut library_state = ListState::default();
-    library_state.select(if app.favorites_visible() {
-        app.selected_favorite_selection()
-    } else {
-        app.selected_library_selection()
-    });
+    let mut library_state = app.library_list_state(library_inner.height);
     frame.render_stateful_widget(library_list, library_area, &mut library_state);
 
     let preview_area = if use_server_preview {

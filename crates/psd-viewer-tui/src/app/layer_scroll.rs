@@ -3,35 +3,47 @@ use ratatui::widgets::ListState;
 use super::App;
 
 impl App {
-    pub(crate) fn layer_list_state(&mut self, viewport_height: u16) -> ListState {
-        let total_items = self.layer_list_item_count();
-        if total_items == 0 {
-            self.layer_scroll_offset = 0;
-            return ListState::default();
-        }
-
-        let visible_rows = usize::from(viewport_height.max(1));
-        let max_offset = total_items.saturating_sub(visible_rows);
-        self.layer_scroll_offset = self.layer_scroll_offset.min(max_offset);
-
-        let mut state = ListState::default().with_offset(self.layer_scroll_offset);
-        let Some(selected_item_index) = self.selected_layer_item_index() else {
-            self.layer_scroll_offset = 0;
-            return state.with_offset(0);
-        };
-
-        let margin_rows = layer_scroll_margin_rows(visible_rows, self.layer_scroll_margin_ratio);
-        self.layer_scroll_offset = adjust_scroll_offset(
-            self.layer_scroll_offset,
+    pub(crate) fn library_list_state(&mut self, viewport_height: u16) -> ListState {
+        let total_items = self.library_list_item_count();
+        let selected_item_index = self.selected_library_item_index();
+        list_state_with_margin(
+            &mut self.library_scroll_offset,
             selected_item_index,
             total_items,
-            visible_rows,
-            margin_rows,
-        );
+            viewport_height,
+            self.layer_scroll_margin_ratio,
+        )
+    }
 
-        state.select(Some(selected_item_index));
-        *state.offset_mut() = self.layer_scroll_offset;
-        state
+    pub(crate) fn layer_list_state(&mut self, viewport_height: u16) -> ListState {
+        let total_items = self.layer_list_item_count();
+        let selected_item_index = self.selected_layer_item_index();
+        list_state_with_margin(
+            &mut self.layer_scroll_offset,
+            selected_item_index,
+            total_items,
+            viewport_height,
+            self.layer_scroll_margin_ratio,
+        )
+    }
+
+    fn selected_library_item_index(&self) -> Option<usize> {
+        if self.favorites_visible() {
+            self.selected_favorite_selection()
+        } else {
+            self.selected_library_selection()
+        }
+    }
+
+    fn library_list_item_count(&self) -> usize {
+        if self.favorites_visible() {
+            self.favorites.len().max(1)
+        } else {
+            self.zip_entries
+                .iter()
+                .map(|zip_entry| zip_entry.psds.len().saturating_add(1))
+                .sum()
+        }
     }
 
     fn selected_layer_item_index(&self) -> Option<usize> {
@@ -56,7 +68,43 @@ impl App {
     }
 }
 
-fn layer_scroll_margin_rows(visible_rows: usize, ratio: f32) -> usize {
+fn list_state_with_margin(
+    scroll_offset: &mut usize,
+    selected_item_index: Option<usize>,
+    total_items: usize,
+    viewport_height: u16,
+    margin_ratio: f32,
+) -> ListState {
+    if total_items == 0 {
+        *scroll_offset = 0;
+        return ListState::default();
+    }
+
+    let visible_rows = usize::from(viewport_height.max(1));
+    let max_offset = total_items.saturating_sub(visible_rows);
+    *scroll_offset = (*scroll_offset).min(max_offset);
+
+    let Some(selected_item_index) = selected_item_index else {
+        *scroll_offset = 0;
+        return ListState::default().with_offset(0);
+    };
+
+    let margin_rows = scroll_margin_rows(visible_rows, margin_ratio);
+    *scroll_offset = adjust_scroll_offset(
+        *scroll_offset,
+        selected_item_index,
+        total_items,
+        visible_rows,
+        margin_rows,
+    );
+
+    let mut state = ListState::default().with_offset(*scroll_offset);
+    state.select(Some(selected_item_index));
+    *state.offset_mut() = *scroll_offset;
+    state
+}
+
+fn scroll_margin_rows(visible_rows: usize, ratio: f32) -> usize {
     let max_margin = visible_rows.saturating_sub(1) / 2;
     (((visible_rows as f32) * ratio).floor() as usize).min(max_margin)
 }
@@ -93,14 +141,14 @@ fn adjust_scroll_offset(
 
 #[cfg(test)]
 mod tests {
-    use super::{adjust_scroll_offset, layer_scroll_margin_rows};
+    use super::{adjust_scroll_offset, scroll_margin_rows};
 
     #[test]
     fn margin_rows_use_ratio_and_keep_center_capacity() {
-        assert_eq!(layer_scroll_margin_rows(8, 0.25), 2);
-        assert_eq!(layer_scroll_margin_rows(9, 0.33), 2);
-        assert_eq!(layer_scroll_margin_rows(3, 0.49), 1);
-        assert_eq!(layer_scroll_margin_rows(2, 0.49), 0);
+        assert_eq!(scroll_margin_rows(8, 0.25), 2);
+        assert_eq!(scroll_margin_rows(9, 0.33), 2);
+        assert_eq!(scroll_margin_rows(3, 0.49), 1);
+        assert_eq!(scroll_margin_rows(2, 0.49), 0);
     }
 
     #[test]
