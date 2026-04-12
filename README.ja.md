@@ -6,6 +6,8 @@
 - かんたんインストール。zipを置くだけ。
 - らくらくエディット。TUIで直感的に着せ替えやポーズ変更ができます。
 - ゆかいなリアクション。頭をクリックすると…
+- しゃべる : [voicevox-playground-tui](https://github.com/cat2151/voicevox-playground-tui/blob/main/README.ja.md)
+- 全員集合 : TUIでfavorites登録したメンバーの立ち絵を並べて遊べます。全員並べることも可能。簡易版
 - 簡易版です。機能は少ないので遊び心が必要です。
 
 ## install
