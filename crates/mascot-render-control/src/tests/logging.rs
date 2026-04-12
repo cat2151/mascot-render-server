@@ -8,7 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::logging::{
     append_log_record_for_test, control_log_path_for_test, format_log_record_for_test,
-    psd_viewer_tui_log_path_for_test, server_log_path_for_test, server_skin_log_path_for_test,
+    psd_viewer_tui_log_path_for_test, server_log_path_for_test,
+    server_performance_log_path_for_test, server_skin_log_path_for_test,
     startup_diagnostics_dir_for_test,
 };
 use crate::paths::control_local_data_root_for_test;
@@ -135,6 +136,16 @@ fn server_skin_log_path_lives_under_local_data_root_logs_directory() {
         control_local_data_root_for_test()
             .join("logs")
             .join("server_skin.log")
+    );
+}
+
+#[test]
+fn server_performance_log_path_lives_under_local_data_root_logs_directory() {
+    assert_eq!(
+        server_performance_log_path_for_test(),
+        control_local_data_root_for_test()
+            .join("logs")
+            .join("server_performance.log")
     );
 }
 

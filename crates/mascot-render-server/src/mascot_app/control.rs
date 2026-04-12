@@ -88,7 +88,8 @@ impl MascotApp {
             }
             MascotControlCommand::PlayTimeline { request, .. } => {
                 let timeline_summary = describe_motion_timeline_request(request);
-                apply_motion_timeline_request(
+                let stage_started_at = Instant::now();
+                let result = apply_motion_timeline_request(
                     &mut self.motion,
                     self.window_layout,
                     Instant::now(),
@@ -99,7 +100,12 @@ impl MascotApp {
                         "failed to apply mascot motion timeline command: {}",
                         timeline_summary
                     )
-                })?;
+                });
+                self.record_performance_stage(
+                    "apply_motion_timeline_request",
+                    elapsed_ms_since(stage_started_at),
+                );
+                result?;
                 log_server_info(format!(
                     "trigger=control_command action=timeline {}",
                     timeline_summary
@@ -119,6 +125,7 @@ impl MascotApp {
             bail!("favorite_ensemble_enabled=true; cannot change character while favorite ensemble is active");
         }
 
+        let resolve_started_at = Instant::now();
         let resolved = resolve_character_skin(&self.core, character_name).with_context(|| {
             format!(
                 "failed to resolve requested character: requested_character={} current_png={} current_zip={} current_psd={} current_display_diff={}",
@@ -128,7 +135,12 @@ impl MascotApp {
                 self.config.psd_path_in_zip.display(),
                 optional_path_text(self.config.display_diff_path.as_deref())
             )
-        })?;
+        });
+        self.record_performance_stage(
+            "resolve_character_skin",
+            elapsed_ms_since(resolve_started_at),
+        );
+        let resolved = resolved?;
         log_server_info(format!(
             "trigger=control_command action=change_character requested_character={} candidate_count={} selected_zip={} selected_psd={} selected_png={} selected_display_diff={}",
             resolved.character_name,
@@ -140,7 +152,13 @@ impl MascotApp {
         ));
 
         if config_matches_resolved_character(&self.config, &resolved) {
-            match verify_persisted_character_change(&self.config_path, &self.config) {
+            let verify_started_at = Instant::now();
+            let verify_result = verify_persisted_character_change(&self.config_path, &self.config);
+            self.record_performance_stage(
+                "verify_current_runtime_state",
+                elapsed_ms_since(verify_started_at),
+            );
+            match verify_result {
                 Ok(persisted) => {
                     log_server_info(format!(
                         "trigger=control_command action=change_character character変更をスキップしました: requested_character={} selected_png={} は現在の character source と同じで runtime state も一致しています runtime_state_path={} persisted_png_path={} persisted_zip={} persisted_psd={}",
@@ -176,7 +194,9 @@ impl MascotApp {
         let previous_layout = self.window_layout;
         let prepared = self.prepare_character_change(ctx, &previous_png_path, &resolved)?;
         let persisted_png_path = prepared.persisted_png_path.clone();
+        let commit_started_at = Instant::now();
         self.commit_character_change(ctx, previous_layout, &previous_png_path, prepared);
+        self.record_performance_stage("refresh_window_layout", elapsed_ms_since(commit_started_at));
         log_server_info(change_character_success_message(
             &previous_png_path,
             &resolved.png_path,
@@ -195,12 +215,12 @@ impl MascotApp {
         let mut next_config = self.config.clone();
         apply_resolved_character(&mut next_config, resolved);
 
-        let open_skin = run_change_character_stage(
+        let open_skin = self.run_timed_change_character_stage(
             previous_png_path,
             &next_config.png_path,
             "load_base_skin",
-            || {
-                self.load_skin(ctx, &next_config.png_path).with_context(|| {
+            |app| {
+                app.load_skin(ctx, &next_config.png_path).with_context(|| {
                     format!(
                         "failed to load requested mascot skin image {}",
                         next_config.png_path.display()
@@ -208,12 +228,12 @@ impl MascotApp {
                 })
             },
         )?;
-        let closed_skin = run_change_character_stage(
+        let closed_skin = self.run_timed_change_character_stage(
             previous_png_path,
             &next_config.png_path,
             "refresh_closed_eye_skin",
-            || {
-                self.load_closed_eye_skin_for_config(ctx, &next_config)
+            |app| {
+                app.load_closed_eye_skin_for_config(ctx, &next_config)
                     .with_context(|| {
                         format!(
                             "failed to refresh closed-eye skin after changing to {}",
@@ -228,12 +248,12 @@ impl MascotApp {
             next_config.psd_path_in_zip.display(),
             optional_cached_skin_path(closed_skin.as_ref())
         ));
-        let (mouth_open_skin, mouth_closed_skin) = run_change_character_stage(
+        let (mouth_open_skin, mouth_closed_skin) = self.run_timed_change_character_stage(
             previous_png_path,
             &next_config.png_path,
             "refresh_mouth_flap_skins",
-            || {
-                self.load_mouth_flap_skins_for_config(ctx, &next_config)
+            |app| {
+                app.load_mouth_flap_skins_for_config(ctx, &next_config)
                     .with_context(|| {
                         format!(
                             "failed to refresh mouth-flap skins after changing to {}",
@@ -249,31 +269,31 @@ impl MascotApp {
             optional_cached_skin_path(mouth_open_skin.as_ref()),
             optional_cached_skin_path(mouth_closed_skin.as_ref())
         ));
-        run_change_character_stage(
+        self.run_timed_change_character_stage(
             previous_png_path,
             &next_config.png_path,
             "persist_runtime_state",
-            || {
-                persist_requested_character_change(&self.config_path, &next_config).with_context(
+            |app| {
+                persist_requested_character_change(&app.config_path, &next_config).with_context(
                     || {
                         format!(
                             "failed to persist requested mascot character to {}",
-                            self.runtime_state_path.display()
+                            app.runtime_state_path.display()
                         )
                     },
                 )
             },
         )?;
-        let persisted = run_change_character_stage(
+        let persisted = self.run_timed_change_character_stage(
             previous_png_path,
             &next_config.png_path,
             "verify_runtime_state",
-            || {
-                verify_persisted_character_change(&self.config_path, &next_config).with_context(
+            |app| {
+                verify_persisted_character_change(&app.config_path, &next_config).with_context(
                     || {
                         format!(
                             "failed to verify requested mascot character in {}",
-                            self.runtime_state_path.display()
+                            app.runtime_state_path.display()
                         )
                     },
                 )
@@ -318,6 +338,20 @@ impl MascotApp {
         ));
         self.refresh_window_layout(ctx, previous_layout);
     }
+
+    fn run_timed_change_character_stage<T>(
+        &mut self,
+        previous_png_path: &Path,
+        png_path: &Path,
+        stage: &'static str,
+        operation: impl FnOnce(&mut Self) -> Result<T>,
+    ) -> Result<T> {
+        let started_at = Instant::now();
+        let result =
+            run_change_character_stage(previous_png_path, png_path, stage, || operation(self));
+        self.record_performance_stage(stage, elapsed_ms_since(started_at));
+        result
+    }
 }
 
 fn apply_resolved_character(config: &mut MascotConfig, resolved: &ResolvedCharacterSkin) {
@@ -345,4 +379,8 @@ fn optional_cached_skin_path(skin: Option<&CachedSkin>) -> String {
 fn optional_path_text(path: Option<&Path>) -> String {
     path.map(|path| path.display().to_string())
         .unwrap_or_else(|| "-".to_string())
+}
+
+fn elapsed_ms_since(started_at: Instant) -> u64 {
+    u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX)
 }

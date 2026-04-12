@@ -1,4 +1,6 @@
 mod actions;
+mod performance_log;
+mod performance_log_style;
 mod poller;
 mod startup;
 mod state;
@@ -16,6 +18,7 @@ use mascot_render_core::mascot_config_path;
 use ratatui::Terminal;
 
 use actions::{TestPostAction, TestPostSync};
+use performance_log::PerformanceLogPoll;
 use poller::StatusPollSync;
 use startup::ServerStartupSync;
 use state::StatusTuiState;
@@ -30,6 +33,8 @@ fn main() -> Result<()> {
     let mut status_polls = StatusPollSync::new();
     let mut startup = ServerStartupSync::new(config_path.clone());
     let mut test_posts = TestPostSync::new(config_path);
+    let mut performance_log =
+        PerformanceLogPoll::new(mascot_render_control::server_performance_log_path());
 
     run_app(
         terminal.terminal_mut(),
@@ -37,6 +42,7 @@ fn main() -> Result<()> {
         &mut status_polls,
         &mut startup,
         &mut test_posts,
+        &mut performance_log,
     )
 }
 
@@ -46,6 +52,7 @@ fn run_app(
     status_polls: &mut StatusPollSync,
     startup: &mut ServerStartupSync,
     test_posts: &mut TestPostSync,
+    performance_log: &mut PerformanceLogPoll,
 ) -> Result<()> {
     let mut next_poll_at = Instant::now();
 
@@ -53,6 +60,7 @@ fn run_app(
         drain_startup(state, startup);
         drain_status_poll(state, status_polls, startup);
         drain_test_posts(state, test_posts);
+        drain_performance_log(state, performance_log);
 
         let now = Instant::now();
         if now >= next_poll_at {
@@ -77,6 +85,15 @@ fn run_app(
     }
 
     Ok(())
+}
+
+fn drain_performance_log(state: &mut StatusTuiState, performance_log: &mut PerformanceLogPoll) {
+    if let Some(result) = performance_log.poll() {
+        match result {
+            Ok(snapshot) => state.record_performance_log_snapshot(snapshot.lines),
+            Err(error) => state.record_performance_log_error(error),
+        }
+    }
 }
 
 fn drain_status_poll(

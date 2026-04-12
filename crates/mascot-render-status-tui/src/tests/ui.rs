@@ -75,6 +75,30 @@ fn draw_renders_test_post_result_panel_with_visible_result_prefix() {
 }
 
 #[test]
+fn draw_renders_performance_log_panel() {
+    let mut state = StatusTuiState::new();
+    state.record_performance_log_snapshot(vec![
+        "[2026-04-12 00:00:00.000Z] INFO event=post_to_status_settled action=change_character result=completed elapsed_ms=42".to_string(),
+    ]);
+    let backend = TestBackend::new(140, 26);
+    let mut terminal = Terminal::new(backend).expect("test terminal should initialize");
+
+    terminal
+        .draw(|frame| draw(frame, &state))
+        .expect("status TUI should render");
+
+    let rendered = format!("{}", terminal.backend());
+    assert!(
+        rendered.contains("Performance Log"),
+        "performance log panel should be titled in rendered TUI:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("elapsed_ms=42"),
+        "performance log tail should be visible:\n{rendered}"
+    );
+}
+
+#[test]
 fn post_result_panel_height_reserves_about_one_quarter_of_the_screen() {
     assert_eq!(post_result_panel_height(40), 10);
     assert_eq!(post_result_panel_height(24), 6);

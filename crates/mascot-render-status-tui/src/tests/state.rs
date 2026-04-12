@@ -111,6 +111,52 @@ fn test_post_status_keeps_result_visible_before_long_action_detail() {
 }
 
 #[test]
+fn test_post_status_compacts_random_character_paths() {
+    let mut state = StatusTuiState::new();
+    let long_detail = "change-character random cached PSD: generated_character_name=demo eligible_psd_count=10 selectable_psd_count=9 random_zip=cache/demo.zip random_psd=demo/body.psd random_png=N:\\cache\\very\\deep\\dir\\very-long-rendered-file-name-for-display.png";
+
+    state.record_test_post_success(long_detail.to_string(), 1_234);
+
+    let label = state.test_post_status_label();
+    assert!(
+        label.contains("random cached PSD | name=demo | png="),
+        "random POST result should be compact: {label}"
+    );
+    assert!(
+        !label.contains("random_zip=") && !label.contains("N:\\cache\\very\\deep"),
+        "random POST result should not spend the panel on full paths: {label}"
+    );
+}
+
+#[test]
+fn performance_log_lines_are_sticky_until_log_changes() {
+    let mut state = StatusTuiState::new();
+
+    assert_eq!(state.performance_log_lines(), vec!["-".to_string()]);
+
+    state.record_performance_log_snapshot(vec![
+        "event=post_to_status_settled elapsed_ms=42".to_string()
+    ]);
+
+    assert_eq!(
+        state.performance_log_lines(),
+        vec!["event=post_to_status_settled elapsed_ms=42".to_string()]
+    );
+}
+
+#[test]
+fn performance_log_error_is_visible() {
+    let mut state = StatusTuiState::new();
+
+    state.record_performance_log_error("read failed".to_string());
+
+    assert_eq!(
+        state.performance_log_lines(),
+        vec!["error: read failed".to_string()]
+    );
+}
+
+#[test]
 fn configured_character_name_is_none_until_first_snapshot() {
     let mut state = StatusTuiState::new();
     assert_eq!(state.configured_character_name(), None);

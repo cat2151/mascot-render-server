@@ -7,8 +7,10 @@ use mascot_render_protocol::{
 };
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
+use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 
+use crate::performance_log_style::styled_performance_log_lines;
 use crate::state::{format_duration_ms, heartbeat_age_ms_at, StatusTuiState};
 
 const HELP_LINES: &[&str] = &[
@@ -89,11 +91,21 @@ pub(crate) fn draw(frame: &mut ratatui::Frame, state: &StatusTuiState) {
         failed_command_lines(state),
     );
 
+    let post_and_log_columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
+        .split(layout[3]);
     render_panel(
         frame,
-        layout[3],
+        post_and_log_columns[0],
         "Test POST Result",
         vec![state.test_post_status_label()],
+    );
+    render_styled_panel(
+        frame,
+        post_and_log_columns[1],
+        "Performance Log",
+        styled_performance_log_lines(state.performance_log_lines()),
     );
     let keys = Paragraph::new(KEY_HINT_TEXT)
         .block(Block::default().borders(Borders::ALL).title("Keys"))
@@ -189,6 +201,18 @@ fn render_header(frame: &mut ratatui::Frame, area: Rect, state: &StatusTuiState)
 
 fn render_panel(frame: &mut ratatui::Frame, area: Rect, title: &'static str, lines: Vec<String>) {
     let panel = Paragraph::new(lines.join("\n"))
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .wrap(Wrap { trim: false });
+    frame.render_widget(panel, area);
+}
+
+fn render_styled_panel(
+    frame: &mut ratatui::Frame,
+    area: Rect,
+    title: &'static str,
+    lines: Vec<Line<'static>>,
+) {
+    let panel = Paragraph::new(lines)
         .block(Block::default().borders(Borders::ALL).title(title))
         .wrap(Wrap { trim: false });
     frame.render_widget(panel, area);

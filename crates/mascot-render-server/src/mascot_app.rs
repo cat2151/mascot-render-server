@@ -80,8 +80,10 @@ pub(crate) use persistence::{
 };
 #[cfg(test)]
 pub(crate) use runtime::mouth_flap_skin_state_for_test;
+#[cfg(not(test))]
+use status::PendingPerformanceTrace;
 #[cfg(test)]
-pub(crate) use status::ServerWorkGuard;
+pub(crate) use status::{PendingPerformanceTrace, ServerWorkGuard};
 
 pub(crate) struct MascotApp {
     config_path: PathBuf,
@@ -116,6 +118,7 @@ pub(crate) struct MascotApp {
     window_history: WindowHistoryTracker,
     pending_restored_anchor_position: Option<Pos2>,
     status_store: ServerStatusStore,
+    pending_performance_traces: Vec<PendingPerformanceTrace>,
 }
 
 pub(crate) struct MascotAppStartup {
@@ -216,6 +219,7 @@ impl MascotApp {
             window_history: WindowHistoryTracker::new(history_path, saved_window_position),
             pending_restored_anchor_position: saved_window_position,
             status_store,
+            pending_performance_traces: Vec::new(),
         };
         app.motion
             .set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);

@@ -36,6 +36,8 @@ pub(crate) struct StatusTuiState {
     pub(crate) poll_in_flight: bool,
     pub(crate) startup_status: ServerStartupStatus,
     pub(crate) test_post_status: TestPostStatus,
+    performance_log_lines: Vec<String>,
+    performance_log_error: Option<String>,
     help_visible: bool,
     should_quit: bool,
 }
@@ -88,6 +90,15 @@ impl StatusTuiState {
         self.test_post_status = TestPostStatus::Failed { label, error };
     }
 
+    pub(crate) fn record_performance_log_snapshot(&mut self, lines: Vec<String>) {
+        self.performance_log_lines = lines;
+        self.performance_log_error = None;
+    }
+
+    pub(crate) fn record_performance_log_error(&mut self, error: String) {
+        self.performance_log_error = Some(error);
+    }
+
     pub(crate) fn startup_status_summary(&self) -> &'static str {
         match self.startup_status {
             ServerStartupStatus::Idle => "idle",
@@ -107,13 +118,33 @@ impl StatusTuiState {
     pub(crate) fn test_post_status_label(&self) -> String {
         match &self.test_post_status {
             TestPostStatus::Idle => "idle".to_string(),
-            TestPostStatus::Running(label) => format!("running: {label}"),
+            TestPostStatus::Running(label) => {
+                format!("running: {}", compact_test_post_label(label))
+            }
             TestPostStatus::Succeeded { label, elapsed_ms } => {
-                format!("ok ({}): {label}", format_duration_ms(*elapsed_ms))
+                format!(
+                    "ok ({}): {}",
+                    format_duration_ms(*elapsed_ms),
+                    compact_test_post_label(label)
+                )
             }
             TestPostStatus::Failed { label, error } => {
-                format!("failed: {error} | action={label}")
+                format!(
+                    "failed: {error} | action={}",
+                    compact_test_post_label(label)
+                )
             }
+        }
+    }
+
+    pub(crate) fn performance_log_lines(&self) -> Vec<String> {
+        if let Some(error) = self.performance_log_error.as_ref() {
+            return vec![format!("error: {error}")];
+        }
+        if self.performance_log_lines.is_empty() {
+            vec!["-".to_string()]
+        } else {
+            self.performance_log_lines.clone()
         }
     }
 
@@ -202,4 +233,60 @@ pub(crate) fn format_duration_ms(ms: u64) -> String {
     let hours = ms / 3_600_000;
     let minutes = ms % 3_600_000 / 60_000;
     format!("{hours}h {minutes}m")
+}
+
+fn compact_test_post_label(label: &str) -> String {
+    if label.starts_with("change-character random cached PSD:") {
+        let name = key_value(label, "generated_character_name").unwrap_or("-");
+        let png = key_value(label, "random_png")
+            .map(compact_path_tail)
+            .unwrap_or_else(|| "-".to_string());
+        return format!("random cached PSD | name={name} | png={png}");
+    }
+
+    match label {
+        "change-character configured_character_name" => "change-character configured".to_string(),
+        "timeline mouth-flap" => "timeline mouth-flap".to_string(),
+        "timeline shake" => "timeline shake".to_string(),
+        "show" | "hide" => label.to_string(),
+        _ => shorten_middle(label, 80),
+    }
+}
+
+fn key_value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+    let prefix = format!("{key}=");
+    text.split_whitespace()
+        .find_map(|part| part.strip_prefix(&prefix))
+}
+
+fn compact_path_tail(path: &str) -> String {
+    let tail = path
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|tail| !tail.is_empty())
+        .unwrap_or(path);
+    shorten_middle(tail, 36)
+}
+
+fn shorten_middle(text: &str, max_chars: usize) -> String {
+    let char_count = text.chars().count();
+    if char_count <= max_chars {
+        return text.to_string();
+    }
+    if max_chars <= 3 {
+        return ".".repeat(max_chars);
+    }
+
+    let head_len = (max_chars - 3) / 2;
+    let tail_len = max_chars - 3 - head_len;
+    let head = text.chars().take(head_len).collect::<String>();
+    let tail = text
+        .chars()
+        .rev()
+        .take(tail_len)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+    format!("{head}...{tail}")
 }

@@ -12,6 +12,7 @@ use crate::paths::control_local_data_root;
 
 const SERVER_LOG_PATH: &str = "logs/server.log";
 const SERVER_SKIN_LOG_PATH: &str = "logs/server_skin.log";
+const SERVER_PERFORMANCE_LOG_PATH: &str = "logs/server_performance.log";
 const PSD_VIEWER_TUI_LOG_PATH: &str = "logs/psd_viewer_tui.log";
 const CONTROL_LOG_PATH: &str = "logs/control.log";
 const STARTUP_DIAGNOSTICS_DIR_PATH: &str = "logs/startup";
@@ -21,6 +22,7 @@ pub fn init_server_log() -> Result<PathBuf> {
     let path = server_log_path();
     ensure_log_exists(&path, "server log")?;
     ensure_log_exists(&server_skin_log_path(), "server skin log")?;
+    ensure_log_exists(&server_performance_log_path(), "server performance log")?;
     ensure_log_exists(&psd_viewer_tui_log_path(), "psd-viewer-tui log")?;
     ensure_log_exists(&control_log_path(), "control log")?;
     Ok(path)
@@ -47,6 +49,26 @@ pub fn log_server_skin_info(message: impl AsRef<str>) {
         "server skin log",
         &server_skin_log_path(),
         "INFO",
+        message.as_ref(),
+        false,
+    );
+}
+
+pub fn log_server_performance_info(message: impl AsRef<str>) {
+    log_with_level(
+        "server performance log",
+        &server_performance_log_path(),
+        "INFO",
+        message.as_ref(),
+        false,
+    );
+}
+
+pub fn log_server_performance_error(message: impl AsRef<str>) {
+    log_with_level(
+        "server performance log",
+        &server_performance_log_path(),
+        "ERROR",
         message.as_ref(),
         false,
     );
@@ -98,6 +120,10 @@ fn server_log_path() -> PathBuf {
 
 fn server_skin_log_path() -> PathBuf {
     control_local_data_root().join(SERVER_SKIN_LOG_PATH)
+}
+
+pub fn server_performance_log_path() -> PathBuf {
+    control_local_data_root().join(SERVER_PERFORMANCE_LOG_PATH)
 }
 
 fn psd_viewer_tui_log_path() -> PathBuf {
@@ -208,6 +234,11 @@ pub(crate) fn server_log_path_for_test() -> PathBuf {
 #[cfg(test)]
 pub(crate) fn server_skin_log_path_for_test() -> PathBuf {
     server_skin_log_path()
+}
+
+#[cfg(test)]
+pub(crate) fn server_performance_log_path_for_test() -> PathBuf {
+    server_performance_log_path()
 }
 
 #[cfg(test)]
