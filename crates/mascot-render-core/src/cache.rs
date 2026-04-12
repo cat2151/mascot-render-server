@@ -18,7 +18,8 @@ pub fn default_cache_root() -> PathBuf {
     workspace_cache_root()
 }
 
-const ZIP_META_VERSION: u32 = 4;
+const ZIP_META_VERSION: u32 = 5;
+const DEFAULT_PNG_DIR_NAME: &str = "default-png";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct ZipSourceStamp {
@@ -214,9 +215,9 @@ fn rebuild_zip_meta(
     context: ZipMetaBuildContext<'_>,
     on_event: &mut impl FnMut(ZipLoadEvent),
 ) -> Result<(Vec<PsdEntry>, u64, ZipMetaRebuildReport)> {
-    let render_root = context.cache_dir.join("renders");
-    fs::create_dir_all(&render_root)
-        .with_context(|| format!("failed to create {}", render_root.display()))?;
+    let default_png_root = context.cache_dir.join(DEFAULT_PNG_DIR_NAME);
+    fs::create_dir_all(&default_png_root)
+        .with_context(|| format!("failed to create {}", default_png_root.display()))?;
 
     let mut psds = Vec::new();
     let mut report = ZipMetaRebuildReport::default();
@@ -228,7 +229,7 @@ fn rebuild_zip_meta(
         };
         on_event(ZipLoadEvent::PsdDiscovered(progress.clone()));
         let build_started_at = Instant::now();
-        let psd = build_psd_entry(&path, &render_root);
+        let psd = build_psd_entry(&path, &default_png_root);
         report.psd_entries_built += 1;
         report.psd_entry_build_ms = report
             .psd_entry_build_ms

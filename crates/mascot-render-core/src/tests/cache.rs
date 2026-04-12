@@ -23,9 +23,9 @@ fn load_cached_zip_entries_snapshot_trusts_matching_persisted_meta() {
     let live_source = zip_source_stamp_for_test(&live_zip_path).unwrap();
     let live_cache_dir = cache_dir.join(&live_cache_key);
     let live_psd_path = live_cache_dir.join("extracted/live/body.psd");
-    let live_render_path = live_cache_dir.join("renders/live__body.png");
-    create_file(&live_render_path);
-    create_default_render_sidecars(&live_render_path);
+    let live_default_png_path = live_cache_dir.join("default-png/live__body.png");
+    create_file(&live_default_png_path);
+    create_default_render_sidecars(&live_default_png_path);
 
     let stale_zip_path = cache_dir.join("assets/stale.zip");
     create_file(&stale_zip_path);
@@ -45,7 +45,10 @@ fn load_cached_zip_entries_snapshot_trusts_matching_persisted_meta() {
         &live_zip_path,
         &live_cache_key,
         &live_source,
-        vec![sample_psd_entry(&live_psd_path, Some(live_render_path))],
+        vec![sample_psd_entry(
+            &live_psd_path,
+            Some(live_default_png_path),
+        )],
     );
     write_snapshot_meta(
         &stale_cache_dir.join("psd-meta.json"),
@@ -66,7 +69,7 @@ fn load_cached_zip_entries_snapshot_trusts_matching_persisted_meta() {
     assert_eq!(zip_entries[0].psds.len(), 1);
     assert_eq!(
         zip_entries[0].psds[0].rendered_png_path,
-        Some(live_cache_dir.join("renders/live__body.png"))
+        Some(live_cache_dir.join("default-png/live__body.png"))
     );
 
     let _ = fs::remove_dir_all(&cache_dir);
@@ -83,14 +86,14 @@ fn load_cached_zip_entries_snapshot_rejects_meta_when_default_png_is_missing() {
     let source = zip_source_stamp_for_test(&zip_path).unwrap();
     let live_cache_dir = cache_dir.join(&cache_key);
     let psd_path = live_cache_dir.join("extracted/live/body.psd");
-    let missing_render_path = live_cache_dir.join("renders/live__body.png");
+    let missing_default_png_path = live_cache_dir.join("default-png/live__body.png");
 
     write_snapshot_meta(
         &live_cache_dir.join("psd-meta.json"),
         &zip_path,
         &cache_key,
         &source,
-        vec![sample_psd_entry(&psd_path, Some(missing_render_path))],
+        vec![sample_psd_entry(&psd_path, Some(missing_default_png_path))],
     );
 
     let core = Core::new(CoreConfig {
@@ -117,16 +120,16 @@ fn load_cached_zip_entries_snapshot_rejects_meta_when_default_skin_details_are_m
     let source = zip_source_stamp_for_test(&zip_path).unwrap();
     let live_cache_dir = cache_dir.join(&cache_key);
     let psd_path = live_cache_dir.join("extracted/live/body.psd");
-    let render_path = live_cache_dir.join("renders/live__body.png");
-    create_file(&render_path);
-    create_raw_rgba_cache(&render_path);
+    let default_png_path = live_cache_dir.join("default-png/live__body.png");
+    create_file(&default_png_path);
+    create_raw_rgba_cache(&default_png_path);
 
     write_snapshot_meta(
         &live_cache_dir.join("psd-meta.json"),
         &zip_path,
         &cache_key,
         &source,
-        vec![sample_psd_entry(&psd_path, Some(render_path))],
+        vec![sample_psd_entry(&psd_path, Some(default_png_path))],
     );
 
     let core = Core::new(CoreConfig {
@@ -153,16 +156,16 @@ fn load_cached_zip_entries_snapshot_rejects_meta_when_default_rgba_cache_is_miss
     let source = zip_source_stamp_for_test(&zip_path).unwrap();
     let live_cache_dir = cache_dir.join(&cache_key);
     let psd_path = live_cache_dir.join("extracted/live/body.psd");
-    let render_path = live_cache_dir.join("renders/live__body.png");
-    create_file(&render_path);
-    create_skin_details_cache(&render_path);
+    let default_png_path = live_cache_dir.join("default-png/live__body.png");
+    create_file(&default_png_path);
+    create_skin_details_cache(&default_png_path);
 
     write_snapshot_meta(
         &live_cache_dir.join("psd-meta.json"),
         &zip_path,
         &cache_key,
         &source,
-        vec![sample_psd_entry(&psd_path, Some(render_path))],
+        vec![sample_psd_entry(&psd_path, Some(default_png_path))],
     );
 
     let core = Core::new(CoreConfig {
@@ -284,7 +287,7 @@ fn write_snapshot_meta(
     }
 
     let body = json!({
-        "version": 4,
+        "version": 5,
         "zip_path": zip_path,
         "zip_cache_key": zip_cache_key,
         "source": source,

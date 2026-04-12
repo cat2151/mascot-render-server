@@ -38,13 +38,16 @@ impl PsdAnalysis {
     }
 }
 
-pub(crate) fn build_psd_entry(path: &Path, render_root: &Path) -> PsdEntry {
+pub(crate) fn build_psd_entry(path: &Path, default_png_root: &Path) -> PsdEntry {
     let mut analysis = analyze_psd(path);
     let mut rendered_png_path = None;
     let mut render_warnings = Vec::new();
 
     if let Some(metadata) = analysis.metadata.as_ref().filter(|_| analysis.can_render()) {
-        let render_path = render_root.join(rendered_png_name(path, render_cache_root(render_root)));
+        let render_path = default_png_root.join(rendered_png_name(
+            path,
+            default_png_cache_root(default_png_root),
+        ));
         match render_png(
             metadata,
             &analysis.layers,
@@ -294,13 +297,13 @@ fn sanitize_component(value: &str) -> String {
         .to_string()
 }
 
-/// `render_root` is expected to be `<cache_root>/<zip_cache_key>/renders`.
-/// The cache root is therefore two levels up from the renders directory.
-fn render_cache_root(render_root: &Path) -> &Path {
-    render_root
+/// `default_png_root` is expected to be `<cache_root>/<zip_cache_key>/default-png`.
+/// The cache root is therefore two levels up from the default-png directory.
+fn default_png_cache_root(default_png_root: &Path) -> &Path {
+    default_png_root
         .parent()
         .and_then(Path::parent)
-        .unwrap_or(render_root)
+        .unwrap_or(default_png_root)
 }
 
 fn unix_timestamp() -> u64 {
