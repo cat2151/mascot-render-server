@@ -52,6 +52,9 @@ mod server_preview_sync_tests;
 #[path = "tests/startup_loader.rs"]
 mod startup_loader_tests;
 #[cfg(test)]
+#[path = "tests/startup.rs"]
+mod startup_tests;
+#[cfg(test)]
 #[path = "tests/tui_config.rs"]
 mod tui_config_tests;
 #[cfg(test)]
