@@ -290,8 +290,8 @@ pub(crate) fn draw(
 
     if app.is_help_overlay_visible() {
         overlay::draw_help_dialog(frame, app.help_overlay_lines(), terminal_focused);
-    } else if let Some(message) = app.log_overlay_message() {
-        overlay::draw_log_dialog(frame, overlay_lines(message), terminal_focused);
+    } else if let Some((title, message)) = app.log_overlay_dialog() {
+        overlay::draw_overlay_dialog(frame, title, overlay_lines(message), terminal_focused);
     }
 }
 

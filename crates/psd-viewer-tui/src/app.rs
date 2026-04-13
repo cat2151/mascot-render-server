@@ -43,6 +43,12 @@ use timing::TimingLog;
 pub(crate) const MONOKAI_YELLOW: Color = Color::Rgb(230, 219, 116);
 pub(crate) const MONOKAI_PINK: Color = Color::Rgb(249, 38, 114);
 
+#[derive(Debug, Clone)]
+struct OverlayDialog {
+    title: String,
+    message: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FocusPane {
     Library,
@@ -58,7 +64,7 @@ pub(crate) enum PreviewBackend {
 #[derive(Debug)]
 pub(crate) struct App {
     status: String,
-    log_overlay: Option<String>,
+    log_overlay: Option<OverlayDialog>,
     core: Core,
     current_psd_document: Option<PsdDocument>,
     current_preview_png_path: Option<PathBuf>,
@@ -179,17 +185,44 @@ impl App {
         self.log_overlay.is_some()
     }
 
+    #[cfg(test)]
     pub(crate) fn log_overlay_message(&self) -> Option<&str> {
-        self.log_overlay.as_deref()
+        self.log_overlay
+            .as_ref()
+            .map(|dialog| dialog.message.as_str())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn log_overlay_title(&self) -> Option<&str> {
+        self.log_overlay
+            .as_ref()
+            .map(|dialog| dialog.title.as_str())
+    }
+
+    pub(crate) fn log_overlay_dialog(&self) -> Option<(&str, &str)> {
+        self.log_overlay
+            .as_ref()
+            .map(|dialog| (dialog.title.as_str(), dialog.message.as_str()))
     }
 
     pub(crate) fn show_log_overlay(&mut self, message: impl Into<String>) {
-        self.log_overlay = Some(message.into());
-        self.help_overlay_visible = false;
+        self.show_overlay("Log", message);
+    }
+
+    pub(crate) fn show_error_overlay(&mut self, message: impl Into<String>) {
+        self.show_overlay("Error", message);
     }
 
     pub(crate) fn clear_log_overlay(&mut self) {
         self.log_overlay = None;
+    }
+
+    fn show_overlay(&mut self, title: impl Into<String>, message: impl Into<String>) {
+        self.log_overlay = Some(OverlayDialog {
+            title: title.into(),
+            message: message.into(),
+        });
+        self.help_overlay_visible = false;
     }
 
     pub(crate) fn is_startup_loading(&self) -> bool {

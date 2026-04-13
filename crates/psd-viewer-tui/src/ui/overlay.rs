@@ -33,12 +33,13 @@ pub(super) fn draw_help_dialog(
     draw_text_overlay(frame, "Help", help_lines, focused);
 }
 
-pub(super) fn draw_log_dialog(
+pub(super) fn draw_overlay_dialog(
     frame: &mut ratatui::Frame,
+    title: &str,
     lines: Vec<Line<'static>>,
     focused: bool,
 ) {
-    draw_text_overlay(frame, "Log", lines, focused);
+    draw_text_overlay(frame, title, lines, focused);
 }
 
 pub(super) fn draw_unfocused_preview_overlay(

@@ -6,7 +6,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::app::{apply_favorite_variation, apply_favorite_window_position, App, FocusPane};
 use crate::favorites::FavoriteEntry;
-use crate::{is_favorite_save_key, is_favorites_toggle_key, is_overlay_close_key};
+use crate::{
+    is_favorite_save_key, is_favorites_toggle_key, is_overlay_close_key, is_overlay_confirm_key,
+};
 use mascot_render_core::{
     workspace_cache_root, DisplayDiff, LayerVisibilityOverride, PsdEntry, ZipEntry,
 };
@@ -35,6 +37,16 @@ fn overlay_close_key_accepts_plain_esc_only_when_visible() {
     assert!(!is_overlay_close_key(&plain_esc, false));
     assert!(is_overlay_close_key(&plain_esc, true));
     assert!(!is_overlay_close_key(&ctrl_esc, true));
+}
+
+#[test]
+fn overlay_confirm_key_accepts_plain_enter_only_when_visible() {
+    let plain_enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+    let shift_enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT);
+
+    assert!(!is_overlay_confirm_key(&plain_enter, false));
+    assert!(is_overlay_confirm_key(&plain_enter, true));
+    assert!(!is_overlay_confirm_key(&shift_enter, true));
 }
 
 #[test]

@@ -8,11 +8,11 @@ use crate::favorites::favorites_path;
 use crate::tui_config::{tui_config_path, tui_runtime_state_path};
 
 impl App {
-    fn active_esc_action_text(&self) -> &'static str {
+    fn active_overlay_action_text(&self) -> &'static str {
         if self.help_overlay_visible {
             " | Esc: close help"
         } else if self.log_overlay.is_some() {
-            " | Esc: close log"
+            " | Enter/Esc: close overlay"
         } else if self.favorites_visible {
             " | Esc: close favorites"
         } else {
@@ -133,7 +133,7 @@ impl App {
         };
         Line::from(format!(
             "q: quit | ?: {help_action}{} | j/k: move | h/l: pane | PageUp/PageDown: scroll | Space/Enter: toggle | f: favorite | v: favorites | e: ensemble | -/+: mascot scale | t: mouth flap | m: eye blink | s: shake mascot",
-            self.active_esc_action_text(),
+            self.active_overlay_action_text(),
         ))
     }
 
@@ -147,7 +147,9 @@ impl App {
             Line::from("PageUp/PageDown: page scroll"),
             Line::from("Space/Enter: toggle selected layer"),
             Line::from("f: save current PSD to favorites (ZIP / PSD or layer pane)"),
-            Line::from("v: open/close favorites list, Esc: close favorites list or log overlay"),
+            Line::from(
+                "v: open/close favorites list, Esc: close favorites list, Enter/Esc: close overlay",
+            ),
             Line::from("e: toggle favorite ensemble true/false"),
             Line::from("Enter on favorites list: select PSD"),
             Line::from("-/+: mascot scale"),

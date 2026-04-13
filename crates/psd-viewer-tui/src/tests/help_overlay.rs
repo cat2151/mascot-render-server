@@ -52,11 +52,11 @@ fn log_overlay_closes_help_and_updates_footer_label() {
 
     assert!(app.is_log_overlay_visible());
     assert!(!app.is_help_overlay_visible());
-    assert!(line_text(app.help_line()).contains("Esc: close log"));
+    assert!(line_text(app.help_line()).contains("Enter/Esc: close overlay"));
 
     app.clear_log_overlay();
     assert!(!app.is_log_overlay_visible());
-    assert!(!line_text(app.help_line()).contains("Esc:"));
+    assert!(!line_text(app.help_line()).contains("Enter/Esc:"));
 }
 
 #[test]
@@ -73,7 +73,7 @@ fn footer_help_line_shows_esc_only_when_something_can_close() {
 
     app.toggle_favorites_view();
     app.show_log_overlay("mouth flap diagnostic");
-    assert!(line_text(app.help_line()).contains("Esc: close log"));
+    assert!(line_text(app.help_line()).contains("Enter/Esc: close overlay"));
 }
 
 #[test]
@@ -96,7 +96,8 @@ fn help_overlay_includes_all_shortcuts() {
     );
     assert!(
         lines.contains(
-            &"v: open/close favorites list, Esc: close favorites list or log overlay".to_string()
+            &"v: open/close favorites list, Esc: close favorites list, Enter/Esc: close overlay"
+                .to_string()
         ),
         "help overlay should describe favorites list and log overlay closing"
     );

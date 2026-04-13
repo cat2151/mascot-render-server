@@ -130,6 +130,10 @@ fn is_overlay_close_key(key: &crossterm::event::KeyEvent, overlay_visible: bool)
     overlay_visible && key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Esc)
 }
 
+fn is_overlay_confirm_key(key: &crossterm::event::KeyEvent, overlay_visible: bool) -> bool {
+    overlay_visible && key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Enter)
+}
+
 fn is_favorite_save_key(
     key: &crossterm::event::KeyEvent,
     focus: app::FocusPane,
@@ -220,7 +224,9 @@ fn run_app(
                 let mut force_server_sync = false;
                 if app.is_log_overlay_visible() {
                     match key.code {
-                        _ if is_overlay_close_key(&key, app.is_log_overlay_visible()) => {
+                        _ if is_overlay_close_key(&key, app.is_log_overlay_visible())
+                            || is_overlay_confirm_key(&key, app.is_log_overlay_visible()) =>
+                        {
                             app.clear_log_overlay();
                         }
                         KeyCode::Char('q') if key.modifiers == KeyModifiers::NONE => {
