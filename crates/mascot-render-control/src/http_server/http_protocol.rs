@@ -1,7 +1,9 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
+
+const MAX_REQUEST_BODY_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug)]
 pub(super) struct HttpRequest {
@@ -18,28 +20,69 @@ pub(super) struct HttpResponse {
     body: Vec<u8>,
 }
 
-pub(super) fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest> {
+#[derive(Debug)]
+pub(super) enum HttpRequestReadError {
+    BadRequest(anyhow::Error),
+    PayloadTooLarge {
+        content_length: usize,
+        max_length: usize,
+    },
+}
+
+impl HttpRequestReadError {
+    fn bad_request(error: anyhow::Error) -> Self {
+        Self::BadRequest(error)
+    }
+
+    pub(super) fn is_payload_too_large(&self) -> bool {
+        matches!(self, Self::PayloadTooLarge { .. })
+    }
+}
+
+impl std::fmt::Display for HttpRequestReadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BadRequest(error) => write!(f, "{error}"),
+            Self::PayloadTooLarge {
+                content_length,
+                max_length,
+            } => write!(
+                f,
+                "Content-Length {content_length} exceeds max request body size {max_length}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for HttpRequestReadError {}
+
+pub(super) fn read_http_request(
+    stream: &mut TcpStream,
+) -> Result<HttpRequest, HttpRequestReadError> {
     let mut reader = BufReader::new(stream);
     let mut request_line = String::new();
     reader
         .read_line(&mut request_line)
-        .context("failed to read HTTP request line")?;
+        .context("failed to read HTTP request line")
+        .map_err(HttpRequestReadError::bad_request)?;
     if request_line.trim().is_empty() {
-        bail!("empty HTTP request");
+        return Err(HttpRequestReadError::bad_request(anyhow!(
+            "empty HTTP request"
+        )));
     }
 
     let mut parts = request_line.split_whitespace();
     let method = parts
         .next()
-        .ok_or_else(|| anyhow!("missing HTTP method"))?
+        .ok_or_else(|| HttpRequestReadError::bad_request(anyhow!("missing HTTP method")))?
         .to_string();
     let path = parts
         .next()
-        .ok_or_else(|| anyhow!("missing HTTP path"))?
+        .ok_or_else(|| HttpRequestReadError::bad_request(anyhow!("missing HTTP path")))?
         .to_string();
     let _version = parts
         .next()
-        .ok_or_else(|| anyhow!("missing HTTP version"))?;
+        .ok_or_else(|| HttpRequestReadError::bad_request(anyhow!("missing HTTP version")))?;
 
     let mut content_length = 0usize;
     let mut line = String::new();
@@ -47,7 +90,8 @@ pub(super) fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest> {
         line.clear();
         reader
             .read_line(&mut line)
-            .context("failed to read HTTP header line")?;
+            .context("failed to read HTTP header line")
+            .map_err(HttpRequestReadError::bad_request)?;
         if line == "\r\n" || line == "\n" {
             break;
         }
@@ -56,7 +100,14 @@ pub(super) fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest> {
                 content_length = value
                     .trim()
                     .parse::<usize>()
-                    .context("invalid Content-Length header")?;
+                    .context("invalid Content-Length header")
+                    .map_err(HttpRequestReadError::bad_request)?;
+                if content_length > MAX_REQUEST_BODY_BYTES {
+                    return Err(HttpRequestReadError::PayloadTooLarge {
+                        content_length,
+                        max_length: MAX_REQUEST_BODY_BYTES,
+                    });
+                }
             }
         }
     }
@@ -64,7 +115,8 @@ pub(super) fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest> {
     let mut body = vec![0; content_length];
     reader
         .read_exact(&mut body)
-        .context("failed to read HTTP request body")?;
+        .context("failed to read HTTP request body")
+        .map_err(HttpRequestReadError::bad_request)?;
 
     Ok(HttpRequest { method, path, body })
 }
@@ -117,6 +169,15 @@ impl HttpResponse {
         Self {
             status_code: 400,
             status_text: "Bad Request",
+            content_type: "text/plain; charset=utf-8",
+            body: body.into_bytes(),
+        }
+    }
+
+    pub(super) fn payload_too_large(body: String) -> Self {
+        Self {
+            status_code: 413,
+            status_text: "Payload Too Large",
             content_type: "text/plain; charset=utf-8",
             body: body.into_bytes(),
         }

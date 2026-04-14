@@ -173,10 +173,15 @@ fn handle_connection(
             }
         },
         Err(error) => {
+            let response = if error.is_payload_too_large() {
+                HttpResponse::payload_too_large(error.to_string())
+            } else {
+                HttpResponse::bad_request(error.to_string())
+            };
             log_control_error(format!(
                 "event=control_request stage=parse peer={peer} error={error:#}"
             ));
-            HttpResponse::bad_request(error.to_string())
+            response
         }
     };
 

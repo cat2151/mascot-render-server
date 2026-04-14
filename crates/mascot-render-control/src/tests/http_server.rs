@@ -1,4 +1,5 @@
-use std::net::SocketAddr;
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc;
@@ -291,6 +292,33 @@ fn mascot_control_server_records_queued_command_status() {
     );
 }
 
+#[test]
+fn mascot_control_server_rejects_requests_with_too_large_content_length() {
+    let (tx, _rx) = mpsc::channel();
+    let (address, _handle) = start_mascot_control_server_on(
+        SocketAddr::from(([127, 0, 0, 1], 0)),
+        tx,
+        test_status_store(),
+        empty_psd_file_names,
+    )
+    .expect("should start mascot control server");
+    wait_for_healthcheck(address);
+
+    let response = send_raw_http_request(
+        address,
+        "POST /change-character HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 1048577\r\n\r\n",
+    );
+
+    assert!(
+        response.starts_with("HTTP/1.1 413 Payload Too Large"),
+        "unexpected response: {response}"
+    );
+    assert!(
+        response.contains("Content-Length 1048577 exceeds max request body size 1048576"),
+        "unexpected response: {response}"
+    );
+}
+
 fn wait_for_healthcheck(address: SocketAddr) {
     let deadline = Instant::now() + Duration::from_secs(2);
     while Instant::now() < deadline {
@@ -327,4 +355,20 @@ fn test_status_store() -> ServerStatusStore {
 
 fn empty_psd_file_names() -> anyhow::Result<Vec<String>> {
     Ok(Vec::new())
+}
+
+fn send_raw_http_request(address: SocketAddr, request: &str) -> String {
+    let mut stream = TcpStream::connect(address).expect("should connect to mascot control server");
+    stream
+        .write_all(request.as_bytes())
+        .expect("should write raw HTTP request");
+    stream
+        .shutdown(std::net::Shutdown::Write)
+        .expect("should close write half");
+
+    let mut response = String::new();
+    stream
+        .read_to_string(&mut response)
+        .expect("should read raw HTTP response");
+    response
 }
