@@ -7,6 +7,7 @@ mod favorite_ensemble;
 mod mascot_app;
 mod mascot_scale;
 mod mouth_flap;
+mod psd_file_name_catalog;
 
 #[cfg(test)]
 #[path = "tests/always_bend.rs"]
@@ -39,6 +40,9 @@ mod mascot_app_status_tests;
 #[path = "tests/mascot_scale.rs"]
 mod mascot_scale_tests;
 #[cfg(test)]
+#[path = "tests/psd_file_name_catalog.rs"]
+mod psd_file_name_catalog_tests;
+#[cfg(test)]
 #[path = "tests/runtime.rs"]
 mod runtime_tests;
 #[cfg(test)]
@@ -66,6 +70,7 @@ use mascot_render_server::window_history::{
     load_window_position, outer_position_for_anchor, window_history_path,
 };
 use mascot_render_server::{AlphaBounds, MascotWindowLayout};
+use psd_file_name_catalog::PsdFileNameCatalog;
 
 use app_support::{
     alpha_bounds_from_skin_bounds, alpha_mask, content_bounds, size_vec, window_title,
@@ -99,6 +104,7 @@ fn main() -> Result<()> {
     ));
     let config = load_mascot_config(&config_path)?;
     let core = Core::new(CoreConfig::default());
+    let psd_file_name_catalog = PsdFileNameCatalog::load_startup_fixed(&core)?;
     let favorite_ensemble = if config.favorite_ensemble_enabled {
         load_favorite_ensemble(&core)?
     } else {
@@ -193,11 +199,13 @@ fn main() -> Result<()> {
         native_options,
         Box::new(move |cc| {
             let (control_tx, control_rx) = mpsc::channel();
+            let catalog = psd_file_name_catalog.clone();
             let repaint_ctx = cc.egui_ctx.clone();
             let notify = Arc::new(move || repaint_ctx.request_repaint());
             let _control_server = start_mascot_control_server_with_notify(
                 control_tx,
                 status_store.clone(),
+                move || Ok(catalog.snapshot()),
                 Some(notify),
             )?;
             Ok(Box::new(MascotApp::new(

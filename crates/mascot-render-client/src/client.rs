@@ -30,6 +30,10 @@ pub fn mascot_render_server_status() -> Result<ServerStatusSnapshot> {
     mascot_render_server_status_at(mascot_render_server_address())
 }
 
+pub fn mascot_render_server_psd_file_names() -> Result<Vec<String>> {
+    mascot_render_server_psd_file_names_at(mascot_render_server_address())
+}
+
 pub fn show_mascot_render_server() -> Result<()> {
     show_mascot_render_server_at(mascot_render_server_address())
 }
@@ -63,6 +67,12 @@ pub fn mascot_render_server_healthcheck_at(address: SocketAddr) -> Result<()> {
 pub fn mascot_render_server_status_at(address: SocketAddr) -> Result<ServerStatusSnapshot> {
     let body = send_http_request(address, "GET", "/status", None, IO_TIMEOUT)?;
     serde_json::from_slice(&body).context("failed to parse mascot-render-server status JSON")
+}
+
+pub fn mascot_render_server_psd_file_names_at(address: SocketAddr) -> Result<Vec<String>> {
+    let body = send_http_request(address, "GET", "/psd-filenames", None, IO_TIMEOUT)?;
+    serde_json::from_slice(&body)
+        .context("failed to parse mascot-render-server PSD file names JSON")
 }
 
 pub fn show_mascot_render_server_at(address: SocketAddr) -> Result<()> {

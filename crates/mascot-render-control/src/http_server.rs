@@ -23,6 +23,7 @@ use crate::logging::{log_control_error, log_control_info};
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
 const APPLY_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
+type PsdFileNamesLoader = dyn Fn() -> Result<Vec<String>> + Send + Sync;
 
 #[derive(Debug)]
 struct HttpRequest {
@@ -42,19 +43,23 @@ struct HttpResponse {
 pub fn start_mascot_control_server(
     command_tx: Sender<MascotControlCommand>,
     status_store: ServerStatusStore,
+    psd_file_names: impl Fn() -> Result<Vec<String>> + Send + Sync + 'static,
 ) -> Result<JoinHandle<()>> {
-    start_mascot_control_server_with_notify(command_tx, status_store, None)
+    start_mascot_control_server_with_notify(command_tx, status_store, psd_file_names, None)
 }
 
 pub fn start_mascot_control_server_with_notify(
     command_tx: Sender<MascotControlCommand>,
     status_store: ServerStatusStore,
+    psd_file_names: impl Fn() -> Result<Vec<String>> + Send + Sync + 'static,
     notify: Option<Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<JoinHandle<()>> {
+    let psd_file_names: Arc<PsdFileNamesLoader> = Arc::new(psd_file_names);
     let (_address, handle) = start_mascot_control_server_on_with_notify(
         mascot_render_server_address(),
         command_tx,
         status_store,
+        psd_file_names,
         notify,
     )?;
     Ok(handle)
@@ -65,14 +70,23 @@ pub(crate) fn start_mascot_control_server_on(
     address: SocketAddr,
     command_tx: Sender<MascotControlCommand>,
     status_store: ServerStatusStore,
+    psd_file_names: impl Fn() -> Result<Vec<String>> + Send + Sync + 'static,
 ) -> Result<(SocketAddr, JoinHandle<()>)> {
-    start_mascot_control_server_on_with_notify(address, command_tx, status_store, None)
+    let psd_file_names: Arc<PsdFileNamesLoader> = Arc::new(psd_file_names);
+    start_mascot_control_server_on_with_notify(
+        address,
+        command_tx,
+        status_store,
+        psd_file_names,
+        None,
+    )
 }
 
 pub(crate) fn start_mascot_control_server_on_with_notify(
     address: SocketAddr,
     command_tx: Sender<MascotControlCommand>,
     status_store: ServerStatusStore,
+    psd_file_names: Arc<PsdFileNamesLoader>,
     notify: Option<Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<(SocketAddr, JoinHandle<()>)> {
     let listener = bind_control_listener(address)?;
@@ -83,7 +97,9 @@ pub(crate) fn start_mascot_control_server_on_with_notify(
         .set_nonblocking(true)
         .with_context(|| format!("failed to set {bound_address} nonblocking"))?;
 
-    let handle = thread::spawn(move || accept_loop(listener, command_tx, status_store, notify));
+    let handle = thread::spawn(move || {
+        accept_loop(listener, command_tx, status_store, psd_file_names, notify)
+    });
     Ok((bound_address, handle))
 }
 
@@ -100,6 +116,7 @@ fn accept_loop(
     listener: TcpListener,
     command_tx: Sender<MascotControlCommand>,
     status_store: ServerStatusStore,
+    psd_file_names: Arc<PsdFileNamesLoader>,
     notify: Option<Arc<dyn Fn() + Send + Sync>>,
 ) {
     loop {
@@ -122,6 +139,7 @@ fn accept_loop(
                     peer,
                     &command_tx,
                     &status_store,
+                    psd_file_names.as_ref(),
                     notify.as_ref(),
                 ) {
                     log_control_error(format!(
@@ -145,10 +163,18 @@ fn handle_connection(
     peer: SocketAddr,
     command_tx: &Sender<MascotControlCommand>,
     status_store: &ServerStatusStore,
+    psd_file_names: &PsdFileNamesLoader,
     notify: Option<&Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<()> {
     let response = match read_http_request(stream) {
-        Ok(request) => match route_request(peer, request, command_tx, status_store, notify) {
+        Ok(request) => match route_request(
+            peer,
+            request,
+            command_tx,
+            status_store,
+            psd_file_names,
+            notify,
+        ) {
             Ok(response) => response,
             Err(error) => {
                 log_control_error(format!(
@@ -173,11 +199,19 @@ fn route_request(
     request: HttpRequest,
     command_tx: &Sender<MascotControlCommand>,
     status_store: &ServerStatusStore,
+    psd_file_names: &PsdFileNamesLoader,
     notify: Option<&Arc<dyn Fn() + Send + Sync>>,
 ) -> Result<HttpResponse> {
     let path = canonical_path(&request.path);
     match (request.method.as_str(), path.as_str()) {
         ("GET", "/health") => Ok(HttpResponse::ok_text("ok")),
+        ("GET", "/psd-filenames") => {
+            let psd_file_names =
+                psd_file_names().context("failed to load mascot PSD file names")?;
+            let body = serde_json::to_vec(&psd_file_names)
+                .context("failed to serialize mascot PSD file names")?;
+            Ok(HttpResponse::ok_json(body))
+        }
         ("GET", "/status") => {
             let body = serde_json::to_vec(&status_store.snapshot()?)
                 .context("failed to serialize mascot server status")?;
