@@ -13,53 +13,7 @@ mod ui;
 mod workspace_state;
 
 #[cfg(test)]
-#[path = "tests/activity_heartbeat.rs"]
-mod activity_heartbeat_tests;
-#[cfg(test)]
-#[path = "tests/cli.rs"]
-mod cli_tests;
-#[cfg(test)]
-#[path = "tests/display_diff_state.rs"]
-mod display_diff_state_tests;
-#[cfg(test)]
-#[path = "tests/eye_blink.rs"]
-mod eye_blink_tests;
-#[cfg(test)]
-#[path = "tests/favorite_ensemble.rs"]
-mod favorite_ensemble_tests;
-#[cfg(test)]
-#[path = "tests/favorites.rs"]
-mod favorites_tests;
-#[cfg(test)]
-#[path = "tests/help_overlay.rs"]
-mod help_overlay_tests;
-#[cfg(test)]
-#[path = "tests/layer_toggle_keys.rs"]
-mod layer_toggle_keys_tests;
-#[cfg(test)]
-#[path = "tests/library.rs"]
-mod library_tests;
-#[cfg(test)]
-#[path = "tests/mouth_flap.rs"]
-mod mouth_flap_tests;
-#[cfg(test)]
-#[path = "tests/selection_timing.rs"]
-mod selection_timing_tests;
-#[cfg(test)]
-#[path = "tests/server_preview_sync.rs"]
-mod server_preview_sync_tests;
-#[cfg(test)]
-#[path = "tests/startup_loader.rs"]
-mod startup_loader_tests;
-#[cfg(test)]
-#[path = "tests/startup.rs"]
-mod startup_tests;
-#[cfg(test)]
-#[path = "tests/tui_config.rs"]
-mod tui_config_tests;
-#[cfg(test)]
-#[path = "tests/tui_history.rs"]
-mod tui_history_tests;
+mod tests;
 
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
