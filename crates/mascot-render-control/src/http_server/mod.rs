@@ -1,4 +1,3 @@
-use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -6,7 +5,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use mascot_render_client::mascot_render_server_address;
 use mascot_render_protocol::{
     validate_motion_timeline_request, ChangeCharacterRequest, MotionTimelineRequest,
@@ -14,6 +13,9 @@ use mascot_render_protocol::{
 };
 use serde::Serialize;
 
+use self::http_protocol::{
+    canonical_path, read_http_request, write_http_response, HttpRequest, HttpResponse,
+};
 use crate::command::{
     change_character_summary, timeline_summary, ControlCommandCompletion, ControlCommandWaitError,
     MascotControlCommand,
@@ -25,20 +27,7 @@ const IO_TIMEOUT: Duration = Duration::from_secs(2);
 const APPLY_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
 type PsdFileNamesLoader = dyn Fn() -> Result<Vec<String>> + Send + Sync;
 
-#[derive(Debug)]
-struct HttpRequest {
-    method: String,
-    path: String,
-    body: Vec<u8>,
-}
-
-#[derive(Debug)]
-struct HttpResponse {
-    status_code: u16,
-    status_text: &'static str,
-    content_type: &'static str,
-    body: Vec<u8>,
-}
+mod http_protocol;
 
 pub fn start_mascot_control_server(
     command_tx: Sender<MascotControlCommand>,
@@ -383,137 +372,5 @@ fn log_request_payload<T: Serialize>(peer: SocketAddr, action: &str, request: &T
         Err(error) => log_control_error(format!(
             "event=control_request stage=serialize peer={peer} action={action} error={error:#}"
         )),
-    }
-}
-
-fn read_http_request(stream: &mut TcpStream) -> Result<HttpRequest> {
-    let mut reader = BufReader::new(stream);
-    let mut request_line = String::new();
-    reader
-        .read_line(&mut request_line)
-        .context("failed to read HTTP request line")?;
-    if request_line.trim().is_empty() {
-        bail!("empty HTTP request");
-    }
-
-    let mut parts = request_line.split_whitespace();
-    let method = parts
-        .next()
-        .ok_or_else(|| anyhow!("missing HTTP method"))?
-        .to_string();
-    let path = parts
-        .next()
-        .ok_or_else(|| anyhow!("missing HTTP path"))?
-        .to_string();
-    let _version = parts
-        .next()
-        .ok_or_else(|| anyhow!("missing HTTP version"))?;
-
-    let mut content_length = 0usize;
-    let mut line = String::new();
-    loop {
-        line.clear();
-        reader
-            .read_line(&mut line)
-            .context("failed to read HTTP header line")?;
-        if line == "\r\n" || line == "\n" {
-            break;
-        }
-        if let Some((name, value)) = line.split_once(':') {
-            if name.trim().eq_ignore_ascii_case("content-length") {
-                content_length = value
-                    .trim()
-                    .parse::<usize>()
-                    .context("invalid Content-Length header")?;
-            }
-        }
-    }
-
-    let mut body = vec![0; content_length];
-    reader
-        .read_exact(&mut body)
-        .context("failed to read HTTP request body")?;
-
-    Ok(HttpRequest { method, path, body })
-}
-
-fn write_http_response(stream: &mut TcpStream, response: &HttpResponse) -> Result<()> {
-    let header = format!(
-        "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nContent-Type: {}\r\nConnection: close\r\n\r\n",
-        response.status_code,
-        response.status_text,
-        response.body.len(),
-        response.content_type
-    );
-    stream
-        .write_all(header.as_bytes())
-        .context("failed to write HTTP response header")?;
-    stream
-        .write_all(&response.body)
-        .context("failed to write HTTP response body")?;
-    stream.flush().context("failed to flush HTTP response")
-}
-
-fn canonical_path(path: &str) -> String {
-    if path.len() > 1 {
-        path.trim_end_matches('/').to_string()
-    } else {
-        path.to_string()
-    }
-}
-
-impl HttpResponse {
-    fn ok_text(body: &str) -> Self {
-        Self {
-            status_code: 200,
-            status_text: "OK",
-            content_type: "text/plain; charset=utf-8",
-            body: body.as_bytes().to_vec(),
-        }
-    }
-
-    fn ok_json(body: Vec<u8>) -> Self {
-        Self {
-            status_code: 200,
-            status_text: "OK",
-            content_type: "application/json; charset=utf-8",
-            body,
-        }
-    }
-
-    fn bad_request(body: String) -> Self {
-        Self {
-            status_code: 400,
-            status_text: "Bad Request",
-            content_type: "text/plain; charset=utf-8",
-            body: body.into_bytes(),
-        }
-    }
-
-    fn internal_server_error(body: String) -> Self {
-        Self {
-            status_code: 500,
-            status_text: "Internal Server Error",
-            content_type: "text/plain; charset=utf-8",
-            body: body.into_bytes(),
-        }
-    }
-
-    fn gateway_timeout(body: String) -> Self {
-        Self {
-            status_code: 504,
-            status_text: "Gateway Timeout",
-            content_type: "text/plain; charset=utf-8",
-            body: body.into_bytes(),
-        }
-    }
-
-    fn not_found(body: &str) -> Self {
-        Self {
-            status_code: 404,
-            status_text: "Not Found",
-            content_type: "text/plain; charset=utf-8",
-            body: body.as_bytes().to_vec(),
-        }
     }
 }
