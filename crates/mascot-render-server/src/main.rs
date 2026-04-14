@@ -10,6 +10,8 @@ mod mouth_flap;
 mod psd_file_name_catalog;
 
 #[cfg(test)]
+mascot_render_test_support::install_test_data_root!();
+#[cfg(test)]
 #[path = "tests/always_bend.rs"]
 mod always_bend_tests;
 #[cfg(test)]

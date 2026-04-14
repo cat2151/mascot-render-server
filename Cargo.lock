@@ -1080,6 +1080,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctor"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec09e802f5081de6157da9a75701d6c713d8dc3ba52571fd4bd25f412644e8a6"
+dependencies = [
+ "ctor-proc-macro",
+ "dtor",
+]
+
+[[package]]
+name = "ctor-proc-macro"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2931af7e13dc045d8e9d26afccc6fa115d64e115c9c84b1166288b46f6782c2"
+
+[[package]]
 name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1240,6 +1256,21 @@ name = "dpi"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
+
+[[package]]
+name = "dtor"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97cbdf2ad6846025e8e25df05171abfb30e3ababa12ee0a0e44b9bbe570633a8"
+dependencies = [
+ "dtor-proc-macro",
+]
+
+[[package]]
+name = "dtor-proc-macro"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7454e41ff9012c00d53cf7f475c5e3afa3b91b7c90568495495e8d9bf47a1055"
 
 [[package]]
 name = "ecolor"
@@ -2433,7 +2464,9 @@ name = "mascot-render-client"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ctor",
  "mascot-render-protocol",
+ "mascot-render-test-support",
  "serde_json",
 ]
 
@@ -2442,8 +2475,10 @@ name = "mascot-render-control"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ctor",
  "mascot-render-client",
  "mascot-render-protocol",
+ "mascot-render-test-support",
  "serde",
  "serde_json",
  "time",
@@ -2455,9 +2490,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cat-self-update-lib",
+ "ctor",
  "eframe",
  "encoding_rs",
  "image",
+ "mascot-render-test-support",
  "rawpsd",
  "serde",
  "serde_json",
@@ -2471,6 +2508,8 @@ name = "mascot-render-protocol"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ctor",
+ "mascot-render-test-support",
  "serde",
  "serde_json",
 ]
@@ -2481,10 +2520,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "ctor",
  "eframe",
  "mascot-render-control",
  "mascot-render-core",
  "mascot-render-protocol",
+ "mascot-render-test-support",
  "raw-window-handle",
  "serde",
  "serde_json",
@@ -2498,11 +2539,20 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "crossterm",
+ "ctor",
  "mascot-render-client",
  "mascot-render-control",
  "mascot-render-core",
  "mascot-render-protocol",
+ "mascot-render-test-support",
  "ratatui",
+]
+
+[[package]]
+name = "mascot-render-test-support"
+version = "0.1.0"
+dependencies = [
+ "ctor",
 ]
 
 [[package]]
@@ -3408,11 +3458,13 @@ dependencies = [
  "anyhow",
  "clap",
  "crossterm",
+ "ctor",
  "mascot-render-client",
  "mascot-render-control",
  "mascot-render-core",
  "mascot-render-protocol",
  "mascot-render-server",
+ "mascot-render-test-support",
  "ratatui",
  "ratatui-image",
  "serde",
@@ -4543,7 +4595,9 @@ name = "tui-sixel-preview"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ctor",
  "image",
+ "mascot-render-test-support",
  "ratatui",
  "ratatui-image",
  "serde",

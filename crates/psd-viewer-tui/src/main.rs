@@ -13,6 +13,9 @@ mod ui;
 mod workspace_state;
 
 #[cfg(test)]
+mascot_render_test_support::install_test_data_root!();
+
+#[cfg(test)]
 mod tests;
 
 use std::sync::mpsc::{Receiver, TryRecvError};

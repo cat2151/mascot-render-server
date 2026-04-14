@@ -1,12 +1,21 @@
 use std::path::PathBuf;
 
-use mascot_render_core::{PsdEntry, ZipEntry};
+use mascot_render_core::{local_data_root, PsdEntry, ZipEntry};
 use mascot_render_protocol::MotionTimelineKind;
 
 use crate::actions::{
     cached_psd_candidates, select_random_character_candidate, shake_timeline_request,
     CachedPsdSource, TestPostAction,
 };
+
+#[test]
+fn local_data_root_is_redirected_to_temp_directory_for_tests() {
+    assert!(
+        local_data_root().starts_with(std::env::temp_dir()),
+        "test local data root should live under temp dir: {}",
+        local_data_root().display()
+    );
+}
 
 #[test]
 fn test_post_action_labels_match_key_descriptions() {

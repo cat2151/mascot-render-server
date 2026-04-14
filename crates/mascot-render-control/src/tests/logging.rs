@@ -15,6 +15,15 @@ use crate::logging::{
 use crate::paths::control_local_data_root_for_test;
 
 #[test]
+fn control_local_data_root_is_redirected_to_temp_directory_for_tests() {
+    assert!(
+        control_local_data_root_for_test().starts_with(std::env::temp_dir()),
+        "test local data root should live under temp dir: {}",
+        control_local_data_root_for_test().display()
+    );
+}
+
+#[test]
 fn append_log_record_creates_parent_directory_and_writes_message() {
     let log_path = unique_test_log_path("append-log-record");
     append_log_record_for_test(&log_path, "INFO", "skin変更しました")

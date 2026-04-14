@@ -11,3 +11,7 @@ mascot-render-control = { path = "../mascot-render-control" }
 mascot-render-core = { path = "../mascot-render-core" }
 mascot-render-protocol = { path = "../mascot-render-protocol" }
 ratatui = "0.30"
+
+[dev-dependencies]
+ctor = "0.4"
+mascot-render-test-support = { path = "../mascot-render-test-support" }

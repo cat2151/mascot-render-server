@@ -15,6 +15,15 @@ use mascot_render_server::window_history::{
 };
 
 #[test]
+fn workspace_cache_root_is_redirected_to_temp_directory_for_lib_tests() {
+    assert!(
+        workspace_cache_root().starts_with(std::env::temp_dir()),
+        "test workspace cache root should live under temp dir: {}",
+        workspace_cache_root().display()
+    );
+}
+
+#[test]
 fn window_history_round_trips_saved_position() {
     let path = workspace_cache_root().join("test-window-history/history_server.json");
     let _ = fs::remove_dir_all(workspace_cache_root().join("test-window-history"));

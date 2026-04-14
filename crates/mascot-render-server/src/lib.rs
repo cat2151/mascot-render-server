@@ -6,6 +6,9 @@ pub mod window_history;
 mod window_layout;
 
 #[cfg(test)]
+mascot_render_test_support::install_test_data_root!();
+
+#[cfg(test)]
 mod eye_blink;
 #[cfg(test)]
 mod eye_blink_timing;

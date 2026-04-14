@@ -6,6 +6,15 @@ use crate::cli::{help_text, parse_cli, CliAction};
 use crate::tui_config::tui_config_path;
 
 #[test]
+fn local_data_root_is_redirected_to_temp_directory_for_tests() {
+    assert!(
+        local_data_root().starts_with(std::env::temp_dir()),
+        "test local data root should live under temp dir: {}",
+        local_data_root().display()
+    );
+}
+
+#[test]
 fn help_text_lists_local_data_defaults() {
     let help = help_text();
 
