@@ -3,6 +3,8 @@ use std::net::TcpStream;
 
 use anyhow::{anyhow, Context, Result};
 
+/// Control API requests are small JSON payloads, so 1 MiB leaves ample headroom
+/// while preventing unbounded allocation from attacker-controlled Content-Length.
 const MAX_REQUEST_BODY_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug)]
