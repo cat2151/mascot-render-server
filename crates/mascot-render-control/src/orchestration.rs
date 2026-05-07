@@ -6,9 +6,10 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, bail, Context, Result};
 use mascot_render_client::{
     mascot_render_server_address, mascot_render_server_healthcheck_at,
-    play_timeline_mascot_render_server, show_mascot_render_server,
+    play_timeline_mascot_render_server, preview_target_mascot_render_server,
+    show_mascot_render_server,
 };
-use mascot_render_protocol::MotionTimelineRequest;
+use mascot_render_protocol::{MotionTimelineRequest, PreviewTargetRequest};
 
 use crate::logging::{log_control_error, log_control_info};
 use crate::spawn::{spawn_mascot_render_server, SpawnExitEvent, SpawnedMascotRenderServer};
@@ -41,13 +42,14 @@ pub fn ensure_mascot_render_server_running(config_path: &Path) -> Result<()> {
 
 pub fn sync_mascot_render_server_preview(
     config_path: &Path,
-    preview_ready: Option<&Path>,
+    preview_target: Option<&PreviewTargetRequest>,
 ) -> Result<()> {
-    if preview_ready.is_none() {
+    let Some(preview_target) = preview_target else {
         return Ok(());
-    }
+    };
 
-    ensure_mascot_render_server_visible(config_path)
+    ensure_mascot_render_server_visible(config_path)?;
+    preview_target_mascot_render_server(preview_target)
 }
 
 pub fn play_mascot_render_server_timeline(

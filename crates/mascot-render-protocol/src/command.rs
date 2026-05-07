@@ -1,9 +1,20 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChangeCharacterRequest {
     pub character_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PreviewTargetRequest {
+    pub png_path: PathBuf,
+    pub scale: Option<f32>,
+    pub zip_path: PathBuf,
+    pub psd_path_in_zip: PathBuf,
+    pub display_diff_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,4 +56,29 @@ pub fn validate_motion_timeline_request(request: &MotionTimelineRequest) -> Resu
         MotionTimelineKind::Shake => Ok(()),
         MotionTimelineKind::MouthFlap => Ok(()),
     }
+}
+
+pub fn validate_preview_target_request(request: &PreviewTargetRequest) -> Result<()> {
+    validate_non_empty_path(&request.png_path, "png_path")?;
+    validate_non_empty_path(&request.zip_path, "zip_path")?;
+    validate_non_empty_path(&request.psd_path_in_zip, "psd_path_in_zip")?;
+    if let Some(display_diff_path) = request.display_diff_path.as_ref() {
+        validate_non_empty_path(display_diff_path, "display_diff_path")?;
+    }
+    if let Some(scale) = request.scale {
+        if !scale.is_finite() {
+            bail!("preview target scale must be finite");
+        }
+        if scale <= 0.0 {
+            bail!("preview target scale must be greater than zero");
+        }
+    }
+    Ok(())
+}
+
+fn validate_non_empty_path(path: &Path, label: &str) -> Result<()> {
+    if path.as_os_str().is_empty() {
+        bail!("preview target {label} must not be empty");
+    }
+    Ok(())
 }

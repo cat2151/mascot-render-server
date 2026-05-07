@@ -25,6 +25,7 @@ pub struct ServerStatusSnapshot {
     pub config_path: PathBuf,
     pub runtime_state_path: PathBuf,
     pub pending_persisted_scale: bool,
+    pub placement: ServerPlacementStatus,
     pub last_error: Option<String>,
 }
 
@@ -61,6 +62,7 @@ pub enum ServerCommandKind {
     Show,
     Hide,
     ChangeCharacter,
+    PreviewTarget,
     Timeline,
 }
 
@@ -84,6 +86,99 @@ pub struct ServerMotionStatus {
 pub struct ServerWindowStatus {
     pub anchor_position: Option<[f32; 2]>,
     pub window_size: [f32; 2],
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ServerPlacementStatus {
+    pub mode: PlacementMode,
+    pub anchor_policy: PlacementAnchorPolicy,
+    pub selected_anchor_kind: PlacementAnchorKind,
+    pub shared_visual_size_policy: SharedVisualSizePolicy,
+    pub shared_visual_size_px: Option<VisualSizePx>,
+    pub shared_anchor_positions: Option<PlacementAnchorPositions>,
+    pub anchor_plan: PlacementAnchorPlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlacementAnchorPlan {
+    pub placement_mode: PlacementMode,
+    pub anchor_policy: PlacementAnchorPolicy,
+    pub selected_anchor_kind: PlacementAnchorKind,
+    pub target_scope: PlacementTargetScope,
+    pub target_count: usize,
+    pub screen_safe_rect: ScreenRectPx,
+    pub right_overflow_tolerance_px: f32,
+    pub max_right_overflow_px: f32,
+    pub targets: Vec<PlacementAnchorPlanTarget>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PlacementAnchorPlanTarget {
+    pub zip_path: PathBuf,
+    pub psd_path_in_zip: PathBuf,
+    pub scale: f32,
+    pub visible_size_px: VisualSizePx,
+    pub bottom_center_anchor_position: [f32; 2],
+    pub bottom_right_anchor_position: [f32; 2],
+    pub projected_visible_right_px: f32,
+    pub right_limit_px: f32,
+    pub right_overflow_px: f32,
+    pub overflows_right: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ScreenRectPx {
+    pub min_x: f32,
+    pub min_y: f32,
+    pub max_x: f32,
+    pub max_y: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct VisualSizePx {
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PlacementAnchorPositions {
+    pub bottom_center: [f32; 2],
+    pub bottom_right: [f32; 2],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementMode {
+    PerPsd,
+    SharedVisualSize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementAnchorPolicy {
+    AdaptiveRightOverflow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementAnchorKind {
+    BottomCenter,
+    BottomRight,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlacementTargetScope {
+    CurrentPsd,
+    CandidatePsdSet,
+    FavoriteEnsemble,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SharedVisualSizePolicy {
+    Height,
 }
 
 impl ServerStatusSnapshot {
@@ -116,6 +211,7 @@ impl ServerStatusSnapshot {
             config_path,
             runtime_state_path,
             pending_persisted_scale: false,
+            placement: ServerPlacementStatus::default(),
             last_error: None,
         }
     }
@@ -183,6 +279,47 @@ impl Default for ServerWindowStatus {
         Self {
             anchor_position: None,
             window_size: [0.0, 0.0],
+        }
+    }
+}
+
+impl Default for ServerPlacementStatus {
+    fn default() -> Self {
+        Self {
+            mode: PlacementMode::PerPsd,
+            anchor_policy: PlacementAnchorPolicy::AdaptiveRightOverflow,
+            selected_anchor_kind: PlacementAnchorKind::BottomCenter,
+            shared_visual_size_policy: SharedVisualSizePolicy::Height,
+            shared_visual_size_px: None,
+            shared_anchor_positions: None,
+            anchor_plan: PlacementAnchorPlan::default(),
+        }
+    }
+}
+
+impl Default for PlacementAnchorPlan {
+    fn default() -> Self {
+        Self {
+            placement_mode: PlacementMode::PerPsd,
+            anchor_policy: PlacementAnchorPolicy::AdaptiveRightOverflow,
+            selected_anchor_kind: PlacementAnchorKind::BottomCenter,
+            target_scope: PlacementTargetScope::Unknown,
+            target_count: 0,
+            screen_safe_rect: ScreenRectPx::default(),
+            right_overflow_tolerance_px: 1.0,
+            max_right_overflow_px: 0.0,
+            targets: Vec::new(),
+        }
+    }
+}
+
+impl Default for ScreenRectPx {
+    fn default() -> Self {
+        Self {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 0.0,
+            max_y: 0.0,
         }
     }
 }

@@ -171,6 +171,7 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
         zip_path: PathBuf::from(zip_path),
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         display_diff_path: None,
+        ui_font_paths: Vec::new(),
         always_idle_sink_enabled: false,
         always_bend: AlwaysBendConfig::default(),
         favorite_ensemble_enabled: false,

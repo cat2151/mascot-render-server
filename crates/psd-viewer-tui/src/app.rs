@@ -17,6 +17,8 @@ pub(crate) use favorites::saved_window_positions_match_for_test;
 #[cfg(test)]
 pub(crate) use favorites::{apply_favorite_variation, apply_favorite_window_position};
 #[cfg(test)]
+pub(crate) use mascot_scale::sync_current_mascot_config_log_message_for_test;
+#[cfg(test)]
 pub(crate) use timing::format_timing_log_message_for_test;
 
 use std::collections::{HashMap, HashSet};

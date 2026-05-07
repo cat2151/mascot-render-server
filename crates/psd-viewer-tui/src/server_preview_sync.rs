@@ -1,24 +1,23 @@
-use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 
 use anyhow::Result;
 use mascot_render_control::sync_mascot_render_server_preview;
-use mascot_render_core::mascot_config_path;
+use mascot_render_protocol::PreviewTargetRequest;
 
 const SERVER_SYNC_ACTIVITY_MESSAGE: &str = "Starting mascot-render-server / syncing preview...";
 
 #[derive(Debug, Default)]
 pub(crate) struct ServerPreviewSyncState {
-    desired_png_path: Option<PathBuf>,
-    active_png_path: Option<PathBuf>,
-    synced_png_path: Option<PathBuf>,
+    desired_target: Option<PreviewTargetRequest>,
+    active_target: Option<PreviewTargetRequest>,
+    synced_target: Option<PreviewTargetRequest>,
 }
 
 #[derive(Debug)]
 struct ServerPreviewSyncEvent {
     generation: u64,
-    png_path: PathBuf,
+    target: PreviewTargetRequest,
     result: Result<()>,
 }
 
@@ -41,9 +40,9 @@ impl ServerPreviewSync {
         }
     }
 
-    pub(crate) fn request(&mut self, png_path: Option<&Path>) {
-        if let Some(next_png_path) = self.state.request(png_path) {
-            self.spawn_sync(next_png_path);
+    pub(crate) fn request(&mut self, target: Option<PreviewTargetRequest>) {
+        if let Some(next_target) = self.state.request(target) {
+            self.spawn_sync(next_target);
         }
     }
 
@@ -53,8 +52,8 @@ impl ServerPreviewSync {
                 Ok(event) if event.generation != self.generation => continue,
                 Ok(event) => match event.result {
                     Ok(()) => {
-                        if let Some(next_png_path) = self.state.finish_success(event.png_path) {
-                            self.spawn_sync(next_png_path);
+                        if let Some(next_target) = self.state.finish_success(event.target) {
+                            self.spawn_sync(next_target);
                         }
                     }
                     Err(error) => {
@@ -77,15 +76,17 @@ impl ServerPreviewSync {
         self.drain_stale_events();
     }
 
-    fn spawn_sync(&self, png_path: PathBuf) {
+    fn spawn_sync(&self, target: PreviewTargetRequest) {
         let result_tx = self.result_tx.clone();
         let generation = self.generation;
         thread::spawn(move || {
-            let result =
-                sync_mascot_render_server_preview(&mascot_config_path(), Some(png_path.as_path()));
+            let result = sync_mascot_render_server_preview(
+                &mascot_render_core::mascot_config_path(),
+                Some(&target),
+            );
             let _ = result_tx.send(ServerPreviewSyncEvent {
                 generation,
-                png_path,
+                target,
                 result,
             });
         });
@@ -97,53 +98,63 @@ impl ServerPreviewSync {
 }
 
 impl ServerPreviewSyncState {
-    pub(crate) fn request(&mut self, png_path: Option<&Path>) -> Option<PathBuf> {
-        self.desired_png_path = png_path.map(Path::to_path_buf);
+    pub(crate) fn request(
+        &mut self,
+        target: Option<PreviewTargetRequest>,
+    ) -> Option<PreviewTargetRequest> {
+        self.desired_target = target;
         self.schedule_next()
     }
 
-    pub(crate) fn finish_success(&mut self, png_path: PathBuf) -> Option<PathBuf> {
-        self.active_png_path = None;
-        self.synced_png_path = Some(png_path);
+    pub(crate) fn finish_success(
+        &mut self,
+        target: PreviewTargetRequest,
+    ) -> Option<PreviewTargetRequest> {
+        self.active_target = None;
+        self.synced_target = Some(target);
         self.schedule_next()
     }
 
     pub(crate) fn is_busy(&self) -> bool {
-        self.active_png_path.is_some()
+        self.active_target.is_some()
     }
 
     pub(crate) fn reset(&mut self) {
-        self.desired_png_path = None;
-        self.active_png_path = None;
-        self.synced_png_path = None;
+        self.desired_target = None;
+        self.active_target = None;
+        self.synced_target = None;
     }
 
-    fn schedule_next(&mut self) -> Option<PathBuf> {
-        if self.active_png_path.is_some() {
+    fn schedule_next(&mut self) -> Option<PreviewTargetRequest> {
+        if self.active_target.is_some() {
             return None;
         }
 
-        let Some(next_png_path) = self.desired_png_path.clone() else {
-            self.synced_png_path = None;
+        let Some(next_target) = self.desired_target.clone() else {
+            self.synced_target = None;
             return None;
         };
 
-        if self.synced_png_path.as_deref() == Some(next_png_path.as_path()) {
+        if self.synced_target.as_ref() == Some(&next_target) {
             return None;
         }
 
-        self.active_png_path = Some(next_png_path.clone());
-        Some(next_png_path)
+        self.active_target = Some(next_target.clone());
+        Some(next_target)
     }
 }
 
 #[cfg(test)]
 impl ServerPreviewSyncState {
-    pub(crate) fn active_png_path_for_test(&self) -> Option<&Path> {
-        self.active_png_path.as_deref()
+    pub(crate) fn active_png_path_for_test(&self) -> Option<&std::path::Path> {
+        self.active_target
+            .as_ref()
+            .map(|target| target.png_path.as_path())
     }
 
-    pub(crate) fn synced_png_path_for_test(&self) -> Option<&Path> {
-        self.synced_png_path.as_deref()
+    pub(crate) fn synced_png_path_for_test(&self) -> Option<&std::path::Path> {
+        self.synced_target
+            .as_ref()
+            .map(|target| target.png_path.as_path())
     }
 }

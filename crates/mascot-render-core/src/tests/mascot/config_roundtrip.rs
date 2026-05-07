@@ -28,6 +28,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert_eq!(loaded.zip_path, target.zip_path);
     assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, target.display_diff_path);
+    assert!(loaded.ui_font_paths.is_empty());
     assert!(loaded.always_idle_sink_enabled);
     assert_eq!(loaded.always_bend, AlwaysBendConfig::default());
     assert!(loaded.always_bend.enabled);
@@ -121,6 +122,7 @@ always_bend = true
 
     let loaded = load_mascot_config(&config_path).expect("config should load");
 
+    assert!(loaded.ui_font_paths.is_empty());
     assert!(loaded.always_idle_sink_enabled);
     assert!(loaded.always_bend.enabled);
     assert_eq!(
@@ -159,6 +161,7 @@ fn load_mascot_config_defaults_to_enabled_idle_sink_and_bend() {
 
     let loaded = load_mascot_config(&config_path).expect("config should load from defaults");
 
+    assert!(loaded.ui_font_paths.is_empty());
     assert!(loaded.always_idle_sink_enabled);
     assert!(loaded.always_bend.enabled);
     assert_eq!(
@@ -183,6 +186,7 @@ fn writing_mascot_config_preserves_current_static_sections() {
 always_idle_sink = true
 always_bend = true
 favorite_ensemble_enabled = true
+ui_font_paths = ["fonts/custom-ui.ttf", "C:\\Windows\\Fonts\\meiryo.ttc"]
 
 [bend]
 amplitude_ratio = 0.02
@@ -224,6 +228,15 @@ stretch_amount = 0.08
         loaded.favorite_ensemble_scale,
         target.favorite_ensemble_scale
     );
+    assert_eq!(
+        loaded.ui_font_paths,
+        vec![
+            workspace_cache_root()
+                .join("test-mascot-preserve-current")
+                .join("fonts/custom-ui.ttf"),
+            PathBuf::from(r"C:\Windows\Fonts\meiryo.ttc"),
+        ]
+    );
     assert!(loaded.always_idle_sink_enabled);
     assert_eq!(
         loaded.always_bend,
@@ -250,6 +263,20 @@ stretch_amount = 0.08
     assert!(static_toml.contains("[bend]"));
     assert!(static_toml.contains("amplitude_ratio = 0.02"));
     assert!(static_toml.contains("favorite_ensemble_enabled = true"));
+    let static_value =
+        toml::from_str::<toml::Value>(&static_toml).expect("static TOML should parse");
+    let ui_font_paths = static_value
+        .get("ui_font_paths")
+        .and_then(toml::Value::as_array)
+        .cloned()
+        .expect("static TOML should preserve ui_font_paths");
+    assert_eq!(
+        ui_font_paths,
+        vec![
+            toml::Value::String("fonts/custom-ui.ttf".to_string()),
+            toml::Value::String(r"C:\Windows\Fonts\meiryo.ttc".to_string()),
+        ]
+    );
     assert!(!static_toml.contains("transparent_background_click_through ="));
     assert!(!static_toml.contains("flash_blue_background_on_transparent_input ="));
     assert!(!static_toml.contains("[idle_sink]"));

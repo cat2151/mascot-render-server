@@ -1,12 +1,14 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Pos2, Vec2};
 use mascot_render_core::{
     BounceAnimationConfig, IdleSinkAnimationConfig, MotionState, SquashBounceAnimationConfig,
 };
-use mascot_render_server::AlphaBounds;
+use mascot_render_protocol::VisualSizePx;
+use mascot_render_server::{AlphaBounds, PlacementPlanTargetInput};
 
 use crate::app_support::{cached_skin_from_image, CachedSkin};
 use crate::eye_blink::EyeBlinkLoop;
@@ -14,6 +16,8 @@ use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 use crate::favorite_ensemble::{FavoriteEnsemble, FavoriteEnsembleMember};
 
 pub(super) struct FavoriteEnsembleMemberScene {
+    pub(super) zip_path: PathBuf,
+    pub(super) psd_path_in_zip: PathBuf,
     pub(super) origin: Pos2,
     pub(super) base_size: Vec2,
     pub(super) open_skin: CachedSkin,
@@ -77,6 +81,18 @@ impl FavoriteEnsembleScene {
         AlphaBounds::full(self.image_size())
     }
 
+    pub(super) fn placement_plan_targets(
+        &self,
+        inner_origin: Pos2,
+        canvas_origin: Vec2,
+        scale: f32,
+    ) -> Vec<PlacementPlanTargetInput> {
+        self.members
+            .iter()
+            .map(|member| member.placement_plan_target(inner_origin, canvas_origin, scale))
+            .collect()
+    }
+
     pub(super) fn set_always_idle_sink_enabled(&mut self, enabled: bool, now: Instant) {
         for member in &mut self.members {
             member.motion.set_always_idle_sink_enabled(enabled, now);
@@ -131,6 +147,8 @@ fn member_scene_from_loaded(
     let mut motion = MotionState::new_with_idle_phase_offset(phase_offset_ratio);
     motion.set_always_idle_sink_enabled(always_idle_sink_enabled, now);
     FavoriteEnsembleMemberScene {
+        zip_path: member.zip_path,
+        psd_path_in_zip: member.psd_path_in_zip,
         origin: Pos2::new(member.canvas_position[0], member.canvas_position[1]),
         base_size: Vec2::new(member.base_size[0], member.base_size[1]),
         open_skin: cached_skin_from_image(ctx, &member.image),
@@ -146,6 +164,64 @@ fn member_scene_from_loaded(
         ),
         phase_offset_ratio,
     }
+}
+
+impl FavoriteEnsembleMemberScene {
+    fn placement_plan_target(
+        &self,
+        inner_origin: Pos2,
+        canvas_origin: Vec2,
+        scale: f32,
+    ) -> PlacementPlanTargetInput {
+        let scale = scale.max(0.01);
+        let image_size = self.open_skin.image_size;
+        let base_size = self.base_size * scale;
+        let image_origin = canvas_origin + self.origin.to_vec2() * scale;
+        let [min_x, min_y, max_x, max_y] = scaled_content_bounds(
+            image_size,
+            self.open_skin.content_bounds,
+            image_origin,
+            base_size,
+        );
+        let bottom_center_offset = Vec2::new((min_x + max_x) * 0.5, max_y);
+        let bottom_right_offset = Vec2::new(max_x, max_y);
+        let bottom_center = inner_origin + bottom_center_offset;
+        let bottom_right = inner_origin + bottom_right_offset;
+        PlacementPlanTargetInput {
+            zip_path: self.zip_path.clone(),
+            psd_path_in_zip: self.psd_path_in_zip.clone(),
+            scale: member_scale(image_size, base_size),
+            visible_size_px: VisualSizePx {
+                width: (max_x - min_x).max(1.0),
+                height: (max_y - min_y).max(1.0),
+            },
+            bottom_center_anchor_position: [bottom_center.x, bottom_center.y],
+            bottom_right_anchor_position: [bottom_right.x, bottom_right.y],
+            bottom_center_anchor_offset: [bottom_center_offset.x, bottom_center_offset.y],
+            bottom_right_anchor_offset: [bottom_right_offset.x, bottom_right_offset.y],
+        }
+    }
+}
+
+fn scaled_content_bounds(
+    image_size: [u32; 2],
+    bounds: AlphaBounds,
+    image_origin: Vec2,
+    base_size: Vec2,
+) -> [f32; 4] {
+    let width = image_size[0].max(1) as f32;
+    let height = image_size[1].max(1) as f32;
+    [
+        image_origin.x + base_size.x * (bounds.min_x as f32 / width),
+        image_origin.y + base_size.y * (bounds.min_y as f32 / height),
+        image_origin.x + base_size.x * (bounds.max_x as f32 / width),
+        image_origin.y + base_size.y * (bounds.max_y as f32 / height),
+    ]
+}
+
+fn member_scale(image_size: [u32; 2], base_size: Vec2) -> f32 {
+    let width = image_size[0].max(1) as f32;
+    (base_size.x / width).max(0.01)
 }
 
 pub(crate) fn member_phase_offset_ratio(member_index: usize, member_count: usize) -> f32 {
@@ -168,4 +244,64 @@ pub(crate) fn member_eye_blink_seed(member_index: usize, member_count: usize) ->
     member_count.hash(&mut hasher);
     member_index.hash(&mut hasher);
     hasher.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use mascot_render_core::MascotImageData;
+
+    use super::*;
+
+    #[test]
+    fn favorite_ensemble_plan_targets_include_each_member_source_key() {
+        let ctx = egui::Context::default();
+        let scene = FavoriteEnsembleScene::from_loaded(
+            &ctx,
+            FavoriteEnsemble {
+                canvas_size: [30.0, 20.0],
+                members: vec![
+                    member("a.zip", "a.psd", [0.0, 0.0], [10.0, 20.0]),
+                    member("b.zip", "b.psd", [10.0, 0.0], [20.0, 20.0]),
+                ],
+            },
+            false,
+            Instant::now(),
+        );
+
+        let targets = scene.placement_plan_targets(Pos2::new(100.0, 200.0), Vec2::ZERO, 1.0);
+
+        assert_eq!(targets.len(), 2);
+        assert_eq!(targets[0].zip_path, PathBuf::from("a.zip"));
+        assert_eq!(targets[0].psd_path_in_zip, PathBuf::from("a.psd"));
+        assert_eq!(targets[1].zip_path, PathBuf::from("b.zip"));
+        assert_eq!(targets[1].psd_path_in_zip, PathBuf::from("b.psd"));
+        assert_eq!(targets[1].bottom_right_anchor_offset, [30.0, 20.0]);
+    }
+
+    fn member(
+        zip_path: &str,
+        psd_path_in_zip: &str,
+        canvas_position: [f32; 2],
+        base_size: [f32; 2],
+    ) -> FavoriteEnsembleMember {
+        FavoriteEnsembleMember {
+            zip_path: PathBuf::from(zip_path),
+            psd_path_in_zip: PathBuf::from(psd_path_in_zip),
+            image: image(zip_path, base_size),
+            closed_image: None,
+            base_size,
+            canvas_position,
+        }
+    }
+
+    fn image(path: &str, size: [f32; 2]) -> MascotImageData {
+        let width = size[0].ceil().max(1.0) as u32;
+        let height = size[1].ceil().max(1.0) as u32;
+        MascotImageData {
+            path: PathBuf::from(path).with_extension("png"),
+            width,
+            height,
+            rgba: vec![255; width as usize * height as usize * 4],
+        }
+    }
 }

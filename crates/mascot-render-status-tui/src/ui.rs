@@ -405,6 +405,7 @@ fn command_kind_text(kind: ServerCommandKind) -> &'static str {
         ServerCommandKind::Show => "show",
         ServerCommandKind::Hide => "hide",
         ServerCommandKind::ChangeCharacter => "change_character",
+        ServerCommandKind::PreviewTarget => "preview_target",
         ServerCommandKind::Timeline => "timeline",
     }
 }

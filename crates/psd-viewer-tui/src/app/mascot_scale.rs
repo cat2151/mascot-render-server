@@ -1,10 +1,12 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
+use mascot_render_control::log_psd_viewer_tui_info;
 use mascot_render_core::{
     default_mascot_scale_for_screen_height, load_mascot_image, mascot_config_path,
     mascot_window_size, write_mascot_config, MascotTarget,
 };
+use mascot_render_protocol::PreviewTargetRequest;
 
 use crate::tui_config::{save_tui_runtime_state, tui_config_path};
 
@@ -27,37 +29,35 @@ impl App {
             "sync_current_mascot_config",
             self.sync_current_mascot_config_timing_summary(),
         );
-        timing.measure_result("ensure_mascot_scale_initialized", || {
-            self.ensure_mascot_scale_initialized()
-        })?;
-
-        let Some(png_path) = self.current_preview_png_path.clone() else {
-            return Ok(false);
-        };
-        let Some(zip_path) = self.selected_zip_entry().map(|zip| zip.zip_path.clone()) else {
-            return Ok(false);
-        };
-        let Some(psd_path_in_zip) = self
-            .current_psd_document
-            .as_ref()
-            .map(|document| document.psd_path_in_zip.clone())
+        let Some(target) = timing.measure_result("build_current_mascot_target", || {
+            self.current_mascot_target()
+        })?
         else {
             return Ok(false);
         };
+        if self.uses_server_preview() {
+            return Ok(true);
+        }
 
-        let target = MascotTarget {
-            png_path,
-            scale: self.mascot_scale,
-            favorite_ensemble_scale: None,
-            zip_path,
-            psd_path_in_zip,
-            display_diff_path: self.current_variation_spec_path.clone(),
-        };
         let config_path = mascot_config_path();
         timing.measure_result("write_mascot_config", || {
             write_mascot_config(&config_path, &target)
         })?;
+        log_psd_viewer_tui_info(sync_current_mascot_config_log_message(
+            &config_path,
+            &target,
+        ));
         Ok(true)
+    }
+
+    pub(crate) fn current_preview_target_request(&self) -> Option<PreviewTargetRequest> {
+        Some(PreviewTargetRequest {
+            png_path: self.current_preview_png_path.clone()?,
+            scale: self.mascot_scale,
+            zip_path: self.selected_zip_entry()?.zip_path.clone(),
+            psd_path_in_zip: self.current_psd_document.as_ref()?.psd_path_in_zip.clone(),
+            display_diff_path: self.current_variation_spec_path.clone(),
+        })
     }
 
     fn adjust_mascot_scale(&mut self, delta: f32, direction: &str) -> Result<bool> {
@@ -173,6 +173,33 @@ impl App {
         save_tui_runtime_state(&tui_config_path(), &self.tui_runtime_state)
     }
 
+    fn current_mascot_target(&mut self) -> Result<Option<MascotTarget>> {
+        self.ensure_mascot_scale_initialized()?;
+
+        let Some(png_path) = self.current_preview_png_path.clone() else {
+            return Ok(None);
+        };
+        let Some(zip_path) = self.selected_zip_entry().map(|zip| zip.zip_path.clone()) else {
+            return Ok(None);
+        };
+        let Some(psd_path_in_zip) = self
+            .current_psd_document
+            .as_ref()
+            .map(|document| document.psd_path_in_zip.clone())
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(MascotTarget {
+            png_path,
+            scale: self.mascot_scale,
+            favorite_ensemble_scale: None,
+            zip_path,
+            psd_path_in_zip,
+            display_diff_path: self.current_variation_spec_path.clone(),
+        }))
+    }
+
     fn sync_current_mascot_config_timing_summary(&self) -> String {
         let png_path = self
             .current_preview_png_path
@@ -183,8 +210,39 @@ impl App {
             .selected_zip_entry()
             .map(|entry| entry.zip_path.display().to_string())
             .unwrap_or_else(|| "-".to_string());
-        format!("png_path={png_path} zip_path={zip_path}")
+        let psd_path_in_zip = self
+            .current_psd_document
+            .as_ref()
+            .map(|document| document.psd_path_in_zip.display().to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let display_diff_path = self
+            .current_variation_spec_path
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "-".to_string());
+        let scale = self
+            .mascot_scale
+            .map(|value| format!("{value:.3}"))
+            .unwrap_or_else(|| "-".to_string());
+        format!(
+            "png_path={png_path} zip_path={zip_path} psd_path_in_zip={psd_path_in_zip} display_diff_path={display_diff_path} scale={scale}"
+        )
     }
+}
+
+fn sync_current_mascot_config_log_message(
+    config_path: &std::path::Path,
+    target: &MascotTarget,
+) -> String {
+    format!(
+        "trigger=selection_sync action=sync_current_mascot_config mascot runtime stateを書き込みました: config_path={} png_path={} zip_path={} psd_path_in_zip={} display_diff_path={} scale={}",
+        config_path.display(),
+        target.png_path.display(),
+        target.zip_path.display(),
+        target.psd_path_in_zip.display(),
+        optional_path_text(target.display_diff_path.as_deref()),
+        optional_scale_text(target.scale),
+    )
 }
 
 fn sanitize_scale(scale: Option<f32>) -> Option<f32> {
@@ -194,4 +252,23 @@ fn sanitize_scale(scale: Option<f32>) -> Option<f32> {
 fn legacy_scale_from_image_height(width: u32, height: u32) -> f32 {
     let [_, scaled_height] = mascot_window_size(width, height, None);
     scaled_height / height.max(1) as f32
+}
+
+fn optional_path_text(path: Option<&std::path::Path>) -> String {
+    path.map(|value| value.display().to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+
+fn optional_scale_text(scale: Option<f32>) -> String {
+    scale
+        .map(|value| format!("{value:.3}"))
+        .unwrap_or_else(|| "-".to_string())
+}
+
+#[cfg(test)]
+pub(crate) fn sync_current_mascot_config_log_message_for_test(
+    config_path: &std::path::Path,
+    target: &MascotTarget,
+) -> String {
+    sync_current_mascot_config_log_message(config_path, target)
 }

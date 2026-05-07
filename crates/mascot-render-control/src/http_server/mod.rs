@@ -8,8 +8,9 @@ use std::time::Duration;
 use anyhow::{anyhow, Context, Result};
 use mascot_render_client::mascot_render_server_address;
 use mascot_render_protocol::{
-    validate_motion_timeline_request, ChangeCharacterRequest, MotionTimelineRequest,
-    ServerCommandKind, ServerCommandStage, ServerCommandStatus, ServerStatusStore,
+    validate_motion_timeline_request, validate_preview_target_request, ChangeCharacterRequest,
+    MotionTimelineRequest, PreviewTargetRequest, ServerCommandKind, ServerCommandStage,
+    ServerCommandStatus, ServerStatusStore,
 };
 use serde::Serialize;
 
@@ -17,8 +18,8 @@ use self::http_protocol::{
     canonical_path, read_http_request, write_http_response, HttpRequest, HttpResponse,
 };
 use crate::command::{
-    change_character_summary, timeline_summary, ControlCommandCompletion, ControlCommandWaitError,
-    MascotControlCommand,
+    change_character_summary, preview_target_summary, timeline_summary, ControlCommandCompletion,
+    ControlCommandWaitError, MascotControlCommand,
 };
 use crate::logging::{log_control_error, log_control_info};
 
@@ -211,6 +212,11 @@ fn route_request(
                 .context("failed to serialize mascot server status")?;
             Ok(HttpResponse::ok_json(body))
         }
+        ("GET", "/placement/anchor-plan") => {
+            let body = serde_json::to_vec(&status_store.snapshot()?.placement.anchor_plan)
+                .context("failed to serialize mascot placement anchor plan")?;
+            Ok(HttpResponse::ok_json(body))
+        }
         ("POST", "/show") => {
             let status = ServerCommandStatus::queued(ServerCommandKind::Show, "show");
             enqueue_command(
@@ -258,6 +264,37 @@ fn route_request(
             )?;
             log_control_info(format!(
                 "event=control_request stage=applied peer={peer} action=change_character character_name={character_name}"
+            ));
+            Ok(response)
+        }
+        ("POST", "/preview-target") => {
+            let request: PreviewTargetRequest = serde_json::from_slice(&request.body)
+                .context("failed to parse mascot preview-target request JSON")?;
+            validate_preview_target_request(&request)?;
+            let status = ServerCommandStatus::queued(
+                ServerCommandKind::PreviewTarget,
+                preview_target_summary(&request),
+            );
+            log_request_payload(peer, "preview_target", &request);
+            let response = enqueue_apply_command(
+                peer,
+                "preview_target",
+                command_tx,
+                status_store,
+                notify,
+                |completion| {
+                    MascotControlCommand::preview_target_with_completion(
+                        request.clone(),
+                        completion,
+                        status,
+                    )
+                },
+            )?;
+            log_control_info(format!(
+                "event=control_request stage=applied peer={peer} action=preview_target png_path={} zip_path={} psd_path_in_zip={}",
+                request.png_path.display(),
+                request.zip_path.display(),
+                request.psd_path_in_zip.display()
             ));
             Ok(response)
         }

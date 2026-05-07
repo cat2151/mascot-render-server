@@ -51,6 +51,7 @@ impl MascotApp {
             let position = viewport_info.inner_origin + self.window_layout.anchor_offset();
             [position.x, position.y]
         });
+        let placement = self.placement_status_for_snapshot(ctx);
         let performance_traces = std::mem::take(&mut self.pending_performance_traces);
         let mut previous_displayed_png_path = PathBuf::new();
 
@@ -82,6 +83,7 @@ impl MascotApp {
             snapshot.config_path = self.config_path.clone();
             snapshot.runtime_state_path = self.runtime_state_path.clone();
             snapshot.pending_persisted_scale = self.pending_persisted_scale.is_some();
+            snapshot.placement = placement.clone();
         }) {
             self.pending_performance_traces = performance_traces;
             log_server_error(format!("failed to update mascot server status: {error:#}"));
@@ -94,6 +96,7 @@ impl MascotApp {
                 &displayed_png_path,
                 &self.config.png_path,
                 &previous_displayed_png_path,
+                &placement,
             ));
         }
     }
@@ -255,6 +258,7 @@ impl PendingPerformanceTrace {
         displayed_png_path: &std::path::Path,
         configured_png_path: &std::path::Path,
         previous_displayed_png_path: &std::path::Path,
+        placement: &mascot_render_protocol::ServerPlacementStatus,
     ) -> String {
         let elapsed_ms = completed_at_unix_ms.saturating_sub(self.requested_at_unix_ms);
         let applied_at_unix_ms = self.applied_at_unix_ms.unwrap_or(completed_at_unix_ms);
@@ -265,7 +269,7 @@ impl PendingPerformanceTrace {
         let settle_ms = completed_at_unix_ms.saturating_sub(applied_at_unix_ms);
         let texture_changed = self.previous_displayed_png_path != displayed_png_path;
         format!(
-            "event=post_to_status_settled action={} result=completed elapsed_ms={} queue_ms={} apply_ms={} settle_ms={} requested_at_unix_ms={} applying_at_unix_ms={} applied_at_unix_ms={} completed_at_unix_ms={} status_settled=true texture_changed={} stage_ms={} previous_displayed_png_path={} displayed_png_path={} configured_png_path={} command_summary={}",
+            "event=post_to_status_settled action={} result=completed elapsed_ms={} queue_ms={} apply_ms={} settle_ms={} requested_at_unix_ms={} applying_at_unix_ms={} applied_at_unix_ms={} completed_at_unix_ms={} status_settled=true texture_changed={} stage_ms={} previous_displayed_png_path={} displayed_png_path={} configured_png_path={} placement_mode={:?} anchor_policy={:?} selected_anchor_kind={:?} target_scope={:?} target_count={} max_right_overflow_px={} command_summary={}",
             self.action,
             elapsed_ms,
             queue_ms,
@@ -280,6 +284,12 @@ impl PendingPerformanceTrace {
             previous_displayed_png_path.display(),
             displayed_png_path.display(),
             configured_png_path.display(),
+            placement.mode,
+            placement.anchor_policy,
+            placement.selected_anchor_kind,
+            placement.anchor_plan.target_scope,
+            placement.anchor_plan.target_count,
+            placement.anchor_plan.max_right_overflow_px,
             self.command_summary
         )
     }
@@ -339,6 +349,7 @@ impl PendingPerformanceTrace {
 fn performance_action(command: &MascotControlCommand) -> Option<&'static str> {
     match command {
         MascotControlCommand::ChangeCharacter { .. } => Some("change_character"),
+        MascotControlCommand::PreviewTarget { .. } => Some("preview_target"),
         MascotControlCommand::PlayTimeline { request, .. }
             if request
                 .steps
@@ -459,6 +470,7 @@ impl PendingPerformanceTrace {
             displayed_png_path,
             configured_png_path,
             previous_displayed_png_path,
+            &mascot_render_protocol::ServerPlacementStatus::default(),
         )
     }
 }

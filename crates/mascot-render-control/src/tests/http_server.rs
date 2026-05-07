@@ -11,11 +11,12 @@ use mascot_render_client::{
     change_character_mascot_render_server_at, hide_mascot_render_server_at,
     mascot_render_server_healthcheck_at, mascot_render_server_psd_file_names_at,
     mascot_render_server_status_at, play_timeline_mascot_render_server_at,
-    show_mascot_render_server_at,
+    preview_target_mascot_render_server_at, show_mascot_render_server_at,
 };
 use mascot_render_protocol::{
-    MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep, ServerCommandStage,
-    ServerLifecyclePhase, ServerStatusSnapshot, ServerStatusStore,
+    MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep, PlacementAnchorKind,
+    PreviewTargetRequest, ServerCommandStage, ServerLifecyclePhase, ServerStatusSnapshot,
+    ServerStatusStore,
 };
 
 use crate::command::MascotControlCommand;
@@ -60,6 +61,30 @@ fn mascot_control_server_accepts_show_hide_change_character_and_timeline() {
         .join()
         .expect("change-character request thread should complete")
         .expect("change-character request should succeed");
+
+    let preview_target = PreviewTargetRequest {
+        png_path: PathBuf::from("cache/demo/preview.png"),
+        scale: Some(0.145),
+        zip_path: PathBuf::from("assets/zip/demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo/body.psd"),
+        display_diff_path: Some(PathBuf::from("cache/demo/display_diff.json")),
+    };
+    let preview_target_request = {
+        let preview_target = preview_target.clone();
+        thread::spawn(move || preview_target_mascot_render_server_at(address, &preview_target))
+    };
+    let preview_target_command = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("preview-target command should arrive");
+    assert_eq!(
+        preview_target_command,
+        MascotControlCommand::preview_target(preview_target.clone())
+    );
+    preview_target_command.finish(Ok(()));
+    preview_target_request
+        .join()
+        .expect("preview-target request thread should complete")
+        .expect("preview-target request should succeed");
 
     let timeline = MotionTimelineRequest {
         steps: vec![MotionTimelineStep {
@@ -159,6 +184,53 @@ fn mascot_control_server_reports_change_character_apply_failure_to_http_caller()
 }
 
 #[test]
+fn mascot_control_server_reports_preview_target_apply_failure_to_http_caller() {
+    let (tx, rx) = mpsc::channel();
+    let (address, _handle) = start_mascot_control_server_on(
+        SocketAddr::from(([127, 0, 0, 1], 0)),
+        tx,
+        test_status_store(),
+        empty_psd_file_names,
+    )
+    .expect("should start mascot control server");
+    wait_for_healthcheck(address);
+
+    let preview_target = PreviewTargetRequest {
+        png_path: PathBuf::from("cache/demo/preview.png"),
+        scale: Some(0.145),
+        zip_path: PathBuf::from("assets/zip/demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo/body.psd"),
+        display_diff_path: None,
+    };
+    let request_thread = {
+        let preview_target = preview_target.clone();
+        thread::spawn(move || preview_target_mascot_render_server_at(address, &preview_target))
+    };
+
+    let command = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("preview-target command should arrive");
+    assert_eq!(
+        command,
+        MascotControlCommand::preview_target(preview_target)
+    );
+    command.finish(Err("failed to apply preview target".to_string()));
+
+    let error = request_thread
+        .join()
+        .expect("request thread should complete")
+        .expect_err("preview-target request should report apply failure");
+    assert!(
+        error.to_string().contains("HTTP 500"),
+        "unexpected error: {error:#}"
+    );
+    assert!(
+        error.to_string().contains("failed to apply preview target"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
 fn mascot_control_server_reports_health() {
     let (tx, _rx) = mpsc::channel();
     let (address, _handle) = start_mascot_control_server_on(
@@ -242,6 +314,39 @@ fn mascot_control_server_reports_status_snapshot() {
     assert_eq!(
         status.displayed_png_path,
         PathBuf::from("cache/demo/open.png")
+    );
+}
+
+#[test]
+fn mascot_control_server_reports_placement_anchor_plan() {
+    let (tx, _rx) = mpsc::channel();
+    let status_store = test_status_store();
+    status_store
+        .update(|snapshot| {
+            snapshot.placement.anchor_plan.selected_anchor_kind = PlacementAnchorKind::BottomRight;
+        })
+        .expect("status update should succeed");
+    let (address, _handle) = start_mascot_control_server_on(
+        SocketAddr::from(([127, 0, 0, 1], 0)),
+        tx,
+        status_store,
+        empty_psd_file_names,
+    )
+    .expect("should start mascot control server");
+    wait_for_healthcheck(address);
+
+    let response = send_raw_http_request(
+        address,
+        "GET /placement/anchor-plan HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n",
+    );
+
+    assert!(
+        response.starts_with("HTTP/1.1 200 OK"),
+        "unexpected response: {response}"
+    );
+    assert!(
+        response.contains("\"selected_anchor_kind\":\"bottom_right\""),
+        "unexpected response: {response}"
     );
 }
 

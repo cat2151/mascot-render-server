@@ -15,6 +15,8 @@ pub(super) struct MascotStaticConfigFile {
     #[serde(rename = "always_idle_sink")]
     pub(super) always_idle_sink_enabled: bool,
     pub(super) always_bend: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(super) ui_font_paths: Vec<PathBuf>,
     pub(super) bend: BendConfig,
     pub(super) favorite_ensemble_enabled: bool,
     pub(super) bounce: BounceAnimationConfig,
@@ -28,6 +30,7 @@ impl Default for MascotStaticConfigFile {
         Self {
             always_idle_sink_enabled: true,
             always_bend: true,
+            ui_font_paths: Vec::new(),
             bend: BendConfig::default(),
             favorite_ensemble_enabled: false,
             bounce: BounceAnimationConfig::default(),

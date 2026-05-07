@@ -8,6 +8,7 @@ mod mascot_app;
 mod mascot_scale;
 mod mouth_flap;
 mod psd_file_name_catalog;
+mod ui_font;
 
 #[cfg(test)]
 mascot_render_test_support::install_test_data_root!();
@@ -47,6 +48,9 @@ mod psd_file_name_catalog_tests;
 #[cfg(test)]
 #[path = "tests/runtime.rs"]
 mod runtime_tests;
+#[cfg(test)]
+#[path = "tests/ui_font.rs"]
+mod ui_font_tests;
 #[cfg(test)]
 #[path = "tests/window_history.rs"]
 mod window_history_tests;
@@ -200,6 +204,7 @@ fn main() -> Result<()> {
         app_name,
         native_options,
         Box::new(move |cc| {
+            ui_font::configure_ui_fonts(&cc.egui_ctx, &config);
             let (control_tx, control_rx) = mpsc::channel();
             let catalog = psd_file_name_catalog.clone();
             let repaint_ctx = cc.egui_ctx.clone();

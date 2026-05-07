@@ -333,7 +333,7 @@ fn sync_runtime_targets(
     server_preview_sync: &mut ServerPreviewSync,
 ) {
     if app.uses_server_preview() {
-        server_preview_sync.request(app.selected_preview_png_path());
+        server_preview_sync.request(app.current_preview_target_request());
     }
 
     if !app.uses_server_preview() && !app.is_preview_animation_active() {
@@ -347,7 +347,7 @@ fn request_selected_preview_sync(
     server_preview_sync: &mut ServerPreviewSync,
 ) {
     if app.uses_server_preview() {
-        server_preview_sync.request(app.selected_preview_png_path());
+        server_preview_sync.request(app.current_preview_target_request());
     } else {
         preview.request_sync(app.selected_preview_png_path());
     }

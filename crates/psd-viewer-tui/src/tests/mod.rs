@@ -16,6 +16,8 @@ mod help_overlay_tests;
 mod layer_toggle_keys_tests;
 #[path = "library.rs"]
 mod library_tests;
+#[path = "mascot_scale.rs"]
+mod mascot_scale_tests;
 #[path = "mouth_flap.rs"]
 mod mouth_flap_tests;
 #[path = "selection_timing.rs"]

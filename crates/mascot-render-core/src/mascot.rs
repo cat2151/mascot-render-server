@@ -52,6 +52,7 @@ pub struct MascotConfig {
     pub zip_path: PathBuf,
     pub psd_path_in_zip: PathBuf,
     pub display_diff_path: Option<PathBuf>,
+    pub ui_font_paths: Vec<PathBuf>,
     pub always_idle_sink_enabled: bool,
     pub always_bend: AlwaysBendConfig,
     pub favorite_ensemble_enabled: bool,
@@ -111,6 +112,7 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
         zip_path: runtime_target.zip_path,
         psd_path_in_zip: runtime_target.psd_path_in_zip,
         display_diff_path: runtime_target.display_diff_path,
+        ui_font_paths: resolve_static_path_list(config_path, &static_config.ui_font_paths),
         always_idle_sink_enabled: static_config.always_idle_sink_enabled,
         always_bend: AlwaysBendConfig {
             enabled: static_config.always_bend,
@@ -235,6 +237,20 @@ fn write_mascot_static_config_file(
     fs::write(config_path, toml)
         .with_context(|| format!("failed to write {}", config_path.display()))?;
     Ok(())
+}
+
+fn resolve_static_path_list(config_path: &Path, paths: &[PathBuf]) -> Vec<PathBuf> {
+    let base_dir = config_path.parent().unwrap_or_else(|| Path::new(""));
+    paths
+        .iter()
+        .map(|path| {
+            if path.is_absolute() {
+                path.clone()
+            } else {
+                base_dir.join(path)
+            }
+        })
+        .collect()
 }
 
 fn validate_mascot_target(target: &MascotTarget, state_path: &Path) -> Result<()> {

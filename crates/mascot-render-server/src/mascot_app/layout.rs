@@ -2,8 +2,9 @@ use eframe::egui::{self, Pos2};
 use mascot_render_server::window_history::{current_viewport_info, outer_position_for_anchor};
 use mascot_render_server::AlphaBounds;
 
+use super::logging::RefreshWindowLayoutDiagnostics;
 use super::{ensemble_window_layout, MascotApp};
-use mascot_render_server::{anchored_inner_origin, MascotWindowLayout};
+use mascot_render_server::{anchored_inner_origin_for_kind, MascotWindowLayout};
 
 pub(super) fn apply_pending_restored_anchor_position(app: &mut MascotApp, ctx: &egui::Context) {
     let Some(anchor_position) = app.pending_restored_anchor_position else {
@@ -41,8 +42,9 @@ impl MascotApp {
         &mut self,
         ctx: &egui::Context,
         previous_layout: MascotWindowLayout,
-    ) {
+    ) -> RefreshWindowLayoutDiagnostics {
         let viewport_info = current_viewport_info(ctx);
+        let selected_anchor_kind = self.placement_state.selected_anchor_kind;
         self.window_layout = if let Some(favorite_ensemble) = &self.favorite_ensemble {
             self.base_size = favorite_ensemble.scaled_canvas_size(self.scale);
             ensemble_window_layout(self.base_size, favorite_ensemble.image_size(), &self.config)
@@ -57,22 +59,38 @@ impl MascotApp {
                 self.config.always_idle_sink,
             )
         };
-        if let Some(viewport_info) = viewport_info {
-            let inner_origin = anchored_inner_origin(
-                viewport_info.inner_origin,
+        let preserved_anchor_position = viewport_info.map(|value| {
+            value.inner_origin + previous_layout.anchor_offset_for_kind(selected_anchor_kind)
+        });
+        let next_inner_origin = viewport_info.map(|value| {
+            anchored_inner_origin_for_kind(
+                value.inner_origin,
                 previous_layout,
                 self.window_layout,
-            );
-            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(
-                inner_origin - viewport_info.inner_to_outer_offset,
-            ));
+                selected_anchor_kind,
+            )
+        });
+        let next_outer_position = next_inner_origin
+            .zip(viewport_info.map(|value| value.inner_to_outer_offset))
+            .map(|(inner_origin, inner_to_outer_offset)| inner_origin - inner_to_outer_offset);
+        if let Some(outer_position) = next_outer_position {
+            ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(outer_position));
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
             self.window_layout.window_size(),
         ));
+        RefreshWindowLayoutDiagnostics {
+            selected_anchor_kind,
+            previous_layout,
+            next_layout: self.window_layout,
+            viewport_info,
+            preserved_anchor_position,
+            next_inner_origin,
+            next_outer_position,
+        }
     }
 
-    fn window_content_bounds(&self) -> AlphaBounds {
+    pub(super) fn window_content_bounds(&self) -> AlphaBounds {
         if let Some(favorite_ensemble) = &self.favorite_ensemble {
             return favorite_ensemble.content_bounds();
         }

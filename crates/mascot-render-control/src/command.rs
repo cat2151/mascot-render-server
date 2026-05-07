@@ -3,7 +3,9 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::time::Duration;
 
 use anyhow::{anyhow, Error};
-use mascot_render_protocol::{MotionTimelineRequest, ServerCommandKind, ServerCommandStatus};
+use mascot_render_protocol::{
+    MotionTimelineRequest, PreviewTargetRequest, ServerCommandKind, ServerCommandStatus,
+};
 
 type ControlCommandApplyResult = std::result::Result<(), String>;
 
@@ -32,6 +34,11 @@ pub enum MascotControlCommand {
     },
     ChangeCharacter {
         character_name: String,
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
+    },
+    PreviewTarget {
+        request: PreviewTargetRequest,
         completion: Option<ControlCommandCompletion>,
         status: ServerCommandStatus,
     },
@@ -69,6 +76,15 @@ impl MascotControlCommand {
         )
     }
 
+    pub fn preview_target(request: PreviewTargetRequest) -> Self {
+        let summary = preview_target_summary(&request);
+        Self::preview_target_with_status(
+            request,
+            None,
+            ServerCommandStatus::queued(ServerCommandKind::PreviewTarget, summary),
+        )
+    }
+
     pub(crate) fn show_with_status(status: ServerCommandStatus) -> Self {
         Self::Show { status }
     }
@@ -91,6 +107,14 @@ impl MascotControlCommand {
         status: ServerCommandStatus,
     ) -> Self {
         Self::play_timeline_with_status(request, Some(completion), status)
+    }
+
+    pub(crate) fn preview_target_with_completion(
+        request: PreviewTargetRequest,
+        completion: ControlCommandCompletion,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::preview_target_with_status(request, Some(completion), status)
     }
 
     fn change_character_with_status(
@@ -117,11 +141,24 @@ impl MascotControlCommand {
         }
     }
 
+    fn preview_target_with_status(
+        request: PreviewTargetRequest,
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::PreviewTarget {
+            request,
+            completion,
+            status,
+        }
+    }
+
     pub fn status(&self) -> &ServerCommandStatus {
         match self {
             Self::Show { status }
             | Self::Hide { status }
             | Self::ChangeCharacter { status, .. }
+            | Self::PreviewTarget { status, .. }
             | Self::PlayTimeline { status, .. } => status,
         }
     }
@@ -132,6 +169,10 @@ impl MascotControlCommand {
                 completion: Some(completion),
                 ..
             }
+            | Self::PreviewTarget {
+                completion: Some(completion),
+                ..
+            }
             | Self::PlayTimeline {
                 completion: Some(completion),
                 ..
@@ -139,6 +180,9 @@ impl MascotControlCommand {
             Self::Show { .. }
             | Self::Hide { .. }
             | Self::ChangeCharacter {
+                completion: None, ..
+            }
+            | Self::PreviewTarget {
                 completion: None, ..
             }
             | Self::PlayTimeline {
@@ -161,6 +205,10 @@ impl PartialEq for MascotControlCommand {
                     character_name: right,
                     ..
                 },
+            ) => left == right,
+            (
+                Self::PreviewTarget { request: left, .. },
+                Self::PreviewTarget { request: right, .. },
             ) => left == right,
             (
                 Self::PlayTimeline { request: left, .. },
@@ -233,4 +281,26 @@ pub(crate) fn timeline_summary(request: &MotionTimelineRequest) -> String {
         "{:?} duration_ms={} fps={}",
         step.kind, step.duration_ms, step.fps
     )
+}
+
+pub(crate) fn preview_target_summary(request: &PreviewTargetRequest) -> String {
+    format!(
+        "png={} zip={} psd={} display_diff={} scale={}",
+        request.png_path.display(),
+        request.zip_path.display(),
+        request.psd_path_in_zip.display(),
+        optional_path_text(request.display_diff_path.as_ref()),
+        optional_scale_text(request.scale)
+    )
+}
+
+fn optional_path_text(path: Option<&std::path::PathBuf>) -> String {
+    path.map(|path| path.display().to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+
+fn optional_scale_text(scale: Option<f32>) -> String {
+    scale
+        .map(|value| format!("{value:.3}"))
+        .unwrap_or_else(|| "-".to_string())
 }

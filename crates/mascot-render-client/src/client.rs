@@ -5,8 +5,9 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 use mascot_render_protocol::{
-    validate_motion_timeline_request, ChangeCharacterRequest, MotionTimelineKind,
-    MotionTimelineRequest, MotionTimelineStep, ServerStatusSnapshot,
+    validate_motion_timeline_request, validate_preview_target_request, ChangeCharacterRequest,
+    MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep, PreviewTargetRequest,
+    ServerStatusSnapshot,
 };
 
 pub const MASCOT_RENDER_SERVER_PORT: u16 = 62152;
@@ -48,6 +49,10 @@ pub fn change_character_mascot_render_server(character_name: &str) -> Result<()>
 
 pub fn play_timeline_mascot_render_server(request: &MotionTimelineRequest) -> Result<()> {
     play_timeline_mascot_render_server_at(mascot_render_server_address(), request)
+}
+
+pub fn preview_target_mascot_render_server(request: &PreviewTargetRequest) -> Result<()> {
+    preview_target_mascot_render_server_at(mascot_render_server_address(), request)
 }
 
 pub fn preview_mouth_flap_timeline_request() -> MotionTimelineRequest {
@@ -109,6 +114,23 @@ pub fn play_timeline_mascot_render_server_at(
     let body = serde_json::to_vec(request)
         .context("failed to serialize mascot motion timeline request")?;
     send_http_request(address, "POST", "/timeline", Some(&body), APPLY_TIMEOUT).map(|_| ())
+}
+
+pub fn preview_target_mascot_render_server_at(
+    address: SocketAddr,
+    request: &PreviewTargetRequest,
+) -> Result<()> {
+    validate_preview_target_request(request)?;
+    let body =
+        serde_json::to_vec(request).context("failed to serialize mascot preview-target request")?;
+    send_http_request(
+        address,
+        "POST",
+        "/preview-target",
+        Some(&body),
+        APPLY_TIMEOUT,
+    )
+    .map(|_| ())
 }
 
 pub fn wait_for_mascot_render_server_healthcheck_at(

@@ -3,7 +3,11 @@ use mascot_render_core::{
     BounceAnimationConfig, IdleSinkAnimationConfig, MotionTransform, SquashBounceAnimationConfig,
 };
 
-use crate::{alpha_bounds_from_mask, anchored_inner_origin, AlphaBounds, MascotWindowLayout};
+use crate::{
+    alpha_bounds_from_mask, anchored_inner_origin, anchored_inner_origin_for_kind, AlphaBounds,
+    MascotWindowLayout,
+};
+use mascot_render_protocol::PlacementAnchorKind;
 
 fn zero_bounce() -> BounceAnimationConfig {
     BounceAnimationConfig {
@@ -49,6 +53,19 @@ fn alpha_bounds_track_non_transparent_pixels() {
 }
 
 #[test]
+fn alpha_bounds_reports_width_and_height() {
+    let bounds = AlphaBounds {
+        min_x: 2,
+        min_y: 3,
+        max_x: 9,
+        max_y: 11,
+    };
+
+    assert_eq!(bounds.width(), 7);
+    assert_eq!(bounds.height(), 8);
+}
+
+#[test]
 fn layout_trims_static_transparent_padding() {
     let layout = MascotWindowLayout::new(
         Vec2::new(100.0, 80.0),
@@ -66,11 +83,54 @@ fn layout_trims_static_transparent_padding() {
 
     assert_eq!(layout.window_size(), Vec2::new(72.0, 72.0));
     assert_eq!(layout.anchor_offset(), Vec2::new(36.0, 66.0));
+    assert_eq!(layout.bottom_center_anchor_offset(), Vec2::new(36.0, 66.0));
+    assert_eq!(layout.bottom_right_anchor_offset(), Vec2::new(66.0, 66.0));
     assert_eq!(layout.shake_amplitude_px(), 6.0);
     assert_eq!(
         layout.image_rect(Vec2::new(100.0, 80.0), MotionTransform::identity()),
         Rect::from_min_max(Pos2::new(-14.0, -4.0), Pos2::new(86.0, 76.0))
     );
+}
+
+#[test]
+fn anchored_inner_origin_can_preserve_bottom_right_anchor() {
+    let previous_layout = MascotWindowLayout::new(
+        Vec2::new(100.0, 80.0),
+        [10, 8],
+        AlphaBounds {
+            min_x: 2,
+            min_y: 1,
+            max_x: 8,
+            max_y: 7,
+        },
+        zero_bounce(),
+        zero_squash(),
+        zero_idle_sink(),
+    );
+    let next_layout = MascotWindowLayout::new(
+        Vec2::new(100.0, 80.0),
+        [10, 8],
+        AlphaBounds {
+            min_x: 1,
+            min_y: 0,
+            max_x: 9,
+            max_y: 8,
+        },
+        zero_bounce(),
+        zero_squash(),
+        zero_idle_sink(),
+    );
+
+    let next_origin = anchored_inner_origin_for_kind(
+        Pos2::new(400.0, 300.0),
+        previous_layout,
+        next_layout,
+        PlacementAnchorKind::BottomRight,
+    );
+
+    let previous_anchor = Pos2::new(400.0, 300.0) + previous_layout.bottom_right_anchor_offset();
+    let next_anchor = next_origin + next_layout.bottom_right_anchor_offset();
+    assert_eq!(previous_anchor, next_anchor);
 }
 
 #[test]

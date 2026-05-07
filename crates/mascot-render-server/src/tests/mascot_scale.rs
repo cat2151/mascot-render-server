@@ -2,16 +2,20 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use eframe::egui::Modifiers;
+use eframe::egui::{Modifiers, Pos2, Vec2};
 use mascot_render_core::{
     load_mascot_config, mascot_runtime_state_path, workspace_cache_root, AlwaysBendConfig,
     IdleSinkAnimationConfig, MascotConfig,
 };
+use mascot_render_protocol::{PlacementAnchorKind, ScreenRectPx};
 
+use crate::mascot_app::{mouse_wheel_zoom_outer_position_for_test, ScaleChangeTriggerForTest};
 use crate::mascot_scale::{
     adjust_scale, effective_scale, keyboard_scale_steps, persist_favorite_ensemble_scale,
     persist_scale, scroll_scale_steps,
 };
+use mascot_render_server::window_history::ViewportInfo;
+use mascot_render_server::MascotWindowLayout;
 
 fn unique_test_config_path(test_name: &str) -> PathBuf {
     let unique_suffix = SystemTime::now()
@@ -31,6 +35,7 @@ fn sample_config() -> MascotConfig {
         zip_path: PathBuf::from("assets/zip/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: Some(PathBuf::from("cache/demo/variation.json")),
+        ui_font_paths: Vec::new(),
         always_idle_sink_enabled: false,
         always_bend: AlwaysBendConfig::default(),
         favorite_ensemble_enabled: false,
@@ -137,4 +142,52 @@ fn persist_favorite_ensemble_scale_updates_runtime_state() {
         let _ = fs::remove_dir_all(parent);
     }
     let _ = fs::remove_file(&runtime_state_path);
+}
+
+#[test]
+fn mouse_wheel_zoom_outer_position_skips_keyboard_scale_changes() {
+    assert_eq!(
+        mouse_wheel_zoom_outer_position_for_test(
+            ScaleChangeTriggerForTest::Keyboard,
+            MascotWindowLayout::full(Vec2::new(100.0, 80.0)),
+            MascotWindowLayout::full(Vec2::new(200.0, 80.0)),
+            Some(sample_viewport_info()),
+            PlacementAnchorKind::BottomCenter,
+            sample_screen_rect(),
+        ),
+        None
+    );
+}
+
+#[test]
+fn mouse_wheel_zoom_outer_position_uses_viewport_offset_after_clamp() {
+    let outer_position = mouse_wheel_zoom_outer_position_for_test(
+        ScaleChangeTriggerForTest::MouseWheel {
+            raw_scroll_delta_y: 120.0,
+        },
+        MascotWindowLayout::full(Vec2::new(100.0, 80.0)),
+        MascotWindowLayout::full(Vec2::new(200.0, 80.0)),
+        Some(sample_viewport_info()),
+        PlacementAnchorKind::BottomCenter,
+        sample_screen_rect(),
+    )
+    .expect("mouse wheel zoom should clamp to the right edge");
+
+    assert_eq!(outer_position, Pos2::new(6.0, 294.0));
+}
+
+fn sample_viewport_info() -> ViewportInfo {
+    ViewportInfo {
+        inner_origin: Pos2::new(100.0, 300.0),
+        inner_to_outer_offset: Vec2::new(4.0, 6.0),
+    }
+}
+
+fn sample_screen_rect() -> ScreenRectPx {
+    ScreenRectPx {
+        min_x: 0.0,
+        min_y: 0.0,
+        max_x: 210.0,
+        max_y: 1080.0,
+    }
 }

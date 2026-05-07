@@ -13,7 +13,7 @@ const WINDOW_HISTORY_VERSION: u32 = 2;
 pub const WINDOW_HISTORY_SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
 const WINDOW_HISTORY_NAME_STEM_LIMIT: usize = 64;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ViewportInfo {
     pub inner_origin: Pos2,
     pub inner_to_outer_offset: Vec2,

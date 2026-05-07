@@ -5,6 +5,7 @@ use eframe::egui::{self, Color32, Pos2, Rect};
 use eframe::App;
 use mascot_render_control::log_server_error;
 use mascot_render_core::MotionTransform;
+use mascot_render_protocol::PlacementMode;
 use mascot_render_server::{
     captures_logical_point, transformed_image_rect, TransparentHitTestUpdate,
 };
@@ -13,8 +14,8 @@ use crate::always_bend;
 use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 
 use super::{
-    click_interaction_hit_test, keyboard_scale_steps, scroll_scale_steps, should_log_rendered_skin,
-    should_refresh_auxiliary_skins_now, MascotApp,
+    click_interaction_hit_test, keyboard_scale_steps, logging::ScaleChangeTrigger,
+    scroll_scale_steps, should_log_rendered_skin, should_refresh_auxiliary_skins_now, MascotApp,
 };
 
 impl App for MascotApp {
@@ -57,9 +58,6 @@ impl App for MascotApp {
         if let Err(error) = self.sync_window_history(ctx, now) {
             self.record_and_log_status_error(format!("{error:#}"));
         }
-        if let Err(error) = self.persist_pending_scale_if_due(now) {
-            self.record_and_log_status_error(format!("{error:#}"));
-        }
         if ctx.input(|input| input.key_pressed(egui::Key::Escape)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
@@ -74,7 +72,9 @@ impl App for MascotApp {
                 input.key_pressed(egui::Key::Minus),
             )
         });
-        if let Err(error) = self.apply_scale_steps(ctx, now, keyboard_steps) {
+        if let Err(error) =
+            self.apply_scale_steps(ctx, now, keyboard_steps, ScaleChangeTrigger::Keyboard)
+        {
             self.record_and_log_status_error(format!("{error:#}"));
         }
         let blink_requested_closed = self.eye_blink.is_closed(now);
@@ -115,7 +115,7 @@ impl App for MascotApp {
                 .min
                 .to_vec2();
             let scale = self.scale.max(0.01);
-            let interaction = {
+            let response = {
                 let favorite_ensemble = self
                     .favorite_ensemble
                     .as_mut()
@@ -193,20 +193,30 @@ impl App for MascotApp {
                             ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                         }
 
-                        if response.secondary_clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-
-                        response.hovered()
+                        response
                     })
                     .inner
             };
+            response.context_menu(|ui| self.show_placement_context_menu(ui, ctx));
 
-            if interaction {
-                let scroll_steps = ctx.input(|input| scroll_scale_steps(input.raw_scroll_delta.y));
-                if let Err(error) = self.apply_scale_steps(ctx, now, scroll_steps) {
+            if response.hovered() {
+                let (scroll_steps, raw_scroll_delta_y) = ctx.input(|input| {
+                    (
+                        scroll_scale_steps(input.raw_scroll_delta.y),
+                        input.raw_scroll_delta.y,
+                    )
+                });
+                if let Err(error) = self.apply_scale_steps(
+                    ctx,
+                    now,
+                    scroll_steps,
+                    ScaleChangeTrigger::MouseWheel { raw_scroll_delta_y },
+                ) {
                     self.record_and_log_status_error(format!("{error:#}"));
                 }
+            }
+            if let Err(error) = self.persist_pending_scale_if_due(now) {
+                self.record_and_log_status_error(format!("{error:#}"));
             }
 
             self.refresh_status_snapshot(
@@ -282,7 +292,7 @@ impl App for MascotApp {
             .transparent_hit_test
             .transparent_input_visual_remaining(now);
 
-        egui::Area::new("mascot-image".into())
+        let response = egui::Area::new("mascot-image".into())
             .fixed_pos(Pos2::ZERO)
             .show(ctx, |ui| {
                 ui.set_min_size(self.window_layout.window_size());
@@ -337,18 +347,30 @@ impl App for MascotApp {
                     ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                 }
 
-                if response.secondary_clicked() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
+                response
+            })
+            .inner;
+        response.context_menu(|ui| self.show_placement_context_menu(ui, ctx));
 
-                if response.hovered() {
-                    let scroll_steps =
-                        ctx.input(|input| scroll_scale_steps(input.raw_scroll_delta.y));
-                    if let Err(error) = self.apply_scale_steps(ctx, now, scroll_steps) {
-                        self.record_and_log_status_error(format!("{error:#}"));
-                    }
-                }
+        if response.hovered() {
+            let (scroll_steps, raw_scroll_delta_y) = ctx.input(|input| {
+                (
+                    scroll_scale_steps(input.raw_scroll_delta.y),
+                    input.raw_scroll_delta.y,
+                )
             });
+            if let Err(error) = self.apply_scale_steps(
+                ctx,
+                now,
+                scroll_steps,
+                ScaleChangeTrigger::MouseWheel { raw_scroll_delta_y },
+            ) {
+                self.record_and_log_status_error(format!("{error:#}"));
+            }
+        }
+        if let Err(error) = self.persist_pending_scale_if_due(now) {
+            self.record_and_log_status_error(format!("{error:#}"));
+        }
 
         self.refresh_status_snapshot(ctx, active_status_png_path, blink_closed, mouth_flap_open);
         let repaint_after = self
@@ -395,6 +417,36 @@ impl MascotApp {
     fn record_and_log_status_error(&self, message: String) {
         self.record_status_error(message.clone());
         log_server_error(message);
+    }
+
+    fn show_placement_context_menu(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        let status = self.placement_status_for_snapshot(ctx);
+        if ui
+            .selectable_label(
+                status.mode == PlacementMode::PerPsd,
+                "mode1: PSDごとに拡大率と座標を保持する",
+            )
+            .clicked()
+            && status.mode != PlacementMode::PerPsd
+        {
+            self.set_placement_mode(ctx, PlacementMode::PerPsd);
+            ui.close();
+        }
+        if ui
+            .selectable_label(
+                status.mode == PlacementMode::SharedVisualSize,
+                "mode2: default: 見た目のheightを全PSDで同一にし、右下アンカーを自動判別する",
+            )
+            .clicked()
+            && status.mode != PlacementMode::SharedVisualSize
+        {
+            self.set_placement_mode(ctx, PlacementMode::SharedVisualSize);
+            ui.close();
+        }
+        if ui.button("アプリをquit").clicked() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ui.close();
+        }
     }
 }
 

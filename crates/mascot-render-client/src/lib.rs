@@ -13,7 +13,8 @@ pub use client::{
     mascot_render_server_psd_file_names, mascot_render_server_psd_file_names_at,
     mascot_render_server_status, mascot_render_server_status_at,
     play_timeline_mascot_render_server, play_timeline_mascot_render_server_at,
-    preview_mouth_flap_timeline_request, show_mascot_render_server, show_mascot_render_server_at,
-    wait_for_mascot_render_server_healthcheck_at, MASCOT_RENDER_SERVER_PORT,
-    PREVIEW_MOUTH_FLAP_DURATION_MS, PREVIEW_MOUTH_FLAP_FPS,
+    preview_mouth_flap_timeline_request, preview_target_mascot_render_server,
+    preview_target_mascot_render_server_at, show_mascot_render_server,
+    show_mascot_render_server_at, wait_for_mascot_render_server_healthcheck_at,
+    MASCOT_RENDER_SERVER_PORT, PREVIEW_MOUTH_FLAP_DURATION_MS, PREVIEW_MOUTH_FLAP_FPS,
 };

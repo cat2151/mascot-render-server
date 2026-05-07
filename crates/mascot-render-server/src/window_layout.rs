@@ -3,6 +3,7 @@ use mascot_render_core::{
     BounceAnimationConfig, IdleSinkAnimationConfig, MotionTransform, SquashBounceAnimationConfig,
     IDLE_SINK_LIFT_SCALE_X_RATIO,
 };
+use mascot_render_protocol::PlacementAnchorKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AlphaBounds {
@@ -29,6 +30,14 @@ impl AlphaBounds {
             max_x: self.max_x.max(other.max_x),
             max_y: self.max_y.max(other.max_y),
         }
+    }
+
+    pub fn width(self) -> u32 {
+        self.max_x.saturating_sub(self.min_x)
+    }
+
+    pub fn height(self) -> u32 {
+        self.max_y.saturating_sub(self.min_y)
     }
 }
 
@@ -78,7 +87,8 @@ pub fn alpha_bounds_from_mask(
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MascotWindowLayout {
     crop_rect: Rect,
-    anchor_offset: Vec2,
+    bottom_center_anchor_offset: Vec2,
+    bottom_right_anchor_offset: Vec2,
     shake_amplitude_px: f32,
 }
 
@@ -86,7 +96,8 @@ impl MascotWindowLayout {
     pub fn full(base_size: Vec2) -> Self {
         Self {
             crop_rect: Rect::from_min_size(Pos2::ZERO, base_size),
-            anchor_offset: Vec2::new(base_size.x * 0.5, base_size.y),
+            bottom_center_anchor_offset: Vec2::new(base_size.x * 0.5, base_size.y),
+            bottom_right_anchor_offset: base_size,
             shake_amplitude_px: 0.0,
         }
     }
@@ -107,10 +118,14 @@ impl MascotWindowLayout {
             squash_bounce,
             idle_sink,
         );
-        let anchor_offset = anchor_offset(base_size, image_size, content_bounds, crop_rect);
+        let bottom_center_anchor_offset =
+            bottom_center_anchor_offset(base_size, image_size, content_bounds, crop_rect);
+        let bottom_right_anchor_offset =
+            bottom_right_anchor_offset(base_size, image_size, content_bounds, crop_rect);
         Self {
             crop_rect,
-            anchor_offset,
+            bottom_center_anchor_offset,
+            bottom_right_anchor_offset,
             shake_amplitude_px,
         }
     }
@@ -130,7 +145,22 @@ impl MascotWindowLayout {
     }
 
     pub fn anchor_offset(self) -> Vec2 {
-        self.anchor_offset
+        self.bottom_center_anchor_offset()
+    }
+
+    pub fn bottom_center_anchor_offset(self) -> Vec2 {
+        self.bottom_center_anchor_offset
+    }
+
+    pub fn bottom_right_anchor_offset(self) -> Vec2 {
+        self.bottom_right_anchor_offset
+    }
+
+    pub fn anchor_offset_for_kind(self, kind: PlacementAnchorKind) -> Vec2 {
+        match kind {
+            PlacementAnchorKind::BottomCenter => self.bottom_center_anchor_offset(),
+            PlacementAnchorKind::BottomRight => self.bottom_right_anchor_offset(),
+        }
     }
 
     pub fn shake_amplitude_px(self) -> f32 {
@@ -143,8 +173,23 @@ pub fn anchored_inner_origin(
     previous_layout: MascotWindowLayout,
     next_layout: MascotWindowLayout,
 ) -> Pos2 {
-    let anchor_position = previous_inner_origin + previous_layout.anchor_offset();
-    anchor_position - next_layout.anchor_offset()
+    anchored_inner_origin_for_kind(
+        previous_inner_origin,
+        previous_layout,
+        next_layout,
+        PlacementAnchorKind::BottomCenter,
+    )
+}
+
+pub fn anchored_inner_origin_for_kind(
+    previous_inner_origin: Pos2,
+    previous_layout: MascotWindowLayout,
+    next_layout: MascotWindowLayout,
+    anchor_kind: PlacementAnchorKind,
+) -> Pos2 {
+    let anchor_position =
+        previous_inner_origin + previous_layout.anchor_offset_for_kind(anchor_kind);
+    anchor_position - next_layout.anchor_offset_for_kind(anchor_kind)
 }
 
 pub fn transformed_image_rect(base_size: Vec2, transform: MotionTransform) -> Rect {
@@ -280,7 +325,7 @@ fn content_rect(image_rect: Rect, image_size: [u32; 2], content_bounds: AlphaBou
     Rect::from_min_max(min, max)
 }
 
-fn anchor_offset(
+fn bottom_center_anchor_offset(
     base_size: Vec2,
     image_size: [u32; 2],
     content_bounds: AlphaBounds,
@@ -296,4 +341,18 @@ fn anchor_offset(
         content_rect.max.y,
     );
     anchor.to_vec2() - crop_rect.min.to_vec2()
+}
+
+fn bottom_right_anchor_offset(
+    base_size: Vec2,
+    image_size: [u32; 2],
+    content_bounds: AlphaBounds,
+    crop_rect: Rect,
+) -> Vec2 {
+    let content_rect = content_rect(
+        transformed_image_rect(base_size, MotionTransform::identity()),
+        image_size,
+        content_bounds,
+    );
+    content_rect.max.to_vec2() - crop_rect.min.to_vec2()
 }

@@ -46,6 +46,8 @@ pub(crate) struct FavoriteEnsembleLayoutEntry {
 
 #[derive(Debug)]
 pub(crate) struct FavoriteEnsembleMember {
+    pub(crate) zip_path: PathBuf,
+    pub(crate) psd_path_in_zip: PathBuf,
     pub(crate) image: MascotImageData,
     pub(crate) closed_image: Option<MascotImageData>,
     pub(crate) base_size: [f32; 2],
@@ -355,6 +357,8 @@ fn build_favorite_ensemble(rendered: Vec<RenderedFavorite>) -> FavoriteEnsemble 
                     .favorite_ensemble_position
                     .unwrap_or([0.0, 0.0]);
                 FavoriteEnsembleMember {
+                    zip_path: favorite.entry.zip_path,
+                    psd_path_in_zip: favorite.entry.psd_path_in_zip,
                     canvas_position: [x - min_x, y - min_y],
                     base_size: favorite.base_size,
                     closed_image: favorite.closed_image,

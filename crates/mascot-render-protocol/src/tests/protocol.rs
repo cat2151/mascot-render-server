@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use crate::{
-    validate_motion_timeline_request, ChangeCharacterRequest, MotionTimelineKind,
-    MotionTimelineRequest, MotionTimelineStep, ServerCommandKind, ServerCommandStage,
-    ServerCommandStatus, ServerLifecyclePhase, ServerStatusSnapshot, ServerStatusStore,
-    ServerWorkStatus,
+    validate_motion_timeline_request, validate_preview_target_request, ChangeCharacterRequest,
+    MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep, PreviewTargetRequest,
+    ServerCommandKind, ServerCommandStage, ServerCommandStatus, ServerLifecyclePhase,
+    ServerStatusSnapshot, ServerStatusStore, ServerWorkStatus,
 };
 
 #[test]
@@ -37,6 +37,23 @@ fn motion_timeline_request_round_trips_as_json() {
 
         assert_eq!(decoded, request);
     }
+}
+
+#[test]
+fn preview_target_request_round_trips_as_json() {
+    let request = PreviewTargetRequest {
+        png_path: PathBuf::from("cache/demo.png"),
+        scale: Some(0.145),
+        zip_path: PathBuf::from("assets/demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo/body.psd"),
+        display_diff_path: Some(PathBuf::from("cache/demo.json")),
+    };
+
+    let json = serde_json::to_string(&request).expect("request should serialize");
+    let decoded: PreviewTargetRequest =
+        serde_json::from_str(&json).expect("request should deserialize");
+
+    assert_eq!(decoded, request);
 }
 
 #[test]
@@ -85,6 +102,40 @@ fn validate_motion_timeline_request_accepts_single_step() {
 
     validate_motion_timeline_request(&request)
         .expect("single-step motion timeline should be accepted");
+}
+
+#[test]
+fn validate_preview_target_request_rejects_empty_png_path() {
+    let error = validate_preview_target_request(&PreviewTargetRequest {
+        png_path: PathBuf::new(),
+        scale: Some(0.145),
+        zip_path: PathBuf::from("assets/demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo/body.psd"),
+        display_diff_path: None,
+    })
+    .expect_err("empty png_path should be rejected");
+
+    assert!(
+        error.to_string().contains("png_path must not be empty"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
+fn validate_preview_target_request_rejects_non_positive_scale() {
+    let error = validate_preview_target_request(&PreviewTargetRequest {
+        png_path: PathBuf::from("cache/demo.png"),
+        scale: Some(0.0),
+        zip_path: PathBuf::from("assets/demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo/body.psd"),
+        display_diff_path: None,
+    })
+    .expect_err("non-positive scale should be rejected");
+
+    assert!(
+        error.to_string().contains("greater than zero"),
+        "unexpected error: {error:#}"
+    );
 }
 
 #[test]

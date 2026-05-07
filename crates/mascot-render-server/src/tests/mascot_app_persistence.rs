@@ -29,6 +29,7 @@ fn sample_config() -> MascotConfig {
         zip_path: PathBuf::from("assets/zip/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: Some(PathBuf::from("cache/demo/variation.json")),
+        ui_font_paths: Vec::new(),
         always_idle_sink_enabled: false,
         always_bend: AlwaysBendConfig::default(),
         favorite_ensemble_enabled: false,

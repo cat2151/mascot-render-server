@@ -5,17 +5,19 @@ use anyhow::{bail, Context, Result};
 use eframe::egui;
 use mascot_render_control::{log_server_info, MascotControlCommand};
 use mascot_render_core::MascotConfig;
-use mascot_render_protocol::{MotionTimelineKind, MotionTimelineRequest};
+use mascot_render_protocol::{MotionTimelineKind, MotionTimelineRequest, PreviewTargetRequest};
 use mascot_render_server::apply_motion_timeline_request;
 
 use super::character::{resolve_character_skin, ResolvedCharacterSkin};
 use super::config::describe_motion_timeline_request;
 use super::logging::{
-    change_character_stage_message, change_character_success_message, run_change_character_stage,
+    change_character_stage_message, change_character_success_message, preview_target_stage_message,
+    preview_target_success_message, run_change_character_stage,
 };
 use super::persistence::{persist_requested_character_change, verify_persisted_character_change};
+use super::placement::PreparedPlacementChange;
 use super::{CachedSkin, MascotApp};
-use crate::app_support::{path_modified_at, size_vec};
+use crate::app_support::path_modified_at;
 
 struct PreparedSkinChange {
     next_config: MascotConfig,
@@ -23,7 +25,7 @@ struct PreparedSkinChange {
     closed_skin: Option<CachedSkin>,
     mouth_open_skin: Option<CachedSkin>,
     mouth_closed_skin: Option<CachedSkin>,
-    base_size: egui::Vec2,
+    placement: PreparedPlacementChange,
     persisted_png_path: PathBuf,
 }
 
@@ -84,6 +86,16 @@ impl MascotApp {
                     format!(
                         "failed to apply mascot change-character command: requested_character={}",
                         character_name
+                    )
+                })
+            }
+            MascotControlCommand::PreviewTarget { request, .. } => {
+                self.apply_preview_target(ctx, request).with_context(|| {
+                    format!(
+                        "failed to apply mascot preview-target command: png_path={} zip_path={} psd_path_in_zip={}",
+                        request.png_path.display(),
+                        request.zip_path.display(),
+                        request.psd_path_in_zip.display()
                     )
                 })
             }
@@ -198,6 +210,8 @@ impl MascotApp {
         }
 
         let previous_png_path = self.config.png_path.clone();
+        self.save_current_placement_anchor_positions(ctx);
+        self.save_current_placement_scale();
         log_server_info(format!(
             "trigger=control_command action=change_character character変更を開始しました: requested_character={} from={} to={} selected_zip={} selected_psd={}",
             resolved.character_name,
@@ -243,6 +257,18 @@ impl MascotApp {
                 })
             },
         )?;
+        let placement = self.prepare_placement_for_character_change(ctx, resolved, &open_skin);
+        next_config.scale = Some(placement.scale);
+        log_server_info(format!(
+            "trigger=control_command action=change_character stage=placement_plan selected_zip={} selected_psd={} placement_mode={:?} selected_anchor_kind={:?} target_count={} max_right_overflow_px={} scale={}",
+            next_config.zip_path.display(),
+            next_config.psd_path_in_zip.display(),
+            placement.anchor_plan.placement_mode,
+            placement.anchor_kind,
+            placement.anchor_plan.target_count,
+            placement.anchor_plan.max_right_overflow_px,
+            placement.scale,
+        ));
         log_server_info(format!(
             "trigger=control_command action=change_character stage=defer_auxiliary_skins selected_zip={} selected_psd={} reason=show_default_png_first",
             next_config.zip_path.display(),
@@ -285,11 +311,147 @@ impl MascotApp {
         )?;
 
         Ok(PreparedSkinChange {
-            base_size: size_vec(
-                open_skin.image_size[0],
-                open_skin.image_size[1],
-                Some(self.scale),
-            ),
+            placement,
+            next_config,
+            open_skin,
+            closed_skin: None,
+            mouth_open_skin: None,
+            mouth_closed_skin: None,
+            persisted_png_path: persisted.png_path,
+        })
+    }
+
+    fn apply_preview_target(
+        &mut self,
+        ctx: &egui::Context,
+        request: &PreviewTargetRequest,
+    ) -> Result<()> {
+        if self.config.favorite_ensemble_enabled {
+            let message = format!(
+                "trigger=control_command action=preview_target favorite_ensemble_enabled=true png_path={} zip_path={} psd_path_in_zip={} のため preview target を適用できません",
+                request.png_path.display(),
+                request.zip_path.display(),
+                request.psd_path_in_zip.display()
+            );
+            log_server_info(message);
+            bail!("favorite_ensemble_enabled=true; cannot apply preview target while favorite ensemble is active");
+        }
+
+        let previous_png_path = self.config.png_path.clone();
+        self.save_current_placement_anchor_positions(ctx);
+        self.save_current_placement_scale();
+        log_server_info(format!(
+            "trigger=control_command action=preview_target preview target 適用を開始しました: from={} to={} selected_zip={} selected_psd={} selected_display_diff={} requested_scale={}",
+            previous_png_path.display(),
+            request.png_path.display(),
+            request.zip_path.display(),
+            request.psd_path_in_zip.display(),
+            optional_path_text(request.display_diff_path.as_deref()),
+            optional_scale_text(request.scale),
+        ));
+        let previous_layout = self.window_layout;
+        let prepared = self.prepare_preview_target_change(ctx, &previous_png_path, request)?;
+        let persisted_png_path = prepared.persisted_png_path.clone();
+        let commit_started_at = Instant::now();
+        self.commit_preview_target_change(ctx, previous_layout, &previous_png_path, prepared);
+        self.record_performance_stage("refresh_window_layout", elapsed_ms_since(commit_started_at));
+        log_server_info(preview_target_success_message(
+            &previous_png_path,
+            &request.png_path,
+            &self.runtime_state_path,
+            &persisted_png_path,
+        ));
+        Ok(())
+    }
+
+    fn prepare_preview_target_change(
+        &mut self,
+        ctx: &egui::Context,
+        previous_png_path: &Path,
+        request: &PreviewTargetRequest,
+    ) -> Result<PreparedSkinChange> {
+        let mut next_config = self.config.clone();
+        next_config.png_path = request.png_path.clone();
+        next_config.scale = request.scale;
+        next_config.favorite_ensemble_scale = None;
+        next_config.zip_path = request.zip_path.clone();
+        next_config.psd_path_in_zip = request.psd_path_in_zip.clone();
+        next_config.display_diff_path = request.display_diff_path.clone();
+
+        let open_skin = self.run_timed_preview_target_stage(
+            previous_png_path,
+            &next_config.png_path,
+            "load_base_skin",
+            |app| {
+                app.load_skin(ctx, &next_config.png_path).with_context(|| {
+                    format!(
+                        "failed to load requested preview-target skin image {}",
+                        next_config.png_path.display()
+                    )
+                })
+            },
+        )?;
+        let placement = self.prepare_placement_for_preview_target(
+            ctx,
+            &next_config.zip_path,
+            &next_config.psd_path_in_zip,
+            &open_skin,
+            request.scale,
+        );
+        next_config.scale = Some(placement.scale);
+        log_server_info(format!(
+            "trigger=control_command action=preview_target stage=placement_plan selected_zip={} selected_psd={} placement_mode={:?} selected_anchor_kind={:?} target_count={} max_right_overflow_px={} scale={}",
+            next_config.zip_path.display(),
+            next_config.psd_path_in_zip.display(),
+            placement.anchor_plan.placement_mode,
+            placement.anchor_kind,
+            placement.anchor_plan.target_count,
+            placement.anchor_plan.max_right_overflow_px,
+            placement.scale,
+        ));
+        log_server_info(format!(
+            "trigger=control_command action=preview_target stage=defer_auxiliary_skins selected_zip={} selected_psd={} reason=show_default_png_first",
+            next_config.zip_path.display(),
+            next_config.psd_path_in_zip.display(),
+        ));
+        log_server_info(format!(
+            "trigger=control_command action=preview_target stage=defer_mouth_flap_skins selected_zip={} selected_psd={} reason=lazy_generate_on_timeline",
+            next_config.zip_path.display(),
+            next_config.psd_path_in_zip.display(),
+        ));
+        self.run_timed_preview_target_stage(
+            previous_png_path,
+            &next_config.png_path,
+            "persist_runtime_state",
+            |app| {
+                persist_requested_character_change(&app.config_path, &next_config).with_context(
+                    || {
+                        format!(
+                            "failed to persist requested preview target to {}",
+                            app.runtime_state_path.display()
+                        )
+                    },
+                )
+            },
+        )?;
+        let persisted = self.run_timed_preview_target_stage(
+            previous_png_path,
+            &next_config.png_path,
+            "verify_runtime_state",
+            |app| {
+                verify_persisted_character_change(&app.config_path, &next_config).with_context(
+                    || {
+                        format!(
+                            "failed to verify requested preview target in {}",
+                            app.runtime_state_path.display()
+                        )
+                    },
+                )
+            },
+        )?;
+
+        Ok(PreparedSkinChange {
+            placement,
             next_config,
             open_skin,
             closed_skin: None,
@@ -313,7 +475,10 @@ impl MascotApp {
         self.closed_skin_unavailable = false;
         self.mouth_open_skin = prepared.mouth_open_skin;
         self.mouth_closed_skin = prepared.mouth_closed_skin;
-        self.base_size = prepared.base_size;
+        self.scale = prepared.placement.scale;
+        self.base_size = prepared.placement.base_size;
+        let anchor_position = prepared.placement.anchor_position;
+        let anchor_kind = prepared.placement.anchor_kind;
         self.eye_blink.reset(Instant::now());
         self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
         log_server_info(change_character_stage_message(
@@ -322,6 +487,36 @@ impl MascotApp {
             "refresh_window_layout",
         ));
         self.refresh_window_layout(ctx, previous_layout);
+        self.restore_anchor_position_for_kind(ctx, anchor_position, anchor_kind);
+    }
+
+    fn commit_preview_target_change(
+        &mut self,
+        ctx: &egui::Context,
+        previous_layout: mascot_render_server::MascotWindowLayout,
+        previous_png_path: &Path,
+        prepared: PreparedSkinChange,
+    ) {
+        let next_png_path = prepared.next_config.png_path.clone();
+        self.config = prepared.next_config;
+        self.open_skin = prepared.open_skin;
+        self.closed_skin = prepared.closed_skin;
+        self.closed_skin_unavailable = false;
+        self.mouth_open_skin = prepared.mouth_open_skin;
+        self.mouth_closed_skin = prepared.mouth_closed_skin;
+        self.scale = prepared.placement.scale;
+        self.base_size = prepared.placement.base_size;
+        let anchor_position = prepared.placement.anchor_position;
+        let anchor_kind = prepared.placement.anchor_kind;
+        self.eye_blink.reset(Instant::now());
+        self.runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
+        log_server_info(preview_target_stage_message(
+            previous_png_path,
+            &next_png_path,
+            "refresh_window_layout",
+        ));
+        self.refresh_window_layout(ctx, previous_layout);
+        self.restore_anchor_position_for_kind(ctx, anchor_position, anchor_kind);
     }
 
     fn run_timed_change_character_stage<T>(
@@ -334,6 +529,20 @@ impl MascotApp {
         let started_at = Instant::now();
         let result =
             run_change_character_stage(previous_png_path, png_path, stage, || operation(self));
+        self.record_performance_stage(stage, elapsed_ms_since(started_at));
+        result
+    }
+
+    fn run_timed_preview_target_stage<T>(
+        &mut self,
+        previous_png_path: &Path,
+        png_path: &Path,
+        stage: &'static str,
+        operation: impl FnOnce(&mut Self) -> Result<T>,
+    ) -> Result<T> {
+        let started_at = Instant::now();
+        let result =
+            run_preview_target_stage(previous_png_path, png_path, stage, || operation(self));
         self.record_performance_stage(stage, elapsed_ms_since(started_at));
         result
     }
@@ -363,6 +572,39 @@ fn apply_resolved_character(config: &mut MascotConfig, resolved: &ResolvedCharac
     config.display_diff_path = resolved.display_diff_path.clone();
 }
 
+fn run_preview_target_stage<T>(
+    previous_png_path: &Path,
+    png_path: &Path,
+    stage: &'static str,
+    operation: impl FnOnce() -> Result<T>,
+) -> Result<T> {
+    log_server_info(preview_target_stage_message(
+        previous_png_path,
+        png_path,
+        stage,
+    ));
+    operation().map_err(|error| {
+        mascot_render_control::log_server_error(super::logging::preview_target_failure_message(
+            previous_png_path,
+            png_path,
+            stage,
+            &format!("{error:#}"),
+        ));
+        error
+    })
+}
+
+fn optional_path_text(path: Option<&Path>) -> String {
+    path.map(|path| path.display().to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+
+fn optional_scale_text(scale: Option<f32>) -> String {
+    scale
+        .map(|value| format!("{value:.3}"))
+        .unwrap_or_else(|| "-".to_string())
+}
+
 fn config_matches_resolved_character(
     config: &MascotConfig,
     resolved: &ResolvedCharacterSkin,
@@ -371,11 +613,6 @@ fn config_matches_resolved_character(
         && config.zip_path == resolved.zip_path
         && config.psd_path_in_zip == resolved.psd_path_in_zip
         && config.display_diff_path == resolved.display_diff_path
-}
-
-fn optional_path_text(path: Option<&Path>) -> String {
-    path.map(|path| path.display().to_string())
-        .unwrap_or_else(|| "-".to_string())
 }
 
 fn request_contains_mouth_flap(request: &MotionTimelineRequest) -> bool {
