@@ -1,170 +1,15 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use anyhow::Result;
-use eframe::egui::{Pos2, Vec2};
-use mascot_render_control::{log_server_error, log_server_info, log_server_skin_info};
-use mascot_render_protocol::{
-    PlacementAnchorKind, PlacementAnchorPositions, PlacementMode, VisualSizePx,
+use eframe::egui::Pos2;
+use mascot_render_control::log_server_info;
+use mascot_render_protocol::{PlacementAnchorPositions, PlacementMode, VisualSizePx};
+use mascot_render_server::anchored_inner_origin_for_kind;
+
+use super::formatting::{
+    format_vec2, optional_anchor_positions_text, optional_pos2_text, optional_scale_text,
+    optional_vec2_text, optional_visual_size_text, scale_text,
 };
-use mascot_render_server::{anchored_inner_origin_for_kind, MascotWindowLayout};
-
-use super::MascotApp;
-use mascot_render_server::window_history::ViewportInfo;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum ScaleChangeTrigger {
-    Keyboard,
-    MouseWheel { raw_scroll_delta_y: f32 },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct ScaleLayoutChange {
-    pub selected_anchor_kind: PlacementAnchorKind,
-    pub previous_layout: MascotWindowLayout,
-    pub next_layout: MascotWindowLayout,
-    pub viewport_info: Option<ViewportInfo>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RefreshWindowLayoutDiagnostics {
-    pub selected_anchor_kind: PlacementAnchorKind,
-    pub previous_layout: MascotWindowLayout,
-    pub next_layout: MascotWindowLayout,
-    pub viewport_info: Option<ViewportInfo>,
-    pub preserved_anchor_position: Option<Pos2>,
-    pub next_inner_origin: Option<Pos2>,
-    pub next_outer_position: Option<Pos2>,
-}
-
-pub(crate) fn change_character_stage_message(
-    previous_png_path: &Path,
-    png_path: &Path,
-    stage: &str,
-) -> String {
-    control_command_stage_message("change_character", previous_png_path, png_path, stage)
-}
-
-pub(crate) fn preview_target_stage_message(
-    previous_png_path: &Path,
-    png_path: &Path,
-    stage: &str,
-) -> String {
-    control_command_stage_message("preview_target", previous_png_path, png_path, stage)
-}
-
-fn control_command_stage_message(
-    action: &str,
-    previous_png_path: &Path,
-    png_path: &Path,
-    stage: &str,
-) -> String {
-    format!(
-        "trigger=control_command action={action} character変更を処理中です: stage={stage} from={} to={}",
-        previous_png_path.display(),
-        png_path.display()
-    )
-}
-
-pub(crate) fn change_character_success_message(
-    previous_png_path: &Path,
-    png_path: &Path,
-    runtime_state_path: &Path,
-    persisted_png_path: &Path,
-) -> String {
-    control_command_success_message(
-        "change_character",
-        previous_png_path,
-        png_path,
-        runtime_state_path,
-        persisted_png_path,
-    )
-}
-
-pub(crate) fn preview_target_success_message(
-    previous_png_path: &Path,
-    png_path: &Path,
-    runtime_state_path: &Path,
-    persisted_png_path: &Path,
-) -> String {
-    control_command_success_message(
-        "preview_target",
-        previous_png_path,
-        png_path,
-        runtime_state_path,
-        persisted_png_path,
-    )
-}
-
-fn control_command_success_message(
-    action: &str,
-    previous_png_path: &Path,
-    png_path: &Path,
-    runtime_state_path: &Path,
-    persisted_png_path: &Path,
-) -> String {
-    format!(
-        "trigger=control_command action={action} character変更に成功しました: from={} to={} runtime_state_path={} persisted_png_path={}",
-        previous_png_path.display(),
-        png_path.display(),
-        runtime_state_path.display(),
-        persisted_png_path.display()
-    )
-}
-
-pub(crate) fn change_character_failure_message(
-    previous_png_path: &Path,
-    png_path: &Path,
-    stage: &str,
-    error_detail: &str,
-) -> String {
-    control_command_failure_message(
-        "change_character",
-        previous_png_path,
-        png_path,
-        stage,
-        error_detail,
-    )
-}
-
-pub(crate) fn preview_target_failure_message(
-    previous_png_path: &Path,
-    png_path: &Path,
-    stage: &str,
-    error_detail: &str,
-) -> String {
-    control_command_failure_message(
-        "preview_target",
-        previous_png_path,
-        png_path,
-        stage,
-        error_detail,
-    )
-}
-
-fn control_command_failure_message(
-    action: &str,
-    previous_png_path: &Path,
-    png_path: &Path,
-    stage: &str,
-    error_detail: &str,
-) -> String {
-    format!(
-        "trigger=control_command action={action} character変更に失敗しました: stage={stage} from={} to={} error={error_detail}",
-        previous_png_path.display(),
-        png_path.display()
-    )
-}
-
-pub(crate) fn rendered_skin_message(png_path: &Path) -> String {
-    let png_file_name = match png_path.file_name() {
-        Some(file_name) => file_name.to_string_lossy().into_owned(),
-        None => png_path.display().to_string(),
-    };
-    format!(
-        "trigger=render action=display_skin displayed_png_path={} displayed_png_file_name={png_file_name}",
-        png_path.display()
-    )
-}
+use super::{RefreshWindowLayoutDiagnostics, ScaleChangeTrigger, ScaleLayoutChange};
 
 pub(crate) fn scale_change_message(
     trigger: ScaleChangeTrigger,
@@ -282,7 +127,7 @@ pub(crate) fn hot_reload_context_message(
     blink_source_changed: bool,
     history_path_changed: bool,
     placement_mode: PlacementMode,
-    selected_anchor_kind: PlacementAnchorKind,
+    selected_anchor_kind: mascot_render_protocol::PlacementAnchorKind,
     shared_visual_size_px: Option<VisualSizePx>,
     shared_anchor_positions: Option<PlacementAnchorPositions>,
     previous_png_path: &Path,
@@ -354,30 +199,10 @@ pub(crate) fn refresh_window_layout_message(
     )
 }
 
-pub(crate) fn run_change_character_stage<T>(
-    previous_png_path: &Path,
-    png_path: &Path,
-    stage: &str,
-    operation: impl FnOnce() -> Result<T>,
-) -> Result<T> {
-    log_server_info(change_character_stage_message(
-        previous_png_path,
-        png_path,
-        stage,
-    ));
-    operation().map_err(|error| {
-        log_server_error(change_character_failure_message(
-            previous_png_path,
-            png_path,
-            stage,
-            &format!("{error:#}"),
-        ));
-        error
-    })
-}
+use super::super::MascotApp;
 
 impl MascotApp {
-    pub(super) fn log_scale_change(
+    pub(in crate::mascot_app) fn log_scale_change(
         &self,
         trigger: ScaleChangeTrigger,
         steps: i32,
@@ -394,14 +219,14 @@ impl MascotApp {
         ));
     }
 
-    pub(super) fn log_scale_layout_change(
+    pub(in crate::mascot_app) fn log_scale_layout_change(
         &self,
         trigger: ScaleChangeTrigger,
         steps: i32,
         previous_scale: f32,
         next_scale: f32,
-        previous_layout: MascotWindowLayout,
-        viewport_info: Option<ViewportInfo>,
+        previous_layout: mascot_render_server::MascotWindowLayout,
+        viewport_info: Option<mascot_render_server::window_history::ViewportInfo>,
     ) {
         log_server_info(scale_layout_change_message(
             trigger,
@@ -418,7 +243,7 @@ impl MascotApp {
         ));
     }
 
-    pub(super) fn log_reloaded_scale_change(
+    pub(in crate::mascot_app) fn log_reloaded_scale_change(
         &self,
         previous_scale: f32,
         next_scale: f32,
@@ -437,7 +262,7 @@ impl MascotApp {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn log_hot_reload_context(
+    pub(in crate::mascot_app) fn log_hot_reload_context(
         &self,
         config_file_changed: bool,
         runtime_state_changed: bool,
@@ -479,12 +304,12 @@ impl MascotApp {
             previous_psd_path_in_zip,
             &self.config.psd_path_in_zip,
             previous_scale,
-            super::config::active_config_scale(&self.config),
+            super::super::config::active_config_scale(&self.config),
             restored_window_position,
         ));
     }
 
-    pub(super) fn log_refresh_window_layout(
+    pub(in crate::mascot_app) fn log_refresh_window_layout(
         &self,
         trigger: &str,
         diagnostics: RefreshWindowLayoutDiagnostics,
@@ -500,116 +325,4 @@ impl MascotApp {
             diagnostics,
         ));
     }
-
-    pub(super) fn log_rendered_skin_if_changed(&mut self, png_path: &Path) {
-        if !should_log_rendered_skin(self.last_logged_skin_path.as_deref(), png_path) {
-            return;
-        }
-        self.last_logged_skin_path = Some(png_path.to_path_buf());
-        log_server_skin_info(rendered_skin_message(png_path));
-    }
-
-    pub(super) fn clear_last_logged_skin_path(&mut self) {
-        clear_rendered_skin_path(&mut self.last_logged_skin_path);
-    }
 }
-
-pub(crate) fn should_log_rendered_skin(
-    last_logged_skin_path: Option<&Path>,
-    png_path: &Path,
-) -> bool {
-    last_logged_skin_path != Some(png_path)
-}
-
-#[cfg(test)]
-pub(crate) fn record_rendered_skin_path(
-    last_logged_skin_path: &mut Option<PathBuf>,
-    png_path: &Path,
-) -> bool {
-    if !should_log_rendered_skin(last_logged_skin_path.as_deref(), png_path) {
-        return false;
-    }
-    *last_logged_skin_path = Some(png_path.to_path_buf());
-    true
-}
-
-pub(crate) fn clear_rendered_skin_path(last_logged_skin_path: &mut Option<PathBuf>) {
-    *last_logged_skin_path = None;
-}
-
-fn scale_text(value: f32) -> String {
-    format!("{value:.3}")
-}
-
-fn format_pos2(value: Pos2) -> String {
-    format!("{:.3},{:.3}", value.x, value.y)
-}
-
-fn format_vec2(value: Vec2) -> String {
-    format!("{:.3},{:.3}", value.x, value.y)
-}
-
-fn optional_pos2_text(value: Option<Pos2>) -> String {
-    value.map(format_pos2).unwrap_or_else(|| "-".to_string())
-}
-
-fn optional_vec2_text(value: Option<Vec2>) -> String {
-    value.map(format_vec2).unwrap_or_else(|| "-".to_string())
-}
-
-fn optional_scale_text(value: Option<f32>) -> String {
-    value.map(scale_text).unwrap_or_else(|| "-".to_string())
-}
-
-fn optional_visual_size_text(value: Option<VisualSizePx>) -> String {
-    value
-        .map(|size| format!("{:.3}x{:.3}", size.width, size.height))
-        .unwrap_or_else(|| "-".to_string())
-}
-
-fn optional_anchor_positions_text(value: Option<PlacementAnchorPositions>) -> String {
-    value
-        .map(|positions| {
-            format!(
-                "bottom_center:{}|bottom_right:{}",
-                format_pair(positions.bottom_center),
-                format_pair(positions.bottom_right)
-            )
-        })
-        .unwrap_or_else(|| "-".to_string())
-}
-
-fn format_pair([x, y]: [f32; 2]) -> String {
-    format!("{x:.3},{y:.3}")
-}
-
-#[cfg(test)]
-pub(crate) use change_character_failure_message as change_character_failure_message_for_test;
-#[cfg(test)]
-pub(crate) use change_character_stage_message as change_character_stage_message_for_test;
-#[cfg(test)]
-pub(crate) use change_character_success_message as change_character_success_message_for_test;
-#[cfg(test)]
-pub(crate) use clear_rendered_skin_path as clear_rendered_skin_path_for_test;
-#[cfg(test)]
-pub(crate) use hot_reload_context_message as hot_reload_context_message_for_test;
-#[cfg(test)]
-pub(crate) use record_rendered_skin_path as record_rendered_skin_path_for_test;
-#[cfg(test)]
-pub(crate) use refresh_window_layout_message as refresh_window_layout_message_for_test;
-#[cfg(test)]
-pub(crate) use reloaded_scale_message as reloaded_scale_message_for_test;
-#[cfg(test)]
-pub(crate) use rendered_skin_message as rendered_skin_message_for_test;
-#[cfg(test)]
-pub(crate) use scale_change_message as scale_change_message_for_test;
-#[cfg(test)]
-pub(crate) use scale_layout_change_message as scale_layout_change_message_for_test;
-#[cfg(test)]
-pub(crate) use should_log_rendered_skin as should_log_rendered_skin_for_test;
-#[cfg(test)]
-pub(crate) use RefreshWindowLayoutDiagnostics as RefreshWindowLayoutDiagnosticsForTest;
-#[cfg(test)]
-pub(crate) use ScaleChangeTrigger as ScaleChangeTriggerForTest;
-#[cfg(test)]
-pub(crate) use ScaleLayoutChange as ScaleLayoutChangeForTest;
