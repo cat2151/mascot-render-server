@@ -244,13 +244,25 @@ fn resolve_static_path_list(config_path: &Path, paths: &[PathBuf]) -> Vec<PathBu
     paths
         .iter()
         .map(|path| {
-            if path.is_absolute() {
+            if is_static_absolute_path(path) {
                 path.clone()
             } else {
                 base_dir.join(path)
             }
         })
         .collect()
+}
+
+fn is_static_absolute_path(path: &Path) -> bool {
+    path.is_absolute() || path.to_str().is_some_and(is_windows_absolute_path_text)
+}
+
+fn is_windows_absolute_path_text(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    matches!(
+        bytes,
+        [drive, b':', b'\\' | b'/', ..] if drive.is_ascii_alphabetic()
+    ) || path.starts_with(r"\\")
 }
 
 fn validate_mascot_target(target: &MascotTarget, state_path: &Path) -> Result<()> {

@@ -289,6 +289,55 @@ stretch_amount = 0.08
 }
 
 #[test]
+fn load_mascot_config_keeps_windows_absolute_ui_font_paths() {
+    let config_path =
+        workspace_cache_root().join("test-mascot-windows-fonts/mascot-render-server.toml");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    let _ = fs::remove_dir_all(workspace_cache_root().join("test-mascot-windows-fonts"));
+    let _ = fs::remove_file(&runtime_state_path);
+
+    fs::create_dir_all(workspace_cache_root().join("test-mascot-windows-fonts"))
+        .expect("should create temp directory");
+    fs::write(
+        &config_path,
+        r#"
+ui_font_paths = [
+  "fonts/local-ui.ttf",
+  "C:\\Windows\\Fonts\\meiryo.ttc",
+  "D:/Fonts/custom-ui.ttf",
+  "\\\\font-server\\share\\ui.ttf",
+]
+"#,
+    )
+    .expect("should seed mascot static config");
+    fs::write(
+        &runtime_state_path,
+        r#"{
+  "version": 1,
+  "png_path": "cache/default/render.png",
+  "zip_path": "assets/zip/default.zip",
+  "psd_path_in_zip": "default/basic.psd",
+  "updated_at": 1
+}"#,
+    )
+    .expect("should seed runtime state");
+
+    let loaded = load_mascot_config(&config_path).expect("config should load");
+
+    assert_eq!(
+        loaded.ui_font_paths,
+        vec![
+            workspace_cache_root()
+                .join("test-mascot-windows-fonts")
+                .join("fonts/local-ui.ttf"),
+            PathBuf::from(r"C:\Windows\Fonts\meiryo.ttc"),
+            PathBuf::from("D:/Fonts/custom-ui.ttf"),
+            PathBuf::from(r"\\font-server\share\ui.ttf"),
+        ]
+    );
+}
+
+#[test]
 fn mascot_window_size_uses_scale_or_legacy_fallback() {
     assert_eq!(mascot_window_size(1200, 600, None), [480.0, 240.0]);
     assert_eq!(mascot_window_size(400, 200, Some(0.5)), [200.0, 100.0]);
