@@ -28,13 +28,13 @@ use crate::SKIN_CACHE_CAPACITY;
 mod character;
 #[path = "mascot_app/config.rs"]
 mod config;
-#[path = "mascot_app/control.rs"]
+#[path = "mascot_app/control/mod.rs"]
 mod control;
 #[path = "mascot_app/ensemble.rs"]
 mod ensemble;
 #[path = "mascot_app/layout.rs"]
 mod layout;
-#[path = "mascot_app/logging.rs"]
+#[path = "mascot_app/logging/mod.rs"]
 mod logging;
 #[path = "mascot_app/native_window.rs"]
 mod native_window;
