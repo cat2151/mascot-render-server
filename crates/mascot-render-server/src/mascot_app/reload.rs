@@ -3,9 +3,9 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use eframe::egui;
 use mascot_render_control::log_server_error;
-use mascot_render_core::load_mascot_config;
+use mascot_render_core::{load_mascot_config, psd_viewer_tui_activity_path};
 use mascot_render_server::window_history::{
-    current_viewport_info, load_window_position, WindowHistoryTracker,
+    current_viewport_info, load_window_position, window_history_path, WindowHistoryTracker,
 };
 
 use super::config::{
@@ -21,8 +21,8 @@ impl MascotApp {
         let favorites_path = favorite_ensemble_path();
         let next_favorite_ensemble_modified_at = path_modified_at(&favorites_path);
         let next_psd_viewer_tui_activity_modified_at =
-            path_modified_at(&super::psd_viewer_tui_activity_path(&self.config_path));
-        let current_history_path = super::window_history_path(&self.config);
+            path_modified_at(&psd_viewer_tui_activity_path(&self.config_path));
+        let current_history_path = window_history_path(&self.config);
         let next_window_history_modified_at = path_modified_at(&current_history_path);
         if !should_reload_config(
             ReloadInputs {
@@ -139,7 +139,7 @@ impl MascotApp {
         }
         if history_path_changed || window_history_file_changed {
             let next_history_path = if history_path_changed {
-                super::window_history_path(&self.config)
+                window_history_path(&self.config)
             } else {
                 current_history_path
             };
