@@ -7,7 +7,8 @@ use mascot_render_control::{log_server_error, log_server_info};
 use mascot_render_protocol::PreviewTargetRequest;
 
 use super::super::logging::{
-    preview_target_failure_message, preview_target_stage_message, preview_target_success_message,
+    optional_scale_text, preview_target_failure_message, preview_target_stage_message,
+    preview_target_success_message,
 };
 use super::super::persistence::{
     persist_requested_character_change, verify_persisted_character_change,
@@ -191,10 +192,4 @@ fn run_preview_target_stage<T>(
         ));
         error
     })
-}
-
-fn optional_scale_text(scale: Option<f32>) -> String {
-    scale
-        .map(|value| format!("{value:.3}"))
-        .unwrap_or_else(|| "-".to_string())
 }

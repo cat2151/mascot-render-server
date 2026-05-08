@@ -13,6 +13,7 @@ pub(crate) use control_command::{
     preview_target_failure_message, preview_target_stage_message, preview_target_success_message,
     run_change_character_stage, should_log_rendered_skin,
 };
+pub(in crate::mascot_app) use formatting::optional_scale_text;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ScaleChangeTrigger {

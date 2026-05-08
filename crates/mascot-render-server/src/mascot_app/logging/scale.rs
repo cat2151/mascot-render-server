@@ -5,6 +5,7 @@ use mascot_render_control::log_server_info;
 use mascot_render_protocol::{PlacementAnchorPositions, PlacementMode, VisualSizePx};
 use mascot_render_server::anchored_inner_origin_for_kind;
 
+use super::super::MascotApp;
 use super::formatting::{
     format_vec2, optional_anchor_positions_text, optional_pos2_text, optional_scale_text,
     optional_vec2_text, optional_visual_size_text, scale_text,
@@ -198,8 +199,6 @@ pub(crate) fn refresh_window_layout_message(
         configured_psd_path_in_zip.display(),
     )
 }
-
-use super::super::MascotApp;
 
 impl MascotApp {
     pub(in crate::mascot_app) fn log_scale_change(

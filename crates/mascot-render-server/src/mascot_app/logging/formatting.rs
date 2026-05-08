@@ -17,7 +17,7 @@ pub(super) fn optional_vec2_text(value: Option<Vec2>) -> String {
     value.map(format_vec2).unwrap_or_else(|| "-".to_string())
 }
 
-pub(super) fn optional_scale_text(value: Option<f32>) -> String {
+pub(in crate::mascot_app) fn optional_scale_text(value: Option<f32>) -> String {
     value.map(scale_text).unwrap_or_else(|| "-".to_string())
 }
 
