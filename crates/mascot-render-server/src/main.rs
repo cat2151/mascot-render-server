@@ -25,6 +25,9 @@ mod character_resolver_tests;
 #[path = "tests/cli.rs"]
 mod cli_tests;
 #[cfg(test)]
+#[path = "tests/context_menu_shortcut.rs"]
+mod context_menu_shortcut_tests;
+#[cfg(test)]
 #[path = "tests/favorite_ensemble.rs"]
 mod favorite_ensemble_tests;
 #[cfg(test)]

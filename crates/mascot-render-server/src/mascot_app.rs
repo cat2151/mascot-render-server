@@ -28,6 +28,10 @@ use crate::SKIN_CACHE_CAPACITY;
 mod character;
 #[path = "mascot_app/config.rs"]
 mod config;
+#[path = "mascot_app/context_menu.rs"]
+mod context_menu;
+#[path = "mascot_app/context_menu_shortcut.rs"]
+mod context_menu_shortcut;
 #[path = "mascot_app/control/mod.rs"]
 mod control;
 #[path = "mascot_app/ensemble.rs"]
@@ -64,6 +68,10 @@ pub(crate) use config::{
     should_restore_window_history_for_reload_for_test,
 };
 #[cfg(test)]
+pub(crate) use context_menu_shortcut::{
+    placement_context_menu_action_for_key_for_test, PlacementContextMenuAction,
+};
+#[cfg(test)]
 pub(crate) use ensemble::member_phase_offset_ratio;
 use ensemble::FavoriteEnsembleScene;
 #[cfg(test)]
@@ -82,7 +90,8 @@ pub(crate) use logging::{
 use native_window::NativeWindowHandle;
 #[cfg(test)]
 pub(crate) use persistence::{
-    persist_requested_character_change_for_test, verify_persisted_character_change_for_test,
+    persist_favorite_ensemble_enabled_for_test, persist_requested_character_change_for_test,
+    verify_persisted_character_change_for_test,
 };
 #[cfg(test)]
 pub(crate) use runtime::mouth_flap_skin_state_for_test;

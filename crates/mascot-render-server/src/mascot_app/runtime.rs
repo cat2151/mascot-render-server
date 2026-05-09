@@ -5,7 +5,6 @@ use eframe::egui::{self, Color32, Pos2, Rect};
 use eframe::App;
 use mascot_render_control::log_server_error;
 use mascot_render_core::MotionTransform;
-use mascot_render_protocol::PlacementMode;
 use mascot_render_server::{
     captures_logical_point, transformed_image_rect, TransparentHitTestUpdate,
 };
@@ -417,36 +416,6 @@ impl MascotApp {
     fn record_and_log_status_error(&self, message: String) {
         self.record_status_error(message.clone());
         log_server_error(message);
-    }
-
-    fn show_placement_context_menu(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        let status = self.placement_status_for_snapshot(ctx);
-        if ui
-            .selectable_label(
-                status.mode == PlacementMode::PerPsd,
-                "mode1: PSDごとに拡大率と座標を保持する",
-            )
-            .clicked()
-            && status.mode != PlacementMode::PerPsd
-        {
-            self.set_placement_mode(ctx, PlacementMode::PerPsd);
-            ui.close();
-        }
-        if ui
-            .selectable_label(
-                status.mode == PlacementMode::SharedVisualSize,
-                "mode2: default: 見た目のheightを全PSDで同一にし、右下アンカーを自動判別する",
-            )
-            .clicked()
-            && status.mode != PlacementMode::SharedVisualSize
-        {
-            self.set_placement_mode(ctx, PlacementMode::SharedVisualSize);
-            ui.close();
-        }
-        if ui.button("アプリをquit").clicked() {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            ui.close();
-        }
     }
 }
 

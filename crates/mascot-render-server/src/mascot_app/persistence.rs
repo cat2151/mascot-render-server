@@ -1,7 +1,14 @@
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
-use mascot_render_core::{load_mascot_config, write_mascot_config, MascotConfig, MascotTarget};
+use mascot_render_core::{
+    load_mascot_config, set_favorite_ensemble_enabled, write_mascot_config, MascotConfig,
+    MascotTarget,
+};
+
+pub(crate) fn persist_favorite_ensemble_enabled(config_path: &Path, enabled: bool) -> Result<()> {
+    set_favorite_ensemble_enabled(config_path, enabled)
+}
 
 pub(crate) fn persist_requested_character_change(
     config_path: &Path,
@@ -50,6 +57,8 @@ fn optional_path_text(path: Option<&Path>) -> String {
         .unwrap_or_else(|| "-".to_string())
 }
 
+#[cfg(test)]
+pub(crate) use persist_favorite_ensemble_enabled as persist_favorite_ensemble_enabled_for_test;
 #[cfg(test)]
 pub(crate) use persist_requested_character_change as persist_requested_character_change_for_test;
 #[cfg(test)]

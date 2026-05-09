@@ -3,12 +3,13 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use mascot_render_core::{
-    load_mascot_config, mascot_runtime_state_path, workspace_cache_root, AlwaysBendConfig,
-    IdleSinkAnimationConfig, MascotConfig,
+    load_favorite_ensemble_enabled, load_mascot_config, mascot_runtime_state_path,
+    workspace_cache_root, AlwaysBendConfig, IdleSinkAnimationConfig, MascotConfig,
 };
 
 use crate::mascot_app::{
-    persist_requested_character_change_for_test, verify_persisted_character_change_for_test,
+    persist_favorite_ensemble_enabled_for_test, persist_requested_character_change_for_test,
+    verify_persisted_character_change_for_test,
 };
 
 fn unique_test_config_path(test_name: &str) -> PathBuf {
@@ -62,6 +63,39 @@ fn persist_requested_character_change_updates_runtime_state_source_paths() {
     assert_eq!(loaded.zip_path, config.zip_path);
     assert_eq!(loaded.psd_path_in_zip, config.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, config.display_diff_path);
+
+    if let Some(parent) = config_path.parent() {
+        let _ = fs::remove_dir_all(parent);
+    }
+    let _ = fs::remove_file(&runtime_state_path);
+}
+
+#[test]
+fn persist_favorite_ensemble_toggle_updates_static_config() {
+    let config_path = unique_test_config_path("toggle-ensemble");
+    let runtime_state_path = mascot_runtime_state_path(&config_path);
+    if let Some(parent) = config_path.parent() {
+        let _ = fs::remove_dir_all(parent);
+    }
+    let _ = fs::remove_file(&runtime_state_path);
+
+    let config = sample_config();
+    persist_requested_character_change_for_test(&config_path, &config)
+        .expect("should seed runtime state");
+    assert!(!load_favorite_ensemble_enabled(&config_path).expect("config should load"));
+
+    persist_favorite_ensemble_enabled_for_test(&config_path, true)
+        .expect("should enable favorite ensemble");
+    assert!(load_favorite_ensemble_enabled(&config_path).expect("config should reload"));
+    assert!(
+        load_mascot_config(&config_path)
+            .expect("full config should reload")
+            .favorite_ensemble_enabled
+    );
+
+    persist_favorite_ensemble_enabled_for_test(&config_path, false)
+        .expect("should disable favorite ensemble");
+    assert!(!load_favorite_ensemble_enabled(&config_path).expect("config should reload"));
 
     if let Some(parent) = config_path.parent() {
         let _ = fs::remove_dir_all(parent);
