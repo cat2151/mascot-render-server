@@ -350,6 +350,7 @@ fn performance_action(command: &MascotControlCommand) -> Option<&'static str> {
     match command {
         MascotControlCommand::ChangeCharacter { .. } => Some("change_character"),
         MascotControlCommand::PreviewTarget { .. } => Some("preview_target"),
+        MascotControlCommand::DisableFavoriteEnsemble { .. } => Some("disable_favorite_ensemble"),
         MascotControlCommand::PlayTimeline { request, .. }
             if request
                 .steps

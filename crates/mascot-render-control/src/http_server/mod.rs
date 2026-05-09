@@ -18,8 +18,8 @@ use self::http_protocol::{
     canonical_path, read_http_request, write_http_response, HttpRequest, HttpResponse,
 };
 use crate::command::{
-    change_character_summary, preview_target_summary, timeline_summary, ControlCommandCompletion,
-    ControlCommandWaitError, MascotControlCommand,
+    change_character_summary, disable_favorite_ensemble_summary, preview_target_summary,
+    timeline_summary, ControlCommandCompletion, ControlCommandWaitError, MascotControlCommand,
 };
 use crate::logging::{log_control_error, log_control_info};
 
@@ -319,6 +319,28 @@ fn route_request(
             )?;
             log_control_info(format!(
                 "event=control_request stage=applied peer={peer} action=timeline"
+            ));
+            Ok(response)
+        }
+        ("POST", "/favorite-ensemble/disable") => {
+            let status = ServerCommandStatus::queued(
+                ServerCommandKind::DisableFavoriteEnsemble,
+                disable_favorite_ensemble_summary(),
+            );
+            let response = enqueue_apply_command(
+                peer,
+                "disable_favorite_ensemble",
+                command_tx,
+                status_store,
+                notify,
+                |completion| {
+                    MascotControlCommand::disable_favorite_ensemble_with_completion(
+                        completion, status,
+                    )
+                },
+            )?;
+            log_control_info(format!(
+                "event=control_request stage=applied peer={peer} action=disable_favorite_ensemble"
             ));
             Ok(response)
         }

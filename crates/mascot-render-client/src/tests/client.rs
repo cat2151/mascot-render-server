@@ -5,9 +5,9 @@ use std::thread::{self, JoinHandle};
 use mascot_render_protocol::{MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep};
 
 use crate::{
-    mascot_render_server_address, mascot_render_server_psd_file_names_at,
-    preview_mouth_flap_timeline_request, MASCOT_RENDER_SERVER_PORT, PREVIEW_MOUTH_FLAP_DURATION_MS,
-    PREVIEW_MOUTH_FLAP_FPS,
+    disable_favorite_ensemble_mascot_render_server_at, mascot_render_server_address,
+    mascot_render_server_psd_file_names_at, preview_mouth_flap_timeline_request,
+    MASCOT_RENDER_SERVER_PORT, PREVIEW_MOUTH_FLAP_DURATION_MS, PREVIEW_MOUTH_FLAP_FPS,
 };
 
 #[test]
@@ -37,7 +37,7 @@ fn preview_mouth_flap_request_matches_psd_viewer_timing() {
 #[test]
 fn psd_file_names_request_parses_json_response() {
     let body = r#"["body.psd","face.psd"]"#;
-    let (address, handle) = start_mock_server(body);
+    let (address, handle) = start_mock_server_for_request("GET /psd-filenames HTTP/1.1\r\n", body);
 
     let psd_file_names = mascot_render_server_psd_file_names_at(address)
         .expect("PSD file names request should return JSON");
@@ -49,7 +49,21 @@ fn psd_file_names_request_parses_json_response() {
     handle.join().expect("mock server thread should finish");
 }
 
-fn start_mock_server(body: &'static str) -> (SocketAddr, JoinHandle<()>) {
+#[test]
+fn disable_favorite_ensemble_request_posts_expected_endpoint() {
+    let (address, handle) =
+        start_mock_server_for_request("POST /favorite-ensemble/disable HTTP/1.1\r\n", "applied");
+
+    disable_favorite_ensemble_mascot_render_server_at(address)
+        .expect("disable favorite ensemble request should succeed");
+
+    handle.join().expect("mock server thread should finish");
+}
+
+fn start_mock_server_for_request(
+    expected_request_line: &'static str,
+    body: &'static str,
+) -> (SocketAddr, JoinHandle<()>) {
     let listener =
         TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).expect("mock server should bind");
     let address = listener
@@ -62,7 +76,7 @@ fn start_mock_server(body: &'static str) -> (SocketAddr, JoinHandle<()>) {
         reader
             .read_line(&mut request_line)
             .expect("request line should be readable");
-        assert_eq!(request_line, "GET /psd-filenames HTTP/1.1\r\n");
+        assert_eq!(request_line, expected_request_line);
         let mut line = String::new();
         loop {
             line.clear();

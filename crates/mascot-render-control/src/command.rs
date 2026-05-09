@@ -42,6 +42,10 @@ pub enum MascotControlCommand {
         completion: Option<ControlCommandCompletion>,
         status: ServerCommandStatus,
     },
+    DisableFavoriteEnsemble {
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
+    },
     PlayTimeline {
         request: MotionTimelineRequest,
         completion: Option<ControlCommandCompletion>,
@@ -85,6 +89,16 @@ impl MascotControlCommand {
         )
     }
 
+    pub fn disable_favorite_ensemble() -> Self {
+        Self::disable_favorite_ensemble_with_status(
+            None,
+            ServerCommandStatus::queued(
+                ServerCommandKind::DisableFavoriteEnsemble,
+                disable_favorite_ensemble_summary(),
+            ),
+        )
+    }
+
     pub(crate) fn show_with_status(status: ServerCommandStatus) -> Self {
         Self::Show { status }
     }
@@ -115,6 +129,13 @@ impl MascotControlCommand {
         status: ServerCommandStatus,
     ) -> Self {
         Self::preview_target_with_status(request, Some(completion), status)
+    }
+
+    pub(crate) fn disable_favorite_ensemble_with_completion(
+        completion: ControlCommandCompletion,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::disable_favorite_ensemble_with_status(Some(completion), status)
     }
 
     fn change_character_with_status(
@@ -153,12 +174,20 @@ impl MascotControlCommand {
         }
     }
 
+    fn disable_favorite_ensemble_with_status(
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::DisableFavoriteEnsemble { completion, status }
+    }
+
     pub fn status(&self) -> &ServerCommandStatus {
         match self {
             Self::Show { status }
             | Self::Hide { status }
             | Self::ChangeCharacter { status, .. }
             | Self::PreviewTarget { status, .. }
+            | Self::DisableFavoriteEnsemble { status, .. }
             | Self::PlayTimeline { status, .. } => status,
         }
     }
@@ -173,6 +202,10 @@ impl MascotControlCommand {
                 completion: Some(completion),
                 ..
             }
+            | Self::DisableFavoriteEnsemble {
+                completion: Some(completion),
+                ..
+            }
             | Self::PlayTimeline {
                 completion: Some(completion),
                 ..
@@ -183,6 +216,9 @@ impl MascotControlCommand {
                 completion: None, ..
             }
             | Self::PreviewTarget {
+                completion: None, ..
+            }
+            | Self::DisableFavoriteEnsemble {
                 completion: None, ..
             }
             | Self::PlayTimeline {
@@ -214,6 +250,7 @@ impl PartialEq for MascotControlCommand {
                 Self::PlayTimeline { request: left, .. },
                 Self::PlayTimeline { request: right, .. },
             ) => left == right,
+            (Self::DisableFavoriteEnsemble { .. }, Self::DisableFavoriteEnsemble { .. }) => true,
             _ => false,
         }
     }
@@ -292,6 +329,10 @@ pub(crate) fn preview_target_summary(request: &PreviewTargetRequest) -> String {
         optional_path_text(request.display_diff_path.as_ref()),
         optional_scale_text(request.scale)
     )
+}
+
+pub(crate) fn disable_favorite_ensemble_summary() -> &'static str {
+    "favorite_ensemble_enabled=false"
 }
 
 fn optional_path_text(path: Option<&std::path::PathBuf>) -> String {

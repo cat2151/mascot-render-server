@@ -11,6 +11,7 @@ use super::{CachedSkin, MascotApp};
 
 mod character_change;
 mod commit;
+mod favorite_ensemble;
 mod preview_target;
 
 pub(super) struct PreparedSkinChange {
@@ -128,6 +129,9 @@ impl MascotApp {
                     timeline_summary
                 ));
                 Ok(())
+            }
+            MascotControlCommand::DisableFavoriteEnsemble { .. } => {
+                self.disable_favorite_ensemble(ctx)
             }
         }
     }

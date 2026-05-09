@@ -55,6 +55,10 @@ pub fn preview_target_mascot_render_server(request: &PreviewTargetRequest) -> Re
     preview_target_mascot_render_server_at(mascot_render_server_address(), request)
 }
 
+pub fn disable_favorite_ensemble_mascot_render_server() -> Result<()> {
+    disable_favorite_ensemble_mascot_render_server_at(mascot_render_server_address())
+}
+
 pub fn preview_mouth_flap_timeline_request() -> MotionTimelineRequest {
     MotionTimelineRequest {
         steps: vec![MotionTimelineStep {
@@ -128,6 +132,17 @@ pub fn preview_target_mascot_render_server_at(
         "POST",
         "/preview-target",
         Some(&body),
+        APPLY_TIMEOUT,
+    )
+    .map(|_| ())
+}
+
+pub fn disable_favorite_ensemble_mascot_render_server_at(address: SocketAddr) -> Result<()> {
+    send_http_request(
+        address,
+        "POST",
+        "/favorite-ensemble/disable",
+        None,
         APPLY_TIMEOUT,
     )
     .map(|_| ())
