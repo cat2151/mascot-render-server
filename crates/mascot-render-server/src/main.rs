@@ -57,6 +57,9 @@ mod ui_font_tests;
 #[cfg(test)]
 #[path = "tests/window_history.rs"]
 mod window_history_tests;
+#[cfg(test)]
+#[path = "tests/window_position_reset.rs"]
+mod window_position_reset_tests;
 
 use std::sync::mpsc;
 use std::sync::Arc;

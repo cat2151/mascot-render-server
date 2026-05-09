@@ -61,6 +61,9 @@ impl App for MascotApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
         }
+        if let Err(error) = self.reset_window_position_if_requested(ctx, now) {
+            self.record_and_log_status_error(format!("{error:#}"));
+        }
         let keyboard_steps = ctx.input(|input| {
             if !input.focused {
                 return 0;

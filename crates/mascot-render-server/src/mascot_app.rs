@@ -56,6 +56,8 @@ mod scale;
 mod skins;
 #[path = "mascot_app/status.rs"]
 mod status;
+#[path = "mascot_app/window_position_reset.rs"]
+mod window_position_reset;
 #[cfg(test)]
 pub(crate) use character::{
     candidate_index_from_seed_for_test, character_skin_candidates_for_test,
@@ -103,6 +105,10 @@ pub(crate) use scale::pending_scale_persist_remaining_at as pending_scale_persis
 use status::PendingPerformanceTrace;
 #[cfg(test)]
 pub(crate) use status::{PendingPerformanceTrace, ServerWorkGuard};
+#[cfg(test)]
+pub(crate) use window_position_reset::{
+    display_position_reset_requested_for_test, reset_outer_position_for_screen_for_test,
+};
 
 pub(crate) struct MascotApp {
     config_path: PathBuf,
