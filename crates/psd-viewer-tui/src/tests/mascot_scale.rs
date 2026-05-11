@@ -11,7 +11,7 @@ fn sync_current_mascot_config_log_message_reports_runtime_state_inputs() {
         &MascotTarget {
             png_path: PathBuf::from("cache/demo.png"),
             scale: Some(0.145),
-            favorite_ensemble_scale: None,
+            ensemble_scale: None,
             zip_path: PathBuf::from("assets/demo.zip"),
             psd_path_in_zip: PathBuf::from("demo/body.psd"),
             display_diff_path: Some(PathBuf::from("cache/demo.json")),

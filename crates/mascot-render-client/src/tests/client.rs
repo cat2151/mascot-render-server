@@ -5,9 +5,10 @@ use std::thread::{self, JoinHandle};
 use mascot_render_protocol::{MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep};
 
 use crate::{
-    disable_favorite_ensemble_mascot_render_server_at, mascot_render_server_address,
-    mascot_render_server_psd_file_names_at, preview_mouth_flap_timeline_request,
-    MASCOT_RENDER_SERVER_PORT, PREVIEW_MOUTH_FLAP_DURATION_MS, PREVIEW_MOUTH_FLAP_FPS,
+    mascot_render_server_address, mascot_render_server_psd_file_names_at,
+    preview_mouth_flap_timeline_request, set_single_character_mode_mascot_render_server_at,
+    set_vpt_ensemble_mascot_render_server_at, MASCOT_RENDER_SERVER_PORT,
+    PREVIEW_MOUTH_FLAP_DURATION_MS, PREVIEW_MOUTH_FLAP_FPS,
 };
 
 #[test]
@@ -50,12 +51,28 @@ fn psd_file_names_request_parses_json_response() {
 }
 
 #[test]
-fn disable_favorite_ensemble_request_posts_expected_endpoint() {
-    let (address, handle) =
-        start_mock_server_for_request("POST /favorite-ensemble/disable HTTP/1.1\r\n", "applied");
+fn set_single_character_mode_request_posts_expected_endpoint() {
+    let (address, handle) = start_mock_server_for_request(
+        "POST /ensemble-mode/single-character HTTP/1.1\r\n",
+        "applied",
+    );
 
-    disable_favorite_ensemble_mascot_render_server_at(address)
-        .expect("disable favorite ensemble request should succeed");
+    set_single_character_mode_mascot_render_server_at(address)
+        .expect("set single character mode request should succeed");
+
+    handle.join().expect("mock server thread should finish");
+}
+
+#[test]
+fn set_vpt_ensemble_request_posts_expected_endpoint() {
+    let (address, handle) =
+        start_mock_server_for_request("POST /vpt-ensemble HTTP/1.1\r\n", "applied");
+
+    set_vpt_ensemble_mascot_render_server_at(
+        address,
+        &["ずんだもん".to_string(), "四国めたん".to_string()],
+    )
+    .expect("set vpt ensemble request should succeed");
 
     handle.join().expect("mock server thread should finish");
 }

@@ -7,7 +7,7 @@ use crate::mascot_motion::{
 };
 use crate::mascot_paths::unix_timestamp;
 
-use super::{MascotTarget, MASCOT_RUNTIME_STATE_VERSION};
+use super::{MascotEnsembleMode, MascotTarget, MASCOT_RUNTIME_STATE_VERSION};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -18,7 +18,7 @@ pub(super) struct MascotStaticConfigFile {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(super) ui_font_paths: Vec<PathBuf>,
     pub(super) bend: BendConfig,
-    pub(super) favorite_ensemble_enabled: bool,
+    pub(super) ensemble_mode: MascotEnsembleMode,
     pub(super) bounce: BounceAnimationConfig,
     pub(super) squash_bounce: SquashBounceAnimationConfig,
     #[serde(rename = "idle_sink")]
@@ -32,7 +32,7 @@ impl Default for MascotStaticConfigFile {
             always_bend: true,
             ui_font_paths: Vec::new(),
             bend: BendConfig::default(),
-            favorite_ensemble_enabled: false,
+            ensemble_mode: MascotEnsembleMode::SingleCharacter,
             bounce: BounceAnimationConfig::default(),
             squash_bounce: SquashBounceAnimationConfig::default(),
             always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
@@ -46,7 +46,7 @@ pub(super) struct MascotRuntimeStateFile {
     pub(super) version: u32,
     pub(super) png_path: PathBuf,
     pub(super) scale: Option<f32>,
-    pub(super) favorite_ensemble_scale: Option<f32>,
+    pub(super) ensemble_scale: Option<f32>,
     pub(super) zip_path: PathBuf,
     pub(super) psd_path_in_zip: PathBuf,
     pub(super) display_diff_path: Option<PathBuf>,
@@ -59,7 +59,7 @@ impl Default for MascotRuntimeStateFile {
             version: MASCOT_RUNTIME_STATE_VERSION,
             png_path: PathBuf::new(),
             scale: None,
-            favorite_ensemble_scale: None,
+            ensemble_scale: None,
             zip_path: PathBuf::new(),
             psd_path_in_zip: PathBuf::new(),
             display_diff_path: None,
@@ -74,7 +74,7 @@ impl From<&MascotTarget> for MascotRuntimeStateFile {
             version: MASCOT_RUNTIME_STATE_VERSION,
             png_path: target.png_path.clone(),
             scale: target.scale,
-            favorite_ensemble_scale: target.favorite_ensemble_scale,
+            ensemble_scale: target.ensemble_scale,
             zip_path: target.zip_path.clone(),
             psd_path_in_zip: target.psd_path_in_zip.clone(),
             display_diff_path: target.display_diff_path.clone(),
@@ -88,7 +88,7 @@ impl MascotRuntimeStateFile {
         MascotTarget {
             png_path: self.png_path,
             scale: self.scale,
-            favorite_ensemble_scale: self.favorite_ensemble_scale,
+            ensemble_scale: self.ensemble_scale,
             zip_path: self.zip_path,
             psd_path_in_zip: self.psd_path_in_zip,
             display_diff_path: self.display_diff_path,

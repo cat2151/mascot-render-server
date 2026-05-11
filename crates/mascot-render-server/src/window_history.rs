@@ -6,7 +6,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use eframe::egui::{self, Pos2, Vec2};
-use mascot_render_core::{workspace_cache_root, MascotConfig};
+use mascot_render_core::{workspace_cache_root, MascotConfig, MascotEnsembleMode};
 use serde::{Deserialize, Serialize};
 
 const WINDOW_HISTORY_VERSION: u32 = 2;
@@ -100,8 +100,14 @@ impl WindowHistoryTracker {
 }
 
 pub fn window_history_path(config: &MascotConfig) -> PathBuf {
-    if config.favorite_ensemble_enabled {
-        return workspace_cache_root().join("history_server_favorite_ensemble.json");
+    match config.ensemble_mode {
+        MascotEnsembleMode::SingleCharacter => {}
+        MascotEnsembleMode::Favorite => {
+            return workspace_cache_root().join("history_server_favorite_ensemble.json");
+        }
+        MascotEnsembleMode::Vpt => {
+            return workspace_cache_root().join("history_server_vpt_ensemble.json");
+        }
     }
     window_history_path_for_paths(&config.zip_path, &config.psd_path_in_zip)
 }

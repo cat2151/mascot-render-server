@@ -3,7 +3,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use mascot_render_core::{
     load_mascot_image, local_data_root, mascot_window_size, Core, DisplayDiff,
-    LayerVisibilityOverride, MascotImageData, RenderRequest, DISPLAY_DIFF_VERSION,
+    LayerVisibilityOverride, MascotEnsembleMode, MascotImageData, RenderRequest,
+    DISPLAY_DIFF_VERSION,
 };
 use mascot_render_server::alpha_bounds_from_mask;
 use serde::{Deserialize, Serialize};
@@ -15,12 +16,14 @@ mod persistence;
 mod sanitize;
 #[cfg(test)]
 pub(crate) use persistence::patch_favorite_ensemble_positions_toml;
-use persistence::{load_favorites, patch_favorite_ensemble_positions};
+use persistence::{load_favorites, patch_favorite_ensemble_positions, write_favorites};
 #[cfg(test)]
 pub(crate) use sanitize::sanitize_favorites_for_test;
 
 const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";
+const VPT_ENSEMBLE_DIR: &str = "vpt-ensemble";
+const VPT_ENSEMBLE_FILE_NAME: &str = "ensemble.toml";
 const FAVORITE_ENSEMBLE_CONTENT_BOUNDS_ALPHA_THRESHOLD: u8 = 1;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -73,8 +76,42 @@ pub(crate) fn favorites_path() -> PathBuf {
         .join(FAVORITES_FILE_NAME)
 }
 
-pub(crate) fn load_favorite_ensemble(core: &Core) -> Result<Option<FavoriteEnsemble>> {
-    let favorites_path = favorites_path();
+pub(crate) fn vpt_ensemble_path() -> PathBuf {
+    local_data_root()
+        .join(VPT_ENSEMBLE_DIR)
+        .join(VPT_ENSEMBLE_FILE_NAME)
+}
+
+pub(crate) fn active_ensemble_path(mode: MascotEnsembleMode) -> Option<PathBuf> {
+    match mode {
+        MascotEnsembleMode::SingleCharacter => None,
+        MascotEnsembleMode::Favorite => Some(favorites_path()),
+        MascotEnsembleMode::Vpt => Some(vpt_ensemble_path()),
+    }
+}
+
+pub(crate) fn load_active_ensemble(
+    core: &Core,
+    mode: MascotEnsembleMode,
+) -> Result<Option<FavoriteEnsemble>> {
+    let Some(path) = active_ensemble_path(mode) else {
+        return Ok(None);
+    };
+    load_ensemble_from_path(core, path)
+}
+
+pub(crate) fn save_vpt_ensemble(entries: &[FavoriteEnsembleEntry]) -> Result<()> {
+    write_favorites(&vpt_ensemble_path(), entries)
+}
+
+pub(crate) fn load_vpt_ensemble_entries() -> Result<Vec<FavoriteEnsembleEntry>> {
+    load_favorites(&vpt_ensemble_path())
+}
+
+pub(crate) fn load_ensemble_from_path(
+    core: &Core,
+    favorites_path: PathBuf,
+) -> Result<Option<FavoriteEnsemble>> {
     let mut favorites = load_favorites(&favorites_path)?;
     if favorites.is_empty() {
         return Ok(None);

@@ -1,15 +1,27 @@
 use eframe::egui::{InputState, Key, Modifiers};
+use mascot_render_core::MascotEnsembleMode;
 use mascot_render_protocol::PlacementMode;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PlacementContextMenuAction {
-    ToggleFavoriteEnsemble,
+    SetEnsembleMode(MascotEnsembleMode),
     SetPlacementMode(PlacementMode),
     Quit,
 }
 
 const PLACEMENT_CONTEXT_MENU_SHORTCUTS: &[(Key, PlacementContextMenuAction)] = &[
-    (Key::F, PlacementContextMenuAction::ToggleFavoriteEnsemble),
+    (
+        Key::Num1,
+        PlacementContextMenuAction::SetEnsembleMode(MascotEnsembleMode::SingleCharacter),
+    ),
+    (
+        Key::F,
+        PlacementContextMenuAction::SetEnsembleMode(MascotEnsembleMode::Favorite),
+    ),
+    (
+        Key::V,
+        PlacementContextMenuAction::SetEnsembleMode(MascotEnsembleMode::Vpt),
+    ),
     (
         Key::P,
         PlacementContextMenuAction::SetPlacementMode(PlacementMode::PerPsd),

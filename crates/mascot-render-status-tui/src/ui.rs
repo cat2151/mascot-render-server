@@ -244,14 +244,8 @@ fn mascot_lines(state: &StatusTuiState) -> Vec<String> {
             "configured_psd_path_in_zip: {}",
             path_text(&snapshot.configured_psd_path_in_zip)
         ),
-        format!(
-            "favorite_ensemble_enabled: {}",
-            snapshot.favorite_ensemble_enabled
-        ),
-        format!(
-            "favorite_ensemble_loaded: {}",
-            snapshot.favorite_ensemble_loaded
-        ),
+        format!("ensemble_mode: {:?}", snapshot.ensemble_mode),
+        format!("ensemble_loaded: {}", snapshot.ensemble_loaded),
         format!("scale: {:.2}", snapshot.scale),
         format!("motion.active: {}", snapshot.motion.active),
         format!("motion.blink_closed: {}", snapshot.motion.blink_closed),
@@ -407,7 +401,8 @@ fn command_kind_text(kind: ServerCommandKind) -> &'static str {
         ServerCommandKind::ChangeCharacter => "change_character",
         ServerCommandKind::PreviewTarget => "preview_target",
         ServerCommandKind::Timeline => "timeline",
-        ServerCommandKind::DisableFavoriteEnsemble => "disable_favorite_ensemble",
+        ServerCommandKind::SetEnsembleMode => "set_ensemble_mode",
+        ServerCommandKind::SetVptEnsemble => "set_vpt_ensemble",
     }
 }
 

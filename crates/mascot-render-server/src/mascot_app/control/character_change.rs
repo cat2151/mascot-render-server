@@ -20,13 +20,17 @@ impl MascotApp {
         ctx: &egui::Context,
         character_name: &str,
     ) -> Result<()> {
-        if self.config.favorite_ensemble_enabled {
+        if self.config.ensemble_mode.is_ensemble() {
             let message = format!(
-                "trigger=control_command action=change_character favorite_ensemble_enabled=true requested_character={} のため character変更できません",
+                "trigger=control_command action=change_character ensemble_mode={:?} requested_character={} のため character変更できません",
+                self.config.ensemble_mode,
                 character_name
             );
             log_server_info(message);
-            bail!("favorite_ensemble_enabled=true; cannot change character while favorite ensemble is active");
+            bail!(
+                "ensemble_mode={:?}; cannot change character while ensemble mode is active",
+                self.config.ensemble_mode
+            );
         }
 
         let resolve_started_at = Instant::now();

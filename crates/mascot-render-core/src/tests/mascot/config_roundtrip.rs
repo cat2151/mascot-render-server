@@ -10,7 +10,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     let target = MascotTarget {
         png_path: workspace_cache_root().join("demo/render.png"),
         scale: Some(0.35),
-        favorite_ensemble_scale: Some(0.8),
+        ensemble_scale: Some(0.8),
         zip_path: workspace_path("assets/zip/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: Some(workspace_cache_root().join("demo/display-diffs/basic.json")),
@@ -21,10 +21,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
 
     assert_eq!(loaded.png_path, target.png_path);
     assert_eq!(loaded.scale, target.scale);
-    assert_eq!(
-        loaded.favorite_ensemble_scale,
-        target.favorite_ensemble_scale
-    );
+    assert_eq!(loaded.ensemble_scale, target.ensemble_scale);
     assert_eq!(loaded.zip_path, target.zip_path);
     assert_eq!(loaded.psd_path_in_zip, target.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, target.display_diff_path);
@@ -32,7 +29,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(loaded.always_idle_sink_enabled);
     assert_eq!(loaded.always_bend, AlwaysBendConfig::default());
     assert!(loaded.always_bend.enabled);
-    assert!(!loaded.favorite_ensemble_enabled);
+    assert_eq!(loaded.ensemble_mode, MascotEnsembleMode::SingleCharacter);
     assert_eq!(loaded.bounce.algorithm, BounceAlgorithm::DampedSine);
     assert_eq!(
         loaded.squash_bounce.algorithm,
@@ -49,7 +46,7 @@ fn mascot_config_round_trips_through_static_toml_and_runtime_json() {
     assert!(!static_toml.contains("zip_path ="));
     assert!(!static_toml.contains("version ="));
     assert!(!static_toml.contains("updated_at ="));
-    assert!(!static_toml.contains("favorite_ensemble_scale ="));
+    assert!(!static_toml.contains("ensemble_scale ="));
     assert!(!static_toml.contains("transparent_background_click_through ="));
     assert!(!static_toml.contains("flash_blue_background_on_transparent_input ="));
     assert!(static_toml.contains("always_idle_sink = true"));
@@ -129,7 +126,7 @@ always_bend = true
         loaded.always_bend.amplitude_ratio,
         AlwaysBendConfig::default().amplitude_ratio
     );
-    assert!(!loaded.favorite_ensemble_enabled);
+    assert_eq!(loaded.ensemble_mode, MascotEnsembleMode::SingleCharacter);
     assert_eq!(
         loaded.always_idle_sink,
         IdleSinkAnimationConfig::default_for_always_bouncing()
@@ -185,7 +182,7 @@ fn writing_mascot_config_preserves_current_static_sections() {
         r#"
 always_idle_sink = true
 always_bend = true
-favorite_ensemble_enabled = true
+ensemble_mode = "favorite"
 ui_font_paths = ["fonts/custom-ui.ttf", "C:\\Windows\\Fonts\\meiryo.ttc"]
 
 [bend]
@@ -213,7 +210,7 @@ stretch_amount = 0.08
     let target = MascotTarget {
         png_path: workspace_cache_root().join("demo/render.png"),
         scale: Some(0.45),
-        favorite_ensemble_scale: Some(0.95),
+        ensemble_scale: Some(0.95),
         zip_path: workspace_path("assets/zip/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: None,
@@ -224,10 +221,7 @@ stretch_amount = 0.08
         load_mascot_config(&config_path).expect("should read split mascot config/state files");
     assert_eq!(loaded.png_path, target.png_path);
     assert_eq!(loaded.scale, target.scale);
-    assert_eq!(
-        loaded.favorite_ensemble_scale,
-        target.favorite_ensemble_scale
-    );
+    assert_eq!(loaded.ensemble_scale, target.ensemble_scale);
     assert_eq!(
         loaded.ui_font_paths,
         vec![
@@ -245,7 +239,7 @@ stretch_amount = 0.08
             amplitude_ratio: 0.02,
         }
     );
-    assert!(loaded.favorite_ensemble_enabled);
+    assert_eq!(loaded.ensemble_mode, MascotEnsembleMode::Favorite);
     assert_eq!(loaded.bounce.duration_ms, 1200);
     assert_eq!(loaded.squash_bounce.squash_amount, 0.22);
     assert_eq!(
@@ -262,7 +256,7 @@ stretch_amount = 0.08
     assert!(static_toml.contains("always_bend = true"));
     assert!(static_toml.contains("[bend]"));
     assert!(static_toml.contains("amplitude_ratio = 0.02"));
-    assert!(static_toml.contains("favorite_ensemble_enabled = true"));
+    assert!(static_toml.contains("ensemble_mode = \"favorite\""));
     let static_value =
         toml::from_str::<toml::Value>(&static_toml).expect("static TOML should parse");
     let ui_font_paths = static_value
@@ -284,7 +278,7 @@ stretch_amount = 0.08
     let runtime_json =
         fs::read_to_string(&runtime_state_path).expect("should write mascot runtime JSON");
     assert!(runtime_json.contains("\"png_path\""));
-    assert!(runtime_json.contains("\"favorite_ensemble_scale\": 0.95"));
+    assert!(runtime_json.contains("\"ensemble_scale\": 0.95"));
     assert!(runtime_json.contains("\"demo/basic.psd\""));
 }
 

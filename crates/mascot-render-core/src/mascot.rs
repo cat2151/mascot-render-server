@@ -48,14 +48,14 @@ pub struct MascotImageLoadReport {
 pub struct MascotConfig {
     pub png_path: PathBuf,
     pub scale: Option<f32>,
-    pub favorite_ensemble_scale: Option<f32>,
+    pub ensemble_scale: Option<f32>,
     pub zip_path: PathBuf,
     pub psd_path_in_zip: PathBuf,
     pub display_diff_path: Option<PathBuf>,
     pub ui_font_paths: Vec<PathBuf>,
     pub always_idle_sink_enabled: bool,
     pub always_bend: AlwaysBendConfig,
-    pub favorite_ensemble_enabled: bool,
+    pub ensemble_mode: MascotEnsembleMode,
     pub bounce: BounceAnimationConfig,
     pub squash_bounce: SquashBounceAnimationConfig,
     pub always_idle_sink: IdleSinkAnimationConfig,
@@ -65,10 +65,25 @@ pub struct MascotConfig {
 pub struct MascotTarget {
     pub png_path: PathBuf,
     pub scale: Option<f32>,
-    pub favorite_ensemble_scale: Option<f32>,
+    pub ensemble_scale: Option<f32>,
     pub zip_path: PathBuf,
     pub psd_path_in_zip: PathBuf,
     pub display_diff_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MascotEnsembleMode {
+    #[default]
+    SingleCharacter,
+    Favorite,
+    Vpt,
+}
+
+impl MascotEnsembleMode {
+    pub fn is_ensemble(self) -> bool {
+        !matches!(self, Self::SingleCharacter)
+    }
 }
 
 pub fn parse_mascot_config_path(args: impl IntoIterator<Item = OsString>) -> Result<PathBuf> {
@@ -108,7 +123,7 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
     Ok(MascotConfig {
         png_path: runtime_target.png_path,
         scale: runtime_target.scale,
-        favorite_ensemble_scale: runtime_target.favorite_ensemble_scale,
+        ensemble_scale: runtime_target.ensemble_scale,
         zip_path: runtime_target.zip_path,
         psd_path_in_zip: runtime_target.psd_path_in_zip,
         display_diff_path: runtime_target.display_diff_path,
@@ -118,24 +133,20 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
             enabled: static_config.always_bend,
             amplitude_ratio: static_config.bend.amplitude_ratio,
         },
-        favorite_ensemble_enabled: static_config.favorite_ensemble_enabled,
+        ensemble_mode: static_config.ensemble_mode,
         bounce: static_config.bounce,
         squash_bounce: static_config.squash_bounce,
         always_idle_sink: static_config.always_idle_sink,
     })
 }
 
-/// Loads the current `favorite_ensemble_enabled` flag from the mascot static
-/// config TOML at `config_path`.
-pub fn load_favorite_ensemble_enabled(config_path: &Path) -> Result<bool> {
-    Ok(load_mascot_static_config_file(config_path)?.favorite_ensemble_enabled)
+pub fn load_mascot_ensemble_mode(config_path: &Path) -> Result<MascotEnsembleMode> {
+    Ok(load_mascot_static_config_file(config_path)?.ensemble_mode)
 }
 
-/// Updates the `favorite_ensemble_enabled` flag in the mascot static config
-/// TOML at `config_path` while preserving the other static settings.
-pub fn set_favorite_ensemble_enabled(config_path: &Path, enabled: bool) -> Result<()> {
+pub fn set_mascot_ensemble_mode(config_path: &Path, mode: MascotEnsembleMode) -> Result<()> {
     let mut config = load_mascot_static_config_file(config_path)?;
-    config.favorite_ensemble_enabled = enabled;
+    config.ensemble_mode = mode;
     write_mascot_static_config_file(config_path, &config)
 }
 
@@ -280,7 +291,7 @@ fn validate_mascot_target(target: &MascotTarget, state_path: &Path) -> Result<()
         );
     }
     validate_scale(target.scale, state_path)?;
-    validate_scale(target.favorite_ensemble_scale, state_path)?;
+    validate_scale(target.ensemble_scale, state_path)?;
 
     if target.zip_path.as_os_str().is_empty() {
         bail!(

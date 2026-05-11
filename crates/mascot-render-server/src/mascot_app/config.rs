@@ -48,16 +48,16 @@ pub(super) fn describe_motion_timeline_request(request: &MotionTimelineRequest) 
 }
 
 pub(super) fn active_config_scale(config: &MascotConfig) -> Option<f32> {
-    if config.favorite_ensemble_enabled {
-        config.favorite_ensemble_scale
+    if config.ensemble_mode.is_ensemble() {
+        config.ensemble_scale
     } else {
         config.scale
     }
 }
 
 pub(super) fn active_display_scale(config: &MascotConfig, width: u32, height: u32) -> f32 {
-    if config.favorite_ensemble_enabled {
-        config.favorite_ensemble_scale.unwrap_or(1.0)
+    if config.ensemble_mode.is_ensemble() {
+        config.ensemble_scale.unwrap_or(1.0)
     } else {
         effective_scale(width, height, config.scale)
     }

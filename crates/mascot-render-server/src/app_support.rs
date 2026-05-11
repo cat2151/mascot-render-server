@@ -34,9 +34,10 @@ pub(crate) struct CachedSkinBuildReport {
 }
 
 pub(crate) fn window_title(config: &MascotConfig, config_path: &Path) -> String {
-    if config.favorite_ensemble_enabled {
+    if config.ensemble_mode.is_ensemble() {
         return format!(
-            "Mascot Render Server: favorite ensemble ({})",
+            "Mascot Render Server: {:?} ensemble ({})",
+            config.ensemble_mode,
             config_path
                 .file_name()
                 .unwrap_or(config_path.as_os_str())

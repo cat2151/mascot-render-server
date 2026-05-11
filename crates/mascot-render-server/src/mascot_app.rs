@@ -21,7 +21,7 @@ use crate::app_support::{
     cached_skin_from_image, path_modified_at, size_vec, window_title, CachedSkin,
 };
 use crate::eye_blink::EyeBlinkLoop;
-use crate::favorite_ensemble::favorites_path as favorite_ensemble_path;
+use crate::favorite_ensemble::active_ensemble_path;
 use crate::mascot_scale::{effective_scale, keyboard_scale_steps, scroll_scale_steps};
 use crate::SKIN_CACHE_CAPACITY;
 #[path = "mascot_app/character.rs"]
@@ -92,7 +92,7 @@ pub(crate) use logging::{
 use native_window::NativeWindowHandle;
 #[cfg(test)]
 pub(crate) use persistence::{
-    persist_favorite_ensemble_enabled_for_test, persist_requested_character_change_for_test,
+    persist_ensemble_mode_for_test, persist_requested_character_change_for_test,
     verify_persisted_character_change_for_test,
 };
 #[cfg(test)]
@@ -178,7 +178,8 @@ impl MascotApp {
         let runtime_state_path = mascot_runtime_state_path(&config_path);
         let config_modified_at = path_modified_at(&config_path);
         let runtime_state_modified_at = path_modified_at(&runtime_state_path);
-        let favorite_ensemble_modified_at = path_modified_at(&favorite_ensemble_path());
+        let favorite_ensemble_modified_at =
+            active_ensemble_path(config.ensemble_mode).and_then(|path| path_modified_at(&path));
         let psd_viewer_tui_activity_modified_at =
             path_modified_at(&psd_viewer_tui_activity_path(&config_path));
         let open_skin = cached_skin_from_image(&cc.egui_ctx, &image);

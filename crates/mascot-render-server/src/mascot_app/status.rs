@@ -6,8 +6,8 @@ use mascot_render_control::{
     MascotControlCommand,
 };
 use mascot_render_protocol::{
-    now_unix_ms, MotionTimelineKind, ServerCommandStage, ServerLifecyclePhase, ServerMotionStatus,
-    ServerWindowStatus, ServerWorkStatus,
+    now_unix_ms, MotionTimelineKind, ServerCommandStage, ServerEnsembleMode, ServerLifecyclePhase,
+    ServerMotionStatus, ServerWindowStatus, ServerWorkStatus,
 };
 use mascot_render_server::window_history::current_viewport_info;
 
@@ -68,8 +68,8 @@ impl MascotApp {
             snapshot.configured_zip_path = self.config.zip_path.clone();
             snapshot.configured_psd_path_in_zip = self.config.psd_path_in_zip.clone();
             snapshot.displayed_png_path = displayed_png_path.clone();
-            snapshot.favorite_ensemble_enabled = self.config.favorite_ensemble_enabled;
-            snapshot.favorite_ensemble_loaded = self.favorite_ensemble.is_some();
+            snapshot.ensemble_mode = server_ensemble_mode(self.config.ensemble_mode);
+            snapshot.ensemble_loaded = self.favorite_ensemble.is_some();
             snapshot.scale = self.scale;
             snapshot.motion = ServerMotionStatus {
                 active: self.motion.is_active(),
@@ -350,7 +350,8 @@ fn performance_action(command: &MascotControlCommand) -> Option<&'static str> {
     match command {
         MascotControlCommand::ChangeCharacter { .. } => Some("change_character"),
         MascotControlCommand::PreviewTarget { .. } => Some("preview_target"),
-        MascotControlCommand::DisableFavoriteEnsemble { .. } => Some("disable_favorite_ensemble"),
+        MascotControlCommand::SetEnsembleMode { .. } => Some("set_ensemble_mode"),
+        MascotControlCommand::SetVptEnsemble { .. } => Some("set_vpt_ensemble"),
         MascotControlCommand::PlayTimeline { request, .. }
             if request
                 .steps
@@ -362,6 +363,16 @@ fn performance_action(command: &MascotControlCommand) -> Option<&'static str> {
         MascotControlCommand::Show { .. }
         | MascotControlCommand::Hide { .. }
         | MascotControlCommand::PlayTimeline { .. } => None,
+    }
+}
+
+fn server_ensemble_mode(mode: mascot_render_core::MascotEnsembleMode) -> ServerEnsembleMode {
+    match mode {
+        mascot_render_core::MascotEnsembleMode::SingleCharacter => {
+            ServerEnsembleMode::SingleCharacter
+        }
+        mascot_render_core::MascotEnsembleMode::Favorite => ServerEnsembleMode::Favorite,
+        mascot_render_core::MascotEnsembleMode::Vpt => ServerEnsembleMode::Vpt,
     }
 }
 

@@ -2,6 +2,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use eframe::egui::{Pos2, Vec2};
+use mascot_render_core::MascotEnsembleMode;
 use mascot_render_protocol::{
     PlacementAnchorKind, PlacementAnchorPositions, PlacementMode, VisualSizePx,
 };
@@ -117,13 +118,13 @@ fn scale_change_log_message_reports_mouse_wheel_details() {
         1,
         1.0,
         1.1,
-        false,
+        MascotEnsembleMode::SingleCharacter,
         Path::new("cache/zunda/normal.png"),
     );
 
     assert_eq!(
         message,
-        "trigger=mouse_wheel action=change_scale scale変更を適用しました: steps=1 previous_scale=1.000 next_scale=1.100 raw_scroll_delta_y=120.000 favorite_ensemble_enabled=false configured_png_path=cache/zunda/normal.png"
+        "trigger=mouse_wheel action=change_scale scale変更を適用しました: steps=1 previous_scale=1.000 next_scale=1.100 raw_scroll_delta_y=120.000 ensemble_mode=SingleCharacter configured_png_path=cache/zunda/normal.png"
     );
 }
 

@@ -41,7 +41,7 @@ stretch_amount = 0.08
   "version": 1,
   "png_path": "cache/legacy/render.png",
   "scale": 0.42,
-  "favorite_ensemble_scale": 0.9,
+  "ensemble_scale": 0.9,
   "zip_path": "assets/zip/legacy.zip",
   "psd_path_in_zip": "legacy/basic.psd",
   "display_diff_path": "cache/legacy/basic.json",

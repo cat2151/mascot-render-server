@@ -36,6 +36,24 @@ pub(crate) fn load_favorites(path: &Path) -> Result<Vec<FavoriteEnsembleEntry>> 
     }
 }
 
+pub(crate) fn write_favorites(path: &Path, favorites: &[FavoriteEnsembleEntry]) -> Result<()> {
+    if let Some(parent) = path.parent().filter(|path| !path.as_os_str().is_empty()) {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+    let file = FavoritesFile {
+        favorites: favorites.to_vec(),
+    };
+    let toml =
+        toml::to_string_pretty(&file).context("failed to serialize favorite ensemble entries")?;
+    fs::write(path, toml).with_context(|| {
+        format!(
+            "failed to write favorite ensemble entries {}",
+            path.display()
+        )
+    })
+}
+
 pub(crate) fn patch_favorite_ensemble_positions(
     path: &Path,
     updates: &[FavoriteEnsembleEntry],

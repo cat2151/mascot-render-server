@@ -5,7 +5,7 @@ use std::time::Instant;
 use eframe::egui::Pos2;
 use mascot_render_core::{
     workspace_cache_root, AlwaysBendConfig, BounceAnimationConfig, IdleSinkAnimationConfig,
-    MascotConfig, SquashBounceAnimationConfig,
+    MascotConfig, MascotEnsembleMode, SquashBounceAnimationConfig,
 };
 
 use mascot_render_server::window_history::{
@@ -153,7 +153,7 @@ fn public_helpers_round_trip_saved_window_position() {
 fn favorite_ensemble_uses_dedicated_window_history_path() {
     let mut config = mascot_config("/workspace/a.zip", "body/front.psd");
     let per_psd_path = window_history_path(&config);
-    config.favorite_ensemble_enabled = true;
+    config.ensemble_mode = MascotEnsembleMode::Favorite;
 
     let ensemble_path = window_history_path(&config);
     assert_ne!(ensemble_path, per_psd_path);
@@ -163,18 +163,32 @@ fn favorite_ensemble_uses_dedicated_window_history_path() {
     );
 }
 
+#[test]
+fn vpt_ensemble_uses_dedicated_window_history_path() {
+    let mut config = mascot_config("/workspace/a.zip", "body/front.psd");
+    let per_psd_path = window_history_path(&config);
+    config.ensemble_mode = MascotEnsembleMode::Vpt;
+
+    let ensemble_path = window_history_path(&config);
+    assert_ne!(ensemble_path, per_psd_path);
+    assert_eq!(
+        ensemble_path.file_name().and_then(|value| value.to_str()),
+        Some("history_server_vpt_ensemble.json")
+    );
+}
+
 fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
     MascotConfig {
         png_path: PathBuf::from("/workspace/render.png"),
         scale: Some(1.0),
-        favorite_ensemble_scale: None,
+        ensemble_scale: None,
         zip_path: PathBuf::from(zip_path),
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         display_diff_path: None,
         ui_font_paths: Vec::new(),
         always_idle_sink_enabled: false,
         always_bend: AlwaysBendConfig::default(),
-        favorite_ensemble_enabled: false,
+        ensemble_mode: MascotEnsembleMode::SingleCharacter,
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),

@@ -5,6 +5,7 @@ use std::time::Duration;
 use anyhow::{anyhow, Error};
 use mascot_render_protocol::{
     MotionTimelineRequest, PreviewTargetRequest, ServerCommandKind, ServerCommandStatus,
+    ServerEnsembleMode, VptEnsembleRequest,
 };
 
 type ControlCommandApplyResult = std::result::Result<(), String>;
@@ -42,7 +43,13 @@ pub enum MascotControlCommand {
         completion: Option<ControlCommandCompletion>,
         status: ServerCommandStatus,
     },
-    DisableFavoriteEnsemble {
+    SetEnsembleMode {
+        mode: ServerEnsembleMode,
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
+    },
+    SetVptEnsemble {
+        request: VptEnsembleRequest,
         completion: Option<ControlCommandCompletion>,
         status: ServerCommandStatus,
     },
@@ -89,13 +96,23 @@ impl MascotControlCommand {
         )
     }
 
-    pub fn disable_favorite_ensemble() -> Self {
-        Self::disable_favorite_ensemble_with_status(
+    pub fn set_ensemble_mode(mode: ServerEnsembleMode) -> Self {
+        Self::set_ensemble_mode_with_status(
+            mode,
             None,
             ServerCommandStatus::queued(
-                ServerCommandKind::DisableFavoriteEnsemble,
-                disable_favorite_ensemble_summary(),
+                ServerCommandKind::SetEnsembleMode,
+                set_ensemble_mode_summary(mode),
             ),
+        )
+    }
+
+    pub fn set_vpt_ensemble(request: VptEnsembleRequest) -> Self {
+        let summary = vpt_ensemble_summary(&request);
+        Self::set_vpt_ensemble_with_status(
+            request,
+            None,
+            ServerCommandStatus::queued(ServerCommandKind::SetVptEnsemble, summary),
         )
     }
 
@@ -131,11 +148,20 @@ impl MascotControlCommand {
         Self::preview_target_with_status(request, Some(completion), status)
     }
 
-    pub(crate) fn disable_favorite_ensemble_with_completion(
+    pub(crate) fn set_ensemble_mode_with_completion(
+        mode: ServerEnsembleMode,
         completion: ControlCommandCompletion,
         status: ServerCommandStatus,
     ) -> Self {
-        Self::disable_favorite_ensemble_with_status(Some(completion), status)
+        Self::set_ensemble_mode_with_status(mode, Some(completion), status)
+    }
+
+    pub(crate) fn set_vpt_ensemble_with_completion(
+        request: VptEnsembleRequest,
+        completion: ControlCommandCompletion,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::set_vpt_ensemble_with_status(request, Some(completion), status)
     }
 
     fn change_character_with_status(
@@ -174,11 +200,28 @@ impl MascotControlCommand {
         }
     }
 
-    fn disable_favorite_ensemble_with_status(
+    fn set_ensemble_mode_with_status(
+        mode: ServerEnsembleMode,
         completion: Option<ControlCommandCompletion>,
         status: ServerCommandStatus,
     ) -> Self {
-        Self::DisableFavoriteEnsemble { completion, status }
+        Self::SetEnsembleMode {
+            mode,
+            completion,
+            status,
+        }
+    }
+
+    fn set_vpt_ensemble_with_status(
+        request: VptEnsembleRequest,
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::SetVptEnsemble {
+            request,
+            completion,
+            status,
+        }
     }
 
     pub fn status(&self) -> &ServerCommandStatus {
@@ -187,7 +230,8 @@ impl MascotControlCommand {
             | Self::Hide { status }
             | Self::ChangeCharacter { status, .. }
             | Self::PreviewTarget { status, .. }
-            | Self::DisableFavoriteEnsemble { status, .. }
+            | Self::SetEnsembleMode { status, .. }
+            | Self::SetVptEnsemble { status, .. }
             | Self::PlayTimeline { status, .. } => status,
         }
     }
@@ -202,7 +246,11 @@ impl MascotControlCommand {
                 completion: Some(completion),
                 ..
             }
-            | Self::DisableFavoriteEnsemble {
+            | Self::SetEnsembleMode {
+                completion: Some(completion),
+                ..
+            }
+            | Self::SetVptEnsemble {
                 completion: Some(completion),
                 ..
             }
@@ -218,7 +266,10 @@ impl MascotControlCommand {
             | Self::PreviewTarget {
                 completion: None, ..
             }
-            | Self::DisableFavoriteEnsemble {
+            | Self::SetEnsembleMode {
+                completion: None, ..
+            }
+            | Self::SetVptEnsemble {
                 completion: None, ..
             }
             | Self::PlayTimeline {
@@ -250,7 +301,14 @@ impl PartialEq for MascotControlCommand {
                 Self::PlayTimeline { request: left, .. },
                 Self::PlayTimeline { request: right, .. },
             ) => left == right,
-            (Self::DisableFavoriteEnsemble { .. }, Self::DisableFavoriteEnsemble { .. }) => true,
+            (
+                Self::SetEnsembleMode { mode: left, .. },
+                Self::SetEnsembleMode { mode: right, .. },
+            ) => left == right,
+            (
+                Self::SetVptEnsemble { request: left, .. },
+                Self::SetVptEnsemble { request: right, .. },
+            ) => left == right,
             _ => false,
         }
     }
@@ -331,8 +389,15 @@ pub(crate) fn preview_target_summary(request: &PreviewTargetRequest) -> String {
     )
 }
 
-pub(crate) fn disable_favorite_ensemble_summary() -> &'static str {
-    "favorite_ensemble_enabled=false"
+pub(crate) fn set_ensemble_mode_summary(mode: ServerEnsembleMode) -> String {
+    format!("ensemble_mode={mode:?}")
+}
+
+pub(crate) fn vpt_ensemble_summary(request: &VptEnsembleRequest) -> String {
+    format!(
+        "vpt_ensemble character_count={}",
+        request.character_names.len()
+    )
 }
 
 fn optional_path_text(path: Option<&std::path::PathBuf>) -> String {

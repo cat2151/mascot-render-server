@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::favorite_shuffle::FavoriteEntry;
 use mascot_render_core::{
     workspace_cache_root, AlwaysBendConfig, BounceAnimationConfig, IdleSinkAnimationConfig,
-    MascotConfig, SquashBounceAnimationConfig,
+    MascotConfig, MascotEnsembleMode, SquashBounceAnimationConfig,
 };
 
 pub(super) fn favorite(
@@ -26,14 +26,14 @@ pub(super) fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConf
     MascotConfig {
         png_path: PathBuf::from("/workspace/render.png"),
         scale: Some(1.0),
-        favorite_ensemble_scale: None,
+        ensemble_scale: None,
         zip_path: PathBuf::from(zip_path),
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         display_diff_path: None,
         ui_font_paths: Vec::new(),
         always_idle_sink_enabled: false,
         always_bend: AlwaysBendConfig::default(),
-        favorite_ensemble_enabled: false,
+        ensemble_mode: MascotEnsembleMode::SingleCharacter,
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),

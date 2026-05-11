@@ -12,14 +12,15 @@ use super::config::{
     active_config_scale, active_display_scale, should_reload_config,
     should_restore_window_history_for_reload, ReloadInputs,
 };
-use super::{favorite_ensemble_path, layout, path_modified_at, size_vec, window_title, MascotApp};
+use super::{active_ensemble_path, layout, path_modified_at, size_vec, window_title, MascotApp};
 
 impl MascotApp {
     pub(super) fn reload_config_if_needed(&mut self, ctx: &egui::Context) -> Result<bool> {
         let next_config_modified_at = path_modified_at(&self.config_path);
         let next_runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
-        let favorites_path = favorite_ensemble_path();
-        let next_favorite_ensemble_modified_at = path_modified_at(&favorites_path);
+        let ensemble_path = active_ensemble_path(self.config.ensemble_mode);
+        let next_favorite_ensemble_modified_at =
+            ensemble_path.as_deref().and_then(path_modified_at);
         let next_psd_viewer_tui_activity_modified_at =
             path_modified_at(&psd_viewer_tui_activity_path(&self.config_path));
         let current_history_path = window_history_path(&self.config);
@@ -55,23 +56,26 @@ impl MascotApp {
         let config_file_changed = self.config_modified_at != next_config_modified_at;
         let runtime_state_changed =
             self.runtime_state_modified_at != next_runtime_state_modified_at;
-        let favorite_ensemble_file_changed =
-            self.favorite_ensemble_modified_at != next_favorite_ensemble_modified_at;
         let psd_viewer_tui_activity_changed =
             self.psd_viewer_tui_activity_modified_at != next_psd_viewer_tui_activity_modified_at;
         let window_history_file_changed =
             self.window_history_modified_at != next_window_history_modified_at;
         let next_config = load_mascot_config(&self.config_path)
             .with_context(|| format!("failed to hot-reload {}", self.config_path.display()))?;
+        let next_config_ensemble_path = active_ensemble_path(next_config.ensemble_mode);
+        let next_config_ensemble_modified_at = next_config_ensemble_path
+            .as_deref()
+            .and_then(path_modified_at);
+        let favorite_ensemble_file_changed =
+            self.favorite_ensemble_modified_at != next_config_ensemble_modified_at;
         let favorite_ensemble_changed =
-            self.favorite_ensemble_modified_at != next_favorite_ensemble_modified_at;
+            self.favorite_ensemble_modified_at != next_config_ensemble_modified_at;
         self.config_modified_at = next_config_modified_at;
         self.runtime_state_modified_at = next_runtime_state_modified_at;
-        self.favorite_ensemble_modified_at = next_favorite_ensemble_modified_at;
+        self.favorite_ensemble_modified_at = next_config_ensemble_modified_at;
         self.psd_viewer_tui_activity_modified_at = next_psd_viewer_tui_activity_modified_at;
 
-        let ensemble_mode_changed =
-            self.config.favorite_ensemble_enabled != next_config.favorite_ensemble_enabled;
+        let ensemble_mode_changed = self.config.ensemble_mode != next_config.ensemble_mode;
         let png_changed = self.config.png_path != next_config.png_path;
         let scale_changed = active_config_scale(&self.config) != active_config_scale(&next_config);
         let blink_source_changed = self.config.zip_path != next_config.zip_path
@@ -99,11 +103,19 @@ impl MascotApp {
             self.open_skin = self.load_active_skin(ctx)?;
         }
 
-        if self.config.favorite_ensemble_enabled {
+        if self.config.ensemble_mode.is_ensemble() {
             if ensemble_mode_changed || favorite_ensemble_changed {
+                let ensemble_path = active_ensemble_path(self.config.ensemble_mode);
                 work.update_stage(
-                    "load_favorite_ensemble",
-                    format!("favorites_path={}", favorites_path.display()),
+                    "load_active_ensemble",
+                    format!(
+                        "ensemble_mode={:?} ensemble_path={}",
+                        self.config.ensemble_mode,
+                        ensemble_path
+                            .as_deref()
+                            .map(|path| path.display().to_string())
+                            .unwrap_or_else(|| "-".to_string())
+                    ),
                 );
                 self.favorite_ensemble = self.load_active_ensemble_scene(ctx)?;
             }

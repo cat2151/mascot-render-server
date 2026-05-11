@@ -130,14 +130,17 @@ impl MascotApp {
                 ));
                 Ok(())
             }
-            MascotControlCommand::DisableFavoriteEnsemble { .. } => {
-                self.disable_favorite_ensemble(ctx)
+            MascotControlCommand::SetEnsembleMode { mode, .. } => {
+                self.set_ensemble_mode_from_control(ctx, *mode)
+            }
+            MascotControlCommand::SetVptEnsemble { request, .. } => {
+                self.set_vpt_ensemble(ctx, request)
             }
         }
     }
 
     fn ensure_mouth_flap_skins_for_timeline(&mut self, ctx: &egui::Context) -> Result<()> {
-        if self.config.favorite_ensemble_enabled
+        if self.config.ensemble_mode.is_ensemble()
             || (self.mouth_open_skin.is_some() && self.mouth_closed_skin.is_some())
         {
             return Ok(());

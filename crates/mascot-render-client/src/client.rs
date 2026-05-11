@@ -7,7 +7,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use mascot_render_protocol::{
     validate_motion_timeline_request, validate_preview_target_request, ChangeCharacterRequest,
     MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep, PreviewTargetRequest,
-    ServerStatusSnapshot,
+    ServerStatusSnapshot, VptEnsembleRequest,
 };
 
 pub const MASCOT_RENDER_SERVER_PORT: u16 = 62152;
@@ -55,8 +55,12 @@ pub fn preview_target_mascot_render_server(request: &PreviewTargetRequest) -> Re
     preview_target_mascot_render_server_at(mascot_render_server_address(), request)
 }
 
-pub fn disable_favorite_ensemble_mascot_render_server() -> Result<()> {
-    disable_favorite_ensemble_mascot_render_server_at(mascot_render_server_address())
+pub fn set_single_character_mode_mascot_render_server() -> Result<()> {
+    set_single_character_mode_mascot_render_server_at(mascot_render_server_address())
+}
+
+pub fn set_vpt_ensemble_mascot_render_server(character_names: &[String]) -> Result<()> {
+    set_vpt_ensemble_mascot_render_server_at(mascot_render_server_address(), character_names)
 }
 
 pub fn preview_mouth_flap_timeline_request() -> MotionTimelineRequest {
@@ -137,15 +141,26 @@ pub fn preview_target_mascot_render_server_at(
     .map(|_| ())
 }
 
-pub fn disable_favorite_ensemble_mascot_render_server_at(address: SocketAddr) -> Result<()> {
+pub fn set_single_character_mode_mascot_render_server_at(address: SocketAddr) -> Result<()> {
     send_http_request(
         address,
         "POST",
-        "/favorite-ensemble/disable",
+        "/ensemble-mode/single-character",
         None,
         APPLY_TIMEOUT,
     )
     .map(|_| ())
+}
+
+pub fn set_vpt_ensemble_mascot_render_server_at(
+    address: SocketAddr,
+    character_names: &[String],
+) -> Result<()> {
+    let body = serde_json::to_vec(&VptEnsembleRequest {
+        character_names: character_names.to_vec(),
+    })
+    .context("failed to serialize mascot vpt ensemble request")?;
+    send_http_request(address, "POST", "/vpt-ensemble", Some(&body), APPLY_TIMEOUT).map(|_| ())
 }
 
 pub fn wait_for_mascot_render_server_healthcheck_at(

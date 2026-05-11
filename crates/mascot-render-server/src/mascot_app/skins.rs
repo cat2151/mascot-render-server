@@ -9,7 +9,7 @@ use mascot_render_core::{load_mascot_image_with_report, MascotConfig};
 use super::{CachedSkin, FavoriteEnsembleScene, MascotApp};
 use crate::app_support::cached_skin_from_image_with_report;
 use crate::eye_blink::render_closed_eye_png;
-use crate::favorite_ensemble::load_favorite_ensemble;
+use crate::favorite_ensemble::load_active_ensemble;
 use crate::mouth_flap::render_mouth_flap_pngs;
 
 impl MascotApp {
@@ -115,19 +115,21 @@ impl MascotApp {
         &mut self,
         ctx: &egui::Context,
     ) -> Result<Option<FavoriteEnsembleScene>> {
-        Ok(load_favorite_ensemble(&self.core)?.map(|ensemble| {
-            FavoriteEnsembleScene::from_loaded(
-                ctx,
-                ensemble,
-                self.config.always_idle_sink_enabled,
-                Instant::now(),
-            )
-        }))
+        Ok(
+            load_active_ensemble(&self.core, self.config.ensemble_mode)?.map(|ensemble| {
+                FavoriteEnsembleScene::from_loaded(
+                    ctx,
+                    ensemble,
+                    self.config.always_idle_sink_enabled,
+                    Instant::now(),
+                )
+            }),
+        )
     }
 
     pub(super) fn queue_auxiliary_skin_refresh(&mut self) {
         self.clear_auxiliary_skins();
-        self.pending_auxiliary_skin_refresh = !self.config.favorite_ensemble_enabled;
+        self.pending_auxiliary_skin_refresh = !self.config.ensemble_mode.is_ensemble();
     }
 
     pub(super) fn has_pending_auxiliary_skin_refresh(&self) -> bool {
@@ -145,7 +147,7 @@ impl MascotApp {
             format!("png_path={}", self.config.png_path.display()),
         );
         self.pending_auxiliary_skin_refresh = false;
-        if self.config.favorite_ensemble_enabled {
+        if self.config.ensemble_mode.is_ensemble() {
             self.clear_auxiliary_skins();
             return Ok(());
         }
@@ -170,7 +172,7 @@ impl MascotApp {
         ctx: &egui::Context,
         config: &MascotConfig,
     ) -> Result<Option<CachedSkin>> {
-        if config.favorite_ensemble_enabled {
+        if config.ensemble_mode.is_ensemble() {
             return Ok(None);
         }
 
@@ -189,7 +191,7 @@ impl MascotApp {
         ctx: &egui::Context,
         config: &MascotConfig,
     ) -> Result<(Option<CachedSkin>, Option<CachedSkin>)> {
-        if config.favorite_ensemble_enabled {
+        if config.ensemble_mode.is_ensemble() {
             return Ok((None, None));
         }
 

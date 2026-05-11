@@ -5,14 +5,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use eframe::egui::{Modifiers, Pos2, Vec2};
 use mascot_render_core::{
     load_mascot_config, mascot_runtime_state_path, workspace_cache_root, AlwaysBendConfig,
-    IdleSinkAnimationConfig, MascotConfig,
+    IdleSinkAnimationConfig, MascotConfig, MascotEnsembleMode,
 };
 use mascot_render_protocol::{PlacementAnchorKind, ScreenRectPx};
 
 use crate::mascot_app::{mouse_wheel_zoom_outer_position_for_test, ScaleChangeTriggerForTest};
 use crate::mascot_scale::{
-    adjust_scale, effective_scale, keyboard_scale_steps, persist_favorite_ensemble_scale,
-    persist_scale, scroll_scale_steps,
+    adjust_scale, effective_scale, keyboard_scale_steps, persist_ensemble_scale, persist_scale,
+    scroll_scale_steps,
 };
 use mascot_render_server::window_history::ViewportInfo;
 use mascot_render_server::MascotWindowLayout;
@@ -31,14 +31,14 @@ fn sample_config() -> MascotConfig {
     MascotConfig {
         png_path: PathBuf::from("cache/demo/render.png"),
         scale: None,
-        favorite_ensemble_scale: None,
+        ensemble_scale: None,
         zip_path: PathBuf::from("assets/zip/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: Some(PathBuf::from("cache/demo/variation.json")),
         ui_font_paths: Vec::new(),
         always_idle_sink_enabled: false,
         always_bend: AlwaysBendConfig::default(),
-        favorite_ensemble_enabled: false,
+        ensemble_mode: MascotEnsembleMode::SingleCharacter,
         bounce: Default::default(),
         squash_bounce: Default::default(),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
@@ -121,7 +121,7 @@ fn persist_scale_updates_runtime_state() {
 }
 
 #[test]
-fn persist_favorite_ensemble_scale_updates_runtime_state() {
+fn persist_ensemble_scale_updates_runtime_state() {
     let config_path = unique_test_config_path("persist-ensemble");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
     if let Some(parent) = config_path.parent() {
@@ -130,11 +130,11 @@ fn persist_favorite_ensemble_scale_updates_runtime_state() {
     let _ = fs::remove_file(&runtime_state_path);
 
     let config = sample_config();
-    persist_favorite_ensemble_scale(&config_path, &config, 0.8)
+    persist_ensemble_scale(&config_path, &config, 0.8)
         .expect("should persist runtime state ensemble scale");
     let loaded = load_mascot_config(&config_path).expect("persisted config should load");
 
-    assert_eq!(loaded.favorite_ensemble_scale, Some(0.8));
+    assert_eq!(loaded.ensemble_scale, Some(0.8));
     assert_eq!(loaded.scale, config.scale);
     assert_eq!(loaded.png_path, config.png_path);
 

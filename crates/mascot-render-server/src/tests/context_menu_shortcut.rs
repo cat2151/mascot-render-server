@@ -1,4 +1,5 @@
 use eframe::egui::{Key, Modifiers};
+use mascot_render_core::MascotEnsembleMode;
 use mascot_render_protocol::PlacementMode;
 
 use crate::mascot_app::{
@@ -9,7 +10,21 @@ use crate::mascot_app::{
 fn placement_context_menu_shortcuts_map_letters_to_actions() {
     assert_eq!(
         placement_context_menu_action_for_key_for_test(Key::F, Modifiers::NONE),
-        Some(PlacementContextMenuAction::ToggleFavoriteEnsemble)
+        Some(PlacementContextMenuAction::SetEnsembleMode(
+            MascotEnsembleMode::Favorite
+        ))
+    );
+    assert_eq!(
+        placement_context_menu_action_for_key_for_test(Key::V, Modifiers::NONE),
+        Some(PlacementContextMenuAction::SetEnsembleMode(
+            MascotEnsembleMode::Vpt
+        ))
+    );
+    assert_eq!(
+        placement_context_menu_action_for_key_for_test(Key::Num1, Modifiers::NONE),
+        Some(PlacementContextMenuAction::SetEnsembleMode(
+            MascotEnsembleMode::SingleCharacter
+        ))
     );
     assert_eq!(
         placement_context_menu_action_for_key_for_test(Key::P, Modifiers::NONE),

@@ -9,7 +9,7 @@ use super::placement::screen_safe_rect;
 use super::MascotApp;
 use crate::app_support::{path_modified_at, size_vec};
 use crate::mascot_scale::{
-    adjust_scale, persist_favorite_ensemble_scale, persist_scale, SCALE_PERSIST_DEBOUNCE,
+    adjust_scale, persist_ensemble_scale, persist_scale, SCALE_PERSIST_DEBOUNCE,
 };
 use mascot_render_server::window_history::{current_viewport_info, ViewportInfo};
 use mascot_render_server::{clamp_zoomed_inner_origin_to_right_edge, MascotWindowLayout};
@@ -29,8 +29,8 @@ impl MascotApp {
         let previous_scale = self.scale;
         let previous_layout = self.window_layout;
         let previous_viewport_info = current_viewport_info(ctx);
-        if self.config.favorite_ensemble_enabled {
-            self.config.favorite_ensemble_scale = Some(next_scale);
+        if self.config.ensemble_mode.is_ensemble() {
+            self.config.ensemble_scale = Some(next_scale);
         } else {
             self.config.scale = Some(next_scale);
         }
@@ -89,8 +89,8 @@ impl MascotApp {
     }
 
     pub(super) fn persist_pending_scale(&mut self, scale: f32) -> Result<()> {
-        if self.config.favorite_ensemble_enabled {
-            persist_favorite_ensemble_scale(&self.config_path, &self.config, scale)?;
+        if self.config.ensemble_mode.is_ensemble() {
+            persist_ensemble_scale(&self.config_path, &self.config, scale)?;
         } else {
             persist_scale(&self.config_path, &self.config, scale)?;
             if let Err(error) = self

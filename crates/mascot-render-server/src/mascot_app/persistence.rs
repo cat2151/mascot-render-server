@@ -2,12 +2,12 @@ use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 use mascot_render_core::{
-    load_mascot_config, set_favorite_ensemble_enabled, write_mascot_config, MascotConfig,
-    MascotTarget,
+    load_mascot_config, set_mascot_ensemble_mode, write_mascot_config, MascotConfig,
+    MascotEnsembleMode, MascotTarget,
 };
 
-pub(crate) fn persist_favorite_ensemble_enabled(config_path: &Path, enabled: bool) -> Result<()> {
-    set_favorite_ensemble_enabled(config_path, enabled)
+pub(crate) fn persist_ensemble_mode(config_path: &Path, mode: MascotEnsembleMode) -> Result<()> {
+    set_mascot_ensemble_mode(config_path, mode)
 }
 
 pub(crate) fn persist_requested_character_change(
@@ -45,7 +45,7 @@ fn character_target(config: &MascotConfig) -> MascotTarget {
     MascotTarget {
         png_path: config.png_path.clone(),
         scale: config.scale,
-        favorite_ensemble_scale: config.favorite_ensemble_scale,
+        ensemble_scale: config.ensemble_scale,
         zip_path: config.zip_path.clone(),
         psd_path_in_zip: config.psd_path_in_zip.clone(),
         display_diff_path: config.display_diff_path.clone(),
@@ -58,7 +58,7 @@ fn optional_path_text(path: Option<&Path>) -> String {
 }
 
 #[cfg(test)]
-pub(crate) use persist_favorite_ensemble_enabled as persist_favorite_ensemble_enabled_for_test;
+pub(crate) use persist_ensemble_mode as persist_ensemble_mode_for_test;
 #[cfg(test)]
 pub(crate) use persist_requested_character_change as persist_requested_character_change_for_test;
 #[cfg(test)]

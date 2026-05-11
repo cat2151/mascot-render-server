@@ -3,11 +3,11 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::{
-    default_mascot_scale_for_screen_height, load_favorite_ensemble_enabled, load_mascot_config,
+    default_mascot_scale_for_screen_height, load_mascot_config, load_mascot_ensemble_mode,
     mascot_config_path, mascot_runtime_state_path, mascot_window_size, parse_mascot_config_path,
-    psd_viewer_tui_activity_path, set_favorite_ensemble_enabled, workspace_cache_root,
-    workspace_path, write_mascot_config, AlwaysBendConfig, BounceAlgorithm,
-    IdleSinkAnimationConfig, MascotTarget, SquashAlgorithm,
+    psd_viewer_tui_activity_path, set_mascot_ensemble_mode, workspace_cache_root, workspace_path,
+    write_mascot_config, AlwaysBendConfig, BounceAlgorithm, IdleSinkAnimationConfig,
+    MascotEnsembleMode, MascotTarget, SquashAlgorithm,
 };
 
 mod cli_and_paths;
@@ -46,7 +46,7 @@ fn seed_favorite_ensemble_config(test_name: &str) -> (PathBuf, PathBuf) {
     fs::write(
         &config_path,
         r#"
-favorite_ensemble_enabled = true
+ensemble_mode = "favorite"
 "#,
     )
     .expect("should seed mascot config");

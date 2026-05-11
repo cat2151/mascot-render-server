@@ -7,7 +7,7 @@ use crate::app::App;
 use crate::favorites::{save_favorites, FavoriteEntry};
 use crate::is_favorite_ensemble_toggle_key;
 use mascot_render_core::{
-    load_favorite_ensemble_enabled, mascot_runtime_state_path, workspace_cache_root,
+    load_mascot_ensemble_mode, mascot_runtime_state_path, workspace_cache_root, MascotEnsembleMode,
 };
 
 #[test]
@@ -35,21 +35,27 @@ fn favorite_ensemble_toggle_updates_config_and_status_message() {
     let mut app = App::loading(None);
 
     assert!(!app
-        .toggle_favorite_ensemble_enabled_for_test(&config_path, &favorites_path)
+        .toggle_favorite_ensemble_mode_for_test(&config_path, &favorites_path)
         .expect("should toggle favorite ensemble without runtime sync"));
-    assert!(load_favorite_ensemble_enabled(&config_path).expect("config should load"));
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should load"),
+        MascotEnsembleMode::Favorite
+    );
     assert_eq!(
         line_text(app.log_lines()[0].clone()),
-        "Message: favorite_ensemble_enabled = true"
+        "Message: ensemble_mode = Favorite"
     );
 
     assert!(!app
-        .toggle_favorite_ensemble_enabled_for_test(&config_path, &favorites_path)
+        .toggle_favorite_ensemble_mode_for_test(&config_path, &favorites_path)
         .expect("should toggle favorite ensemble without runtime sync"));
-    assert!(!load_favorite_ensemble_enabled(&config_path).expect("config should load"));
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should load"),
+        MascotEnsembleMode::SingleCharacter
+    );
     assert_eq!(
         line_text(app.log_lines()[0].clone()),
-        "Message: favorite_ensemble_enabled = false"
+        "Message: ensemble_mode = SingleCharacter"
     );
 }
 
@@ -67,9 +73,12 @@ fn favorite_ensemble_toggle_with_runtime_sync_returns_false_without_selected_pre
     let mut app = App::loading(None);
 
     assert!(!app
-        .toggle_favorite_ensemble_enabled_with_sync_for_test(&config_path, &favorites_path)
+        .toggle_favorite_ensemble_mode_with_sync_for_test(&config_path, &favorites_path)
         .expect("should toggle without runtime sync target"));
-    assert!(load_favorite_ensemble_enabled(&config_path).expect("config should load"));
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should load"),
+        MascotEnsembleMode::Favorite
+    );
 }
 
 #[test]
@@ -85,9 +94,12 @@ fn favorite_ensemble_toggle_shows_error_overlay_and_keeps_disabled_without_favor
     let mut app = App::loading(None);
 
     assert!(!app
-        .toggle_favorite_ensemble_enabled_for_test(&config_path, &favorites_path)
+        .toggle_favorite_ensemble_mode_for_test(&config_path, &favorites_path)
         .expect("empty favorites should keep favorite ensemble disabled"));
-    assert!(!load_favorite_ensemble_enabled(&config_path).expect("config should remain disabled"));
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should remain disabled"),
+        MascotEnsembleMode::SingleCharacter
+    );
     assert!(app.is_log_overlay_visible());
     assert_eq!(app.log_overlay_title(), Some("Error"));
     assert!(

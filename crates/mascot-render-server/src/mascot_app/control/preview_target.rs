@@ -22,15 +22,19 @@ impl MascotApp {
         ctx: &egui::Context,
         request: &PreviewTargetRequest,
     ) -> Result<()> {
-        if self.config.favorite_ensemble_enabled {
+        if self.config.ensemble_mode.is_ensemble() {
             let message = format!(
-                "trigger=control_command action=preview_target favorite_ensemble_enabled=true png_path={} zip_path={} psd_path_in_zip={} のため preview target を適用できません",
+                "trigger=control_command action=preview_target ensemble_mode={:?} png_path={} zip_path={} psd_path_in_zip={} のため preview target を適用できません",
+                self.config.ensemble_mode,
                 request.png_path.display(),
                 request.zip_path.display(),
                 request.psd_path_in_zip.display()
             );
             log_server_info(message);
-            bail!("favorite_ensemble_enabled=true; cannot apply preview target while favorite ensemble is active");
+            bail!(
+                "ensemble_mode={:?}; cannot apply preview target while ensemble mode is active",
+                self.config.ensemble_mode
+            );
         }
 
         let previous_png_path = self.config.png_path.clone();
@@ -69,7 +73,7 @@ impl MascotApp {
         let mut next_config = self.config.clone();
         next_config.png_path = request.png_path.clone();
         next_config.scale = request.scale;
-        next_config.favorite_ensemble_scale = None;
+        next_config.ensemble_scale = None;
         next_config.zip_path = request.zip_path.clone();
         next_config.psd_path_in_zip = request.psd_path_in_zip.clone();
         next_config.display_diff_path = request.display_diff_path.clone();

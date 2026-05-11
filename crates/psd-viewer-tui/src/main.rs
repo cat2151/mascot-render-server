@@ -230,7 +230,7 @@ fn run_app(
                         app.add_current_favorite()?;
                     }
                     _ if is_favorite_ensemble_toggle_key(&key) => {
-                        force_server_sync = app.toggle_favorite_ensemble_enabled()?;
+                        force_server_sync = app.toggle_favorite_ensemble_mode()?;
                     }
                     KeyCode::Up | KeyCode::Char('k') if key.modifiers == KeyModifiers::NONE => {
                         app.select_previous()?;

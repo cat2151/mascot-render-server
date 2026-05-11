@@ -17,8 +17,8 @@ pub struct ServerStatusSnapshot {
     pub configured_zip_path: PathBuf,
     pub configured_psd_path_in_zip: PathBuf,
     pub displayed_png_path: PathBuf,
-    pub favorite_ensemble_enabled: bool,
-    pub favorite_ensemble_loaded: bool,
+    pub ensemble_mode: ServerEnsembleMode,
+    pub ensemble_loaded: bool,
     pub scale: f32,
     pub motion: ServerMotionStatus,
     pub window: ServerWindowStatus,
@@ -64,7 +64,17 @@ pub enum ServerCommandKind {
     ChangeCharacter,
     PreviewTarget,
     Timeline,
-    DisableFavoriteEnsemble,
+    SetEnsembleMode,
+    SetVptEnsemble,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ServerEnsembleMode {
+    #[default]
+    SingleCharacter,
+    Favorite,
+    Vpt,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -173,6 +183,7 @@ pub enum PlacementTargetScope {
     CurrentPsd,
     CandidatePsdSet,
     FavoriteEnsemble,
+    VptEnsemble,
     Unknown,
 }
 
@@ -204,8 +215,8 @@ impl ServerStatusSnapshot {
             configured_zip_path,
             configured_psd_path_in_zip,
             displayed_png_path: configured_png_path,
-            favorite_ensemble_enabled: false,
-            favorite_ensemble_loaded: false,
+            ensemble_mode: ServerEnsembleMode::SingleCharacter,
+            ensemble_loaded: false,
             scale: 1.0,
             motion: ServerMotionStatus::default(),
             window: ServerWindowStatus::default(),

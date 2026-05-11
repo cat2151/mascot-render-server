@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use mascot_render_core::{
-    load_favorite_ensemble_enabled, load_mascot_config, mascot_runtime_state_path,
-    workspace_cache_root, AlwaysBendConfig, IdleSinkAnimationConfig, MascotConfig,
+    load_mascot_config, load_mascot_ensemble_mode, mascot_runtime_state_path, workspace_cache_root,
+    AlwaysBendConfig, IdleSinkAnimationConfig, MascotConfig, MascotEnsembleMode,
 };
 
 use crate::mascot_app::{
-    persist_favorite_ensemble_enabled_for_test, persist_requested_character_change_for_test,
+    persist_ensemble_mode_for_test, persist_requested_character_change_for_test,
     verify_persisted_character_change_for_test,
 };
 
@@ -26,14 +26,14 @@ fn sample_config() -> MascotConfig {
     MascotConfig {
         png_path: PathBuf::from("cache/demo/render.png"),
         scale: Some(0.42),
-        favorite_ensemble_scale: Some(0.8),
+        ensemble_scale: Some(0.8),
         zip_path: PathBuf::from("assets/zip/demo.zip"),
         psd_path_in_zip: PathBuf::from("demo/basic.psd"),
         display_diff_path: Some(PathBuf::from("cache/demo/variation.json")),
         ui_font_paths: Vec::new(),
         always_idle_sink_enabled: false,
         always_bend: AlwaysBendConfig::default(),
-        favorite_ensemble_enabled: false,
+        ensemble_mode: MascotEnsembleMode::SingleCharacter,
         bounce: Default::default(),
         squash_bounce: Default::default(),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
@@ -56,10 +56,7 @@ fn persist_requested_character_change_updates_runtime_state_source_paths() {
 
     assert_eq!(loaded.png_path, config.png_path);
     assert_eq!(loaded.scale, config.scale);
-    assert_eq!(
-        loaded.favorite_ensemble_scale,
-        config.favorite_ensemble_scale
-    );
+    assert_eq!(loaded.ensemble_scale, config.ensemble_scale);
     assert_eq!(loaded.zip_path, config.zip_path);
     assert_eq!(loaded.psd_path_in_zip, config.psd_path_in_zip);
     assert_eq!(loaded.display_diff_path, config.display_diff_path);
@@ -71,7 +68,7 @@ fn persist_requested_character_change_updates_runtime_state_source_paths() {
 }
 
 #[test]
-fn persist_favorite_ensemble_toggle_updates_static_config() {
+fn persist_ensemble_mode_updates_static_config() {
     let config_path = unique_test_config_path("toggle-ensemble");
     let runtime_state_path = mascot_runtime_state_path(&config_path);
     if let Some(parent) = config_path.parent() {
@@ -82,20 +79,30 @@ fn persist_favorite_ensemble_toggle_updates_static_config() {
     let config = sample_config();
     persist_requested_character_change_for_test(&config_path, &config)
         .expect("should seed runtime state");
-    assert!(!load_favorite_ensemble_enabled(&config_path).expect("config should load"));
-
-    persist_favorite_ensemble_enabled_for_test(&config_path, true)
-        .expect("should enable favorite ensemble");
-    assert!(load_favorite_ensemble_enabled(&config_path).expect("config should reload"));
-    assert!(
-        load_mascot_config(&config_path)
-            .expect("full config should reload")
-            .favorite_ensemble_enabled
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should load"),
+        MascotEnsembleMode::SingleCharacter
     );
 
-    persist_favorite_ensemble_enabled_for_test(&config_path, false)
+    persist_ensemble_mode_for_test(&config_path, MascotEnsembleMode::Favorite)
+        .expect("should enable favorite ensemble");
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should reload"),
+        MascotEnsembleMode::Favorite
+    );
+    assert_eq!(
+        load_mascot_config(&config_path)
+            .expect("full config should reload")
+            .ensemble_mode,
+        MascotEnsembleMode::Favorite
+    );
+
+    persist_ensemble_mode_for_test(&config_path, MascotEnsembleMode::SingleCharacter)
         .expect("should disable favorite ensemble");
-    assert!(!load_favorite_ensemble_enabled(&config_path).expect("config should reload"));
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should reload"),
+        MascotEnsembleMode::SingleCharacter
+    );
 
     if let Some(parent) = config_path.parent() {
         let _ = fs::remove_dir_all(parent);

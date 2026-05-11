@@ -2,6 +2,7 @@ use std::path::Path;
 
 use eframe::egui::Pos2;
 use mascot_render_control::log_server_info;
+use mascot_render_core::MascotEnsembleMode;
 use mascot_render_protocol::{PlacementAnchorPositions, PlacementMode, VisualSizePx};
 use mascot_render_server::anchored_inner_origin_for_kind;
 
@@ -17,7 +18,7 @@ pub(crate) fn scale_change_message(
     steps: i32,
     previous_scale: f32,
     next_scale: f32,
-    favorite_ensemble_enabled: bool,
+    ensemble_mode: MascotEnsembleMode,
     png_path: &Path,
 ) -> String {
     let (trigger_name, raw_scroll_delta_y) = match trigger {
@@ -30,7 +31,7 @@ pub(crate) fn scale_change_message(
         .map(|value| format!("{value:.3}"))
         .unwrap_or_else(|| "-".to_string());
     format!(
-        "trigger={trigger_name} action=change_scale scale変更を適用しました: steps={steps} previous_scale={} next_scale={} raw_scroll_delta_y={raw_scroll_delta_y} favorite_ensemble_enabled={favorite_ensemble_enabled} configured_png_path={}",
+        "trigger={trigger_name} action=change_scale scale変更を適用しました: steps={steps} previous_scale={} next_scale={} raw_scroll_delta_y={raw_scroll_delta_y} ensemble_mode={ensemble_mode:?} configured_png_path={}",
         scale_text(previous_scale),
         scale_text(next_scale),
         png_path.display()
@@ -213,7 +214,7 @@ impl MascotApp {
             steps,
             previous_scale,
             next_scale,
-            self.config.favorite_ensemble_enabled,
+            self.config.ensemble_mode,
             &self.config.png_path,
         ));
     }

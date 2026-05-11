@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn load_mascot_config_keeps_favorite_ensemble_enabled_while_psd_viewer_tui_is_active() {
+fn load_mascot_config_keeps_favorite_ensemble_mode_while_psd_viewer_tui_is_active() {
     let (config_path, activity_path) =
         seed_favorite_ensemble_config("test-mascot-active-psd-viewer-tui");
     fs::write(&activity_path, crate::unix_timestamp().to_string())
@@ -9,26 +9,38 @@ fn load_mascot_config_keeps_favorite_ensemble_enabled_while_psd_viewer_tui_is_ac
 
     let loaded = load_mascot_config(&config_path).expect("config should load");
 
-    assert!(loaded.favorite_ensemble_enabled);
+    assert_eq!(loaded.ensemble_mode, MascotEnsembleMode::Favorite);
 }
 
 #[test]
-fn favorite_ensemble_enabled_setting_can_be_toggled_in_static_config() {
+fn ensemble_mode_setting_can_be_toggled_in_static_config() {
     let (config_path, _activity_path) =
         seed_favorite_ensemble_config("test-mascot-toggle-favorite-ensemble");
 
-    assert!(load_favorite_ensemble_enabled(&config_path).expect("config should load"));
-
-    set_favorite_ensemble_enabled(&config_path, false).expect("should disable favorite ensemble");
-    assert!(!load_favorite_ensemble_enabled(&config_path).expect("config should reload"));
-    assert!(
-        !load_mascot_config(&config_path)
-            .expect("full config should reload")
-            .favorite_ensemble_enabled
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should load"),
+        MascotEnsembleMode::Favorite
     );
 
-    set_favorite_ensemble_enabled(&config_path, true).expect("should enable favorite ensemble");
-    assert!(load_favorite_ensemble_enabled(&config_path).expect("config should reload"));
+    set_mascot_ensemble_mode(&config_path, MascotEnsembleMode::SingleCharacter)
+        .expect("should disable ensemble mode");
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should reload"),
+        MascotEnsembleMode::SingleCharacter
+    );
+    assert_eq!(
+        load_mascot_config(&config_path)
+            .expect("full config should reload")
+            .ensemble_mode,
+        MascotEnsembleMode::SingleCharacter
+    );
+
+    set_mascot_ensemble_mode(&config_path, MascotEnsembleMode::Favorite)
+        .expect("should enable favorite ensemble");
+    assert_eq!(
+        load_mascot_ensemble_mode(&config_path).expect("config should reload"),
+        MascotEnsembleMode::Favorite
+    );
 }
 
 #[test]
@@ -47,6 +59,6 @@ fn load_mascot_config_ignores_psd_viewer_tui_heartbeat_when_favorite_ensemble_is
         let loaded = load_mascot_config(&config_path)
             .unwrap_or_else(|error| panic!("{label} heartbeat should be ignored: {error:#}"));
 
-        assert!(loaded.favorite_ensemble_enabled);
+        assert_eq!(loaded.ensemble_mode, MascotEnsembleMode::Favorite);
     }
 }

@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
 use crate::{
-    validate_motion_timeline_request, validate_preview_target_request, ChangeCharacterRequest,
-    MotionTimelineKind, MotionTimelineRequest, MotionTimelineStep, PreviewTargetRequest,
-    ServerCommandKind, ServerCommandStage, ServerCommandStatus, ServerLifecyclePhase,
-    ServerStatusSnapshot, ServerStatusStore, ServerWorkStatus,
+    validate_motion_timeline_request, validate_preview_target_request,
+    validate_vpt_ensemble_request, ChangeCharacterRequest, MotionTimelineKind,
+    MotionTimelineRequest, MotionTimelineStep, PreviewTargetRequest, ServerCommandKind,
+    ServerCommandStage, ServerCommandStatus, ServerLifecyclePhase, ServerStatusSnapshot,
+    ServerStatusStore, ServerWorkStatus, VptEnsembleRequest,
 };
 
 #[test]
@@ -51,6 +52,19 @@ fn preview_target_request_round_trips_as_json() {
 
     let json = serde_json::to_string(&request).expect("request should serialize");
     let decoded: PreviewTargetRequest =
+        serde_json::from_str(&json).expect("request should deserialize");
+
+    assert_eq!(decoded, request);
+}
+
+#[test]
+fn vpt_ensemble_request_round_trips_as_json() {
+    let request = VptEnsembleRequest {
+        character_names: vec!["ずんだもん".to_string(), "四国めたん".to_string()],
+    };
+
+    let json = serde_json::to_string(&request).expect("request should serialize");
+    let decoded: VptEnsembleRequest =
         serde_json::from_str(&json).expect("request should deserialize");
 
     assert_eq!(decoded, request);
@@ -134,6 +148,19 @@ fn validate_preview_target_request_rejects_non_positive_scale() {
 
     assert!(
         error.to_string().contains("greater than zero"),
+        "unexpected error: {error:#}"
+    );
+}
+
+#[test]
+fn validate_vpt_ensemble_request_rejects_empty_list() {
+    let error = validate_vpt_ensemble_request(&VptEnsembleRequest {
+        character_names: Vec::new(),
+    })
+    .expect_err("empty vpt ensemble list should be rejected");
+
+    assert!(
+        error.to_string().contains("at least one character"),
         "unexpected error: {error:#}"
     );
 }

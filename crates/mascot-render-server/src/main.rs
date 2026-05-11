@@ -68,7 +68,7 @@ use anyhow::{anyhow, Result};
 use cli::{parse_cli, CliAction};
 use eframe::egui;
 use eframe::NativeOptions;
-use favorite_ensemble::load_favorite_ensemble;
+use favorite_ensemble::load_active_ensemble;
 use mascot_app::{MascotApp, MascotAppStartup};
 use mascot_render_control::{
     init_server_log, log_server_error, log_server_info, start_mascot_control_server_with_notify,
@@ -117,11 +117,7 @@ fn main() -> Result<()> {
     let config = load_mascot_config(&config_path)?;
     let core = Core::new(CoreConfig::default());
     let psd_file_name_catalog = PsdFileNameCatalog::load_startup_fixed(&core)?;
-    let favorite_ensemble = if config.favorite_ensemble_enabled {
-        load_favorite_ensemble(&core)?
-    } else {
-        None
-    };
+    let favorite_ensemble = load_active_ensemble(&core, config.ensemble_mode)?;
     let status_store = ServerStatusStore::new(ServerStatusSnapshot::starting(
         config_path.clone(),
         mascot_runtime_state_path(&config_path),
@@ -131,7 +127,7 @@ fn main() -> Result<()> {
     ));
     let image = load_mascot_image(&config.png_path)?;
     let initial_window_layout = if let Some(favorite_ensemble) = &favorite_ensemble {
-        let scale = config.favorite_ensemble_scale.unwrap_or(1.0).max(0.01);
+        let scale = config.ensemble_scale.unwrap_or(1.0).max(0.01);
         let image_size = [
             favorite_ensemble.canvas_size[0].ceil().max(1.0) as u32,
             favorite_ensemble.canvas_size[1].ceil().max(1.0) as u32,

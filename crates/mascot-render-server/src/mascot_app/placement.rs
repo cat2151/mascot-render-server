@@ -335,7 +335,7 @@ impl MascotApp {
     }
 
     fn current_plan_targets(&self, ctx: &egui::Context) -> Vec<PlacementPlanTargetInput> {
-        if self.config.favorite_ensemble_enabled {
+        if self.config.ensemble_mode.is_ensemble() {
             if let Some(favorite_ensemble) = &self.favorite_ensemble {
                 let anchors = self.current_anchor_positions(ctx);
                 let bottom_center = anchor_position(anchors, PlacementAnchorKind::BottomCenter);
@@ -354,10 +354,14 @@ impl MascotApp {
     }
 
     fn current_target_scope(&self) -> PlacementTargetScope {
-        if self.config.favorite_ensemble_enabled {
-            PlacementTargetScope::FavoriteEnsemble
-        } else {
-            PlacementTargetScope::CurrentPsd
+        match self.config.ensemble_mode {
+            mascot_render_core::MascotEnsembleMode::SingleCharacter => {
+                PlacementTargetScope::CurrentPsd
+            }
+            mascot_render_core::MascotEnsembleMode::Favorite => {
+                PlacementTargetScope::FavoriteEnsemble
+            }
+            mascot_render_core::MascotEnsembleMode::Vpt => PlacementTargetScope::VptEnsemble,
         }
     }
 

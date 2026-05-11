@@ -115,7 +115,7 @@ impl FavoriteShufflePlaylist {
         now: Instant,
         now_unix_timestamp: u64,
     ) -> Result<bool> {
-        if current_config.favorite_ensemble_enabled {
+        if current_config.ensemble_mode.is_ensemble() {
             self.state
                 .finish_rotation(now, current_config_key(current_config));
             return Ok(false);
@@ -338,7 +338,7 @@ fn favorite_target(core: &Core, favorite: FavoriteEntry) -> Result<MascotTarget>
     Ok(MascotTarget {
         png_path: rendered.output_path,
         scale: favorite.mascot_scale,
-        favorite_ensemble_scale: None,
+        ensemble_scale: None,
         zip_path: favorite.zip_path,
         psd_path_in_zip: favorite.psd_path_in_zip,
         display_diff_path: None,

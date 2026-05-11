@@ -8,9 +8,10 @@ use std::time::Duration;
 use anyhow::{anyhow, Context, Result};
 use mascot_render_client::mascot_render_server_address;
 use mascot_render_protocol::{
-    validate_motion_timeline_request, validate_preview_target_request, ChangeCharacterRequest,
-    MotionTimelineRequest, PreviewTargetRequest, ServerCommandKind, ServerCommandStage,
-    ServerCommandStatus, ServerStatusStore,
+    validate_motion_timeline_request, validate_preview_target_request,
+    validate_vpt_ensemble_request, ChangeCharacterRequest, MotionTimelineRequest,
+    PreviewTargetRequest, ServerCommandKind, ServerCommandStage, ServerCommandStatus,
+    ServerEnsembleMode, ServerStatusStore, VptEnsembleRequest,
 };
 use serde::Serialize;
 
@@ -18,8 +19,8 @@ use self::http_protocol::{
     canonical_path, read_http_request, write_http_response, HttpRequest, HttpResponse,
 };
 use crate::command::{
-    change_character_summary, disable_favorite_ensemble_summary, preview_target_summary,
-    timeline_summary, ControlCommandCompletion, ControlCommandWaitError, MascotControlCommand,
+    change_character_summary, preview_target_summary, set_ensemble_mode_summary, timeline_summary,
+    vpt_ensemble_summary, ControlCommandCompletion, ControlCommandWaitError, MascotControlCommand,
 };
 use crate::logging::{log_control_error, log_control_info};
 
@@ -322,25 +323,55 @@ fn route_request(
             ));
             Ok(response)
         }
-        ("POST", "/favorite-ensemble/disable") => {
+        ("POST", "/ensemble-mode/single-character") => {
+            let mode = ServerEnsembleMode::SingleCharacter;
             let status = ServerCommandStatus::queued(
-                ServerCommandKind::DisableFavoriteEnsemble,
-                disable_favorite_ensemble_summary(),
+                ServerCommandKind::SetEnsembleMode,
+                set_ensemble_mode_summary(mode),
             );
             let response = enqueue_apply_command(
                 peer,
-                "disable_favorite_ensemble",
+                "set_ensemble_mode",
                 command_tx,
                 status_store,
                 notify,
                 |completion| {
-                    MascotControlCommand::disable_favorite_ensemble_with_completion(
-                        completion, status,
+                    MascotControlCommand::set_ensemble_mode_with_completion(
+                        mode, completion, status,
                     )
                 },
             )?;
             log_control_info(format!(
-                "event=control_request stage=applied peer={peer} action=disable_favorite_ensemble"
+                "event=control_request stage=applied peer={peer} action=set_ensemble_mode mode={mode:?}"
+            ));
+            Ok(response)
+        }
+        ("POST", "/vpt-ensemble") => {
+            let request: VptEnsembleRequest = serde_json::from_slice(&request.body)
+                .context("failed to parse mascot vpt ensemble request JSON")?;
+            validate_vpt_ensemble_request(&request)?;
+            let status = ServerCommandStatus::queued(
+                ServerCommandKind::SetVptEnsemble,
+                vpt_ensemble_summary(&request),
+            );
+            log_request_payload(peer, "set_vpt_ensemble", &request);
+            let response = enqueue_apply_command(
+                peer,
+                "set_vpt_ensemble",
+                command_tx,
+                status_store,
+                notify,
+                |completion| {
+                    MascotControlCommand::set_vpt_ensemble_with_completion(
+                        request.clone(),
+                        completion,
+                        status,
+                    )
+                },
+            )?;
+            log_control_info(format!(
+                "event=control_request stage=applied peer={peer} action=set_vpt_ensemble character_count={}",
+                request.character_names.len()
             ));
             Ok(response)
         }

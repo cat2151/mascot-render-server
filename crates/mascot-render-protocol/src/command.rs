@@ -8,6 +8,11 @@ pub struct ChangeCharacterRequest {
     pub character_name: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VptEnsembleRequest {
+    pub character_names: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PreviewTargetRequest {
     pub png_path: PathBuf,
@@ -56,6 +61,19 @@ pub fn validate_motion_timeline_request(request: &MotionTimelineRequest) -> Resu
         MotionTimelineKind::Shake => Ok(()),
         MotionTimelineKind::MouthFlap => Ok(()),
     }
+}
+
+pub fn validate_vpt_ensemble_request(request: &VptEnsembleRequest) -> Result<()> {
+    if request.character_names.is_empty() {
+        bail!("vpt ensemble character_names must contain at least one character");
+    }
+
+    for (index, character_name) in request.character_names.iter().enumerate() {
+        if character_name.trim().is_empty() {
+            bail!("vpt ensemble character_names[{index}] must not be empty");
+        }
+    }
+    Ok(())
 }
 
 pub fn validate_preview_target_request(request: &PreviewTargetRequest) -> Result<()> {
