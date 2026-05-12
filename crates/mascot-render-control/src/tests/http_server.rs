@@ -92,6 +92,7 @@ fn mascot_control_server_accepts_show_hide_change_character_and_timeline() {
             duration_ms: 5_000,
             fps: 20,
         }],
+        target_character_name: None,
     };
     let timeline_request = {
         let timeline = timeline.clone();
@@ -116,6 +117,7 @@ fn mascot_control_server_accepts_show_hide_change_character_and_timeline() {
             duration_ms: 5_000,
             fps: 20,
         }],
+        target_character_name: None,
     };
     let mouth_flap_request = {
         let mouth_flap_timeline = mouth_flap_timeline.clone();

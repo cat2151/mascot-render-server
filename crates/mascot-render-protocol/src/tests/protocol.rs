@@ -30,6 +30,7 @@ fn motion_timeline_request_round_trips_as_json() {
                 duration_ms: 5_000,
                 fps: 20,
             }],
+            target_character_name: Some("ずんだもん".to_string()),
         };
 
         let json = serde_json::to_string(&request).expect("request should serialize");
@@ -38,6 +39,25 @@ fn motion_timeline_request_round_trips_as_json() {
 
         assert_eq!(decoded, request);
     }
+}
+
+#[test]
+fn motion_timeline_request_omits_missing_target_character_name() {
+    let request = MotionTimelineRequest {
+        steps: vec![MotionTimelineStep {
+            kind: MotionTimelineKind::MouthFlap,
+            duration_ms: 5_000,
+            fps: 20,
+        }],
+        target_character_name: None,
+    };
+
+    let json = serde_json::to_value(&request).expect("request should serialize");
+
+    assert!(
+        json.get("target_character_name").is_none(),
+        "target_character_name should only be serialized when present: {json}"
+    );
 }
 
 #[test]
@@ -72,7 +92,10 @@ fn vpt_ensemble_request_round_trips_as_json() {
 
 #[test]
 fn validate_motion_timeline_request_rejects_empty_timeline() {
-    let request = MotionTimelineRequest { steps: vec![] };
+    let request = MotionTimelineRequest {
+        steps: vec![],
+        target_character_name: None,
+    };
 
     let error = validate_motion_timeline_request(&request)
         .expect_err("empty motion timeline should be rejected");
@@ -91,6 +114,7 @@ fn validate_motion_timeline_request_rejects_zero_duration() {
             duration_ms: 0,
             fps: 20,
         }],
+        target_character_name: None,
     };
 
     let error = validate_motion_timeline_request(&request)
@@ -112,6 +136,7 @@ fn validate_motion_timeline_request_accepts_single_step() {
             duration_ms: 5_000,
             fps: 20,
         }],
+        target_character_name: None,
     };
 
     validate_motion_timeline_request(&request)

@@ -164,6 +164,7 @@ pub(crate) fn shake_timeline_request() -> MotionTimelineRequest {
             duration_ms: TEST_SHAKE_DURATION_MS,
             fps: TEST_TIMELINE_FPS,
         }],
+        target_character_name: None,
     }
 }
 

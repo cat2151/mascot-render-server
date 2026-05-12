@@ -39,6 +39,8 @@ pub struct MotionTimelineStep {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MotionTimelineRequest {
     pub steps: Vec<MotionTimelineStep>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_character_name: Option<String>,
 }
 
 pub fn validate_motion_timeline_request(request: &MotionTimelineRequest) -> Result<()> {

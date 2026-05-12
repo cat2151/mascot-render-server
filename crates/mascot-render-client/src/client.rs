@@ -63,6 +63,13 @@ pub fn set_vpt_ensemble_mascot_render_server(character_names: &[String]) -> Resu
     set_vpt_ensemble_mascot_render_server_at(mascot_render_server_address(), character_names)
 }
 
+pub fn set_vpt_ensemble_members_mascot_render_server(character_names: &[String]) -> Result<()> {
+    set_vpt_ensemble_members_mascot_render_server_at(
+        mascot_render_server_address(),
+        character_names,
+    )
+}
+
 pub fn preview_mouth_flap_timeline_request() -> MotionTimelineRequest {
     MotionTimelineRequest {
         steps: vec![MotionTimelineStep {
@@ -70,6 +77,7 @@ pub fn preview_mouth_flap_timeline_request() -> MotionTimelineRequest {
             duration_ms: PREVIEW_MOUTH_FLAP_DURATION_MS,
             fps: PREVIEW_MOUTH_FLAP_FPS,
         }],
+        target_character_name: None,
     }
 }
 
@@ -161,6 +169,24 @@ pub fn set_vpt_ensemble_mascot_render_server_at(
     })
     .context("failed to serialize mascot vpt ensemble request")?;
     send_http_request(address, "POST", "/vpt-ensemble", Some(&body), APPLY_TIMEOUT).map(|_| ())
+}
+
+pub fn set_vpt_ensemble_members_mascot_render_server_at(
+    address: SocketAddr,
+    character_names: &[String],
+) -> Result<()> {
+    let body = serde_json::to_vec(&VptEnsembleRequest {
+        character_names: character_names.to_vec(),
+    })
+    .context("failed to serialize mascot vpt ensemble members request")?;
+    send_http_request(
+        address,
+        "POST",
+        "/vpt-ensemble/members",
+        Some(&body),
+        APPLY_TIMEOUT,
+    )
+    .map(|_| ())
 }
 
 pub fn wait_for_mascot_render_server_healthcheck_at(

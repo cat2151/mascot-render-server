@@ -114,6 +114,7 @@ fn pending_performance_trace_ignores_non_texture_timeline() {
             duration_ms: 900,
             fps: 20,
         }],
+        target_character_name: None,
     });
 
     assert!(

@@ -53,6 +53,11 @@ pub enum MascotControlCommand {
         completion: Option<ControlCommandCompletion>,
         status: ServerCommandStatus,
     },
+    SetVptEnsembleMembers {
+        request: VptEnsembleRequest,
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
+    },
     PlayTimeline {
         request: MotionTimelineRequest,
         completion: Option<ControlCommandCompletion>,
@@ -116,6 +121,15 @@ impl MascotControlCommand {
         )
     }
 
+    pub fn set_vpt_ensemble_members(request: VptEnsembleRequest) -> Self {
+        let summary = vpt_ensemble_summary(&request);
+        Self::set_vpt_ensemble_members_with_status(
+            request,
+            None,
+            ServerCommandStatus::queued(ServerCommandKind::SetVptEnsembleMembers, summary),
+        )
+    }
+
     pub(crate) fn show_with_status(status: ServerCommandStatus) -> Self {
         Self::Show { status }
     }
@@ -162,6 +176,14 @@ impl MascotControlCommand {
         status: ServerCommandStatus,
     ) -> Self {
         Self::set_vpt_ensemble_with_status(request, Some(completion), status)
+    }
+
+    pub(crate) fn set_vpt_ensemble_members_with_completion(
+        request: VptEnsembleRequest,
+        completion: ControlCommandCompletion,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::set_vpt_ensemble_members_with_status(request, Some(completion), status)
     }
 
     fn change_character_with_status(
@@ -224,6 +246,18 @@ impl MascotControlCommand {
         }
     }
 
+    fn set_vpt_ensemble_members_with_status(
+        request: VptEnsembleRequest,
+        completion: Option<ControlCommandCompletion>,
+        status: ServerCommandStatus,
+    ) -> Self {
+        Self::SetVptEnsembleMembers {
+            request,
+            completion,
+            status,
+        }
+    }
+
     pub fn status(&self) -> &ServerCommandStatus {
         match self {
             Self::Show { status }
@@ -232,6 +266,7 @@ impl MascotControlCommand {
             | Self::PreviewTarget { status, .. }
             | Self::SetEnsembleMode { status, .. }
             | Self::SetVptEnsemble { status, .. }
+            | Self::SetVptEnsembleMembers { status, .. }
             | Self::PlayTimeline { status, .. } => status,
         }
     }
@@ -254,6 +289,10 @@ impl MascotControlCommand {
                 completion: Some(completion),
                 ..
             }
+            | Self::SetVptEnsembleMembers {
+                completion: Some(completion),
+                ..
+            }
             | Self::PlayTimeline {
                 completion: Some(completion),
                 ..
@@ -270,6 +309,9 @@ impl MascotControlCommand {
                 completion: None, ..
             }
             | Self::SetVptEnsemble {
+                completion: None, ..
+            }
+            | Self::SetVptEnsembleMembers {
                 completion: None, ..
             }
             | Self::PlayTimeline {
@@ -308,6 +350,10 @@ impl PartialEq for MascotControlCommand {
             (
                 Self::SetVptEnsemble { request: left, .. },
                 Self::SetVptEnsemble { request: right, .. },
+            ) => left == right,
+            (
+                Self::SetVptEnsembleMembers { request: left, .. },
+                Self::SetVptEnsembleMembers { request: right, .. },
             ) => left == right,
             _ => false,
         }
@@ -372,8 +418,9 @@ pub(crate) fn timeline_summary(request: &MotionTimelineRequest) -> String {
     let Some(step) = request.steps.first() else {
         return "timeline steps=0".to_string();
     };
+    let target = request.target_character_name.as_deref().unwrap_or("-");
     format!(
-        "{:?} duration_ms={} fps={}",
+        "{:?} duration_ms={} fps={} target_character_name={target}",
         step.kind, step.duration_ms, step.fps
     )
 }

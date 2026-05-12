@@ -8,10 +8,9 @@ use std::time::Duration;
 use anyhow::{anyhow, Context, Result};
 use mascot_render_client::mascot_render_server_address;
 use mascot_render_protocol::{
-    validate_motion_timeline_request, validate_preview_target_request,
-    validate_vpt_ensemble_request, ChangeCharacterRequest, MotionTimelineRequest,
-    PreviewTargetRequest, ServerCommandKind, ServerCommandStage, ServerCommandStatus,
-    ServerEnsembleMode, ServerStatusStore, VptEnsembleRequest,
+    validate_motion_timeline_request, validate_preview_target_request, ChangeCharacterRequest,
+    MotionTimelineRequest, PreviewTargetRequest, ServerCommandKind, ServerCommandStage,
+    ServerCommandStatus, ServerEnsembleMode, ServerStatusStore,
 };
 use serde::Serialize;
 
@@ -20,7 +19,7 @@ use self::http_protocol::{
 };
 use crate::command::{
     change_character_summary, preview_target_summary, set_ensemble_mode_summary, timeline_summary,
-    vpt_ensemble_summary, ControlCommandCompletion, ControlCommandWaitError, MascotControlCommand,
+    ControlCommandCompletion, ControlCommandWaitError, MascotControlCommand,
 };
 use crate::logging::{log_control_error, log_control_info};
 
@@ -30,6 +29,7 @@ const APPLY_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
 type PsdFileNamesLoader = dyn Fn() -> Result<Vec<String>> + Send + Sync;
 
 mod http_protocol;
+mod vpt_ensemble;
 
 pub fn start_mascot_control_server(
     command_tx: Sender<MascotControlCommand>,
@@ -346,35 +346,20 @@ fn route_request(
             ));
             Ok(response)
         }
-        ("POST", "/vpt-ensemble") => {
-            let request: VptEnsembleRequest = serde_json::from_slice(&request.body)
-                .context("failed to parse mascot vpt ensemble request JSON")?;
-            validate_vpt_ensemble_request(&request)?;
-            let status = ServerCommandStatus::queued(
-                ServerCommandKind::SetVptEnsemble,
-                vpt_ensemble_summary(&request),
-            );
-            log_request_payload(peer, "set_vpt_ensemble", &request);
-            let response = enqueue_apply_command(
-                peer,
-                "set_vpt_ensemble",
-                command_tx,
-                status_store,
-                notify,
-                |completion| {
-                    MascotControlCommand::set_vpt_ensemble_with_completion(
-                        request.clone(),
-                        completion,
-                        status,
-                    )
-                },
-            )?;
-            log_control_info(format!(
-                "event=control_request stage=applied peer={peer} action=set_vpt_ensemble character_count={}",
-                request.character_names.len()
-            ));
-            Ok(response)
-        }
+        ("POST", "/vpt-ensemble") => vpt_ensemble::route_set_vpt_ensemble(
+            peer,
+            &request.body,
+            command_tx,
+            status_store,
+            notify,
+        ),
+        ("POST", "/vpt-ensemble/members") => vpt_ensemble::route_set_vpt_ensemble_members(
+            peer,
+            &request.body,
+            command_tx,
+            status_store,
+            notify,
+        ),
         _ => Ok(HttpResponse::not_found("not found")),
     }
 }

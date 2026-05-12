@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use eframe::egui;
@@ -92,6 +92,20 @@ impl MascotApp {
             }
             MascotControlCommand::PlayTimeline { request, .. } => {
                 let timeline_summary = super::config::describe_motion_timeline_request(request);
+                let now = Instant::now();
+                if let Some(target_character_name) = request.target_character_name.as_deref() {
+                    if self.apply_targeted_mouth_flap_timeline(
+                        request,
+                        target_character_name,
+                        now,
+                    ) {
+                        log_server_info(format!(
+                            "trigger=control_command action=timeline {}",
+                            timeline_summary
+                        ));
+                        return Ok(());
+                    }
+                }
                 if request_contains_mouth_flap(request) {
                     let refresh_started_at = Instant::now();
                     self.ensure_mouth_flap_skins_for_timeline(ctx)
@@ -110,7 +124,7 @@ impl MascotApp {
                 let result = apply_motion_timeline_request(
                     &mut self.motion,
                     self.window_layout,
-                    Instant::now(),
+                    now,
                     request.clone(),
                 )
                 .with_context(|| {
@@ -136,7 +150,53 @@ impl MascotApp {
             MascotControlCommand::SetVptEnsemble { request, .. } => {
                 self.set_vpt_ensemble(ctx, request)
             }
+            MascotControlCommand::SetVptEnsembleMembers { request, .. } => {
+                self.set_vpt_ensemble_members(ctx, request)
+            }
         }
+    }
+
+    fn apply_targeted_mouth_flap_timeline(
+        &mut self,
+        request: &MotionTimelineRequest,
+        target_character_name: &str,
+        now: Instant,
+    ) -> bool {
+        let Some(step) = request.steps.first() else {
+            return false;
+        };
+        if step.kind != MotionTimelineKind::MouthFlap {
+            return false;
+        }
+
+        let Some(favorite_ensemble) = self.favorite_ensemble.as_mut() else {
+            log_server_info(format!(
+                "trigger=control_command action=timeline target_character_name={} result=noop reason=vpt_member_not_found ensemble_mode={:?} member_count=0",
+                target_character_name,
+                self.config.ensemble_mode
+            ));
+            return true;
+        };
+        let member_count = favorite_ensemble.members.len();
+        let triggered = favorite_ensemble.trigger_mouth_flap_for_character(
+            target_character_name,
+            now,
+            Duration::from_millis(step.duration_ms),
+            step.fps,
+        );
+        if triggered {
+            log_server_info(format!(
+                "trigger=control_command action=timeline target_character_name={} result=targeted_mouth_flap member_count={member_count}",
+                target_character_name
+            ));
+        } else {
+            log_server_info(format!(
+                "trigger=control_command action=timeline target_character_name={} result=noop reason=vpt_member_not_found ensemble_mode={:?} member_count={member_count}",
+                target_character_name,
+                self.config.ensemble_mode
+            ));
+        }
+        true
     }
 
     fn ensure_mouth_flap_skins_for_timeline(&mut self, ctx: &egui::Context) -> Result<()> {

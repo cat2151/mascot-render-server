@@ -403,6 +403,7 @@ fn command_kind_text(kind: ServerCommandKind) -> &'static str {
         ServerCommandKind::Timeline => "timeline",
         ServerCommandKind::SetEnsembleMode => "set_ensemble_mode",
         ServerCommandKind::SetVptEnsemble => "set_vpt_ensemble",
+        ServerCommandKind::SetVptEnsembleMembers => "set_vpt_ensemble_members",
     }
 }
 

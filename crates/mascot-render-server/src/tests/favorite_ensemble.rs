@@ -95,6 +95,7 @@ window_position = [10.0, 20.0]
     "#;
     let updates = vec![
         FavoriteEnsembleEntry {
+            character_name: None,
             zip_path: PathBuf::from("/workspace/a.zip"),
             psd_path_in_zip: PathBuf::from("a/body.psd"),
             psd_file_name: "body.psd".to_string(),
@@ -106,6 +107,7 @@ window_position = [10.0, 20.0]
             favorite_ensemble_position: Some([999.0, 999.0]),
         },
         FavoriteEnsembleEntry {
+            character_name: None,
             zip_path: PathBuf::from("/workspace/b.zip"),
             psd_path_in_zip: PathBuf::from("b/face.psd"),
             psd_file_name: "face.psd".to_string(),
@@ -207,6 +209,7 @@ fn favorite_ensemble_member_eye_blink_seeds_are_distinct_per_member() {
 fn favorite_ensemble_sanitize_deduplicates_equivalent_visibility_overrides() {
     let sanitized = sanitize_favorites_for_test(vec![
         FavoriteEnsembleEntry {
+            character_name: None,
             zip_path: PathBuf::from("dummy-a.zip"),
             psd_path_in_zip: PathBuf::from("dummy/body.psd"),
             psd_file_name: "body.psd".to_string(),
@@ -224,6 +227,7 @@ fn favorite_ensemble_sanitize_deduplicates_equivalent_visibility_overrides() {
             favorite_ensemble_position: Some([10.0, 20.0]),
         },
         FavoriteEnsembleEntry {
+            character_name: None,
             zip_path: PathBuf::from("dummy-a.zip"),
             psd_path_in_zip: PathBuf::from("dummy/body.psd"),
             psd_file_name: "body.psd".to_string(),
@@ -249,6 +253,7 @@ fn favorite_ensemble_sanitize_deduplicates_equivalent_visibility_overrides() {
 
 fn sample_favorite_entry(mascot_scale: Option<f32>) -> FavoriteEnsembleEntry {
     FavoriteEnsembleEntry {
+        character_name: None,
         zip_path: PathBuf::from("dummy-a.zip"),
         psd_path_in_zip: PathBuf::from("dummy/body.psd"),
         psd_file_name: "body.psd".to_string(),

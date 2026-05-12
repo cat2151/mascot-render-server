@@ -16,6 +16,7 @@ use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 use crate::favorite_ensemble::{FavoriteEnsemble, FavoriteEnsembleMember};
 
 pub(super) struct FavoriteEnsembleMemberScene {
+    pub(super) character_name: Option<String>,
     pub(super) zip_path: PathBuf,
     pub(super) psd_path_in_zip: PathBuf,
     pub(super) origin: Pos2,
@@ -99,6 +100,24 @@ impl FavoriteEnsembleScene {
         }
     }
 
+    pub(super) fn trigger_mouth_flap_for_character(
+        &mut self,
+        character_name: &str,
+        now: Instant,
+        duration: Duration,
+        fps: u16,
+    ) -> bool {
+        let Some(member) = self
+            .members
+            .iter_mut()
+            .find(|member| member.character_name() == Some(character_name))
+        else {
+            return false;
+        };
+        member.motion.trigger_mouth_flap(now, duration, fps);
+        true
+    }
+
     pub(super) fn repaint_after(
         &mut self,
         now: Instant,
@@ -147,6 +166,7 @@ fn member_scene_from_loaded(
     let mut motion = MotionState::new_with_idle_phase_offset(phase_offset_ratio);
     motion.set_always_idle_sink_enabled(always_idle_sink_enabled, now);
     FavoriteEnsembleMemberScene {
+        character_name: member.character_name,
         zip_path: member.zip_path,
         psd_path_in_zip: member.psd_path_in_zip,
         origin: Pos2::new(member.canvas_position[0], member.canvas_position[1]),
@@ -167,6 +187,10 @@ fn member_scene_from_loaded(
 }
 
 impl FavoriteEnsembleMemberScene {
+    pub(super) fn character_name(&self) -> Option<&str> {
+        self.character_name.as_deref()
+    }
+
     fn placement_plan_target(
         &self,
         inner_origin: Pos2,
@@ -278,6 +302,34 @@ mod tests {
         assert_eq!(targets[1].bottom_right_anchor_offset, [30.0, 20.0]);
     }
 
+    #[test]
+    fn favorite_ensemble_triggers_mouth_flap_for_named_member_only() {
+        let ctx = egui::Context::default();
+        let mut first = member("a.zip", "a.psd", [0.0, 0.0], [10.0, 20.0]);
+        first.character_name = Some("ずんだもん".to_string());
+        let mut second = member("b.zip", "b.psd", [10.0, 0.0], [20.0, 20.0]);
+        second.character_name = Some("四国めたん".to_string());
+        let mut scene = FavoriteEnsembleScene::from_loaded(
+            &ctx,
+            FavoriteEnsemble {
+                canvas_size: [30.0, 20.0],
+                members: vec![first, second],
+            },
+            false,
+            Instant::now(),
+        );
+
+        assert!(scene.trigger_mouth_flap_for_character(
+            "四国めたん",
+            Instant::now(),
+            Duration::from_secs(1),
+            4,
+        ));
+
+        assert!(!scene.members[0].motion.is_active());
+        assert!(scene.members[1].motion.is_active());
+    }
+
     fn member(
         zip_path: &str,
         psd_path_in_zip: &str,
@@ -285,6 +337,7 @@ mod tests {
         base_size: [f32; 2],
     ) -> FavoriteEnsembleMember {
         FavoriteEnsembleMember {
+            character_name: None,
             zip_path: PathBuf::from(zip_path),
             psd_path_in_zip: PathBuf::from(psd_path_in_zip),
             image: image(zip_path, base_size),

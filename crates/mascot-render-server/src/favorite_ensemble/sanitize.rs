@@ -17,6 +17,7 @@ pub(super) fn sanitize_favorites(
                 .map(|name| name.to_string_lossy().into_owned())
                 .unwrap_or_else(|| favorite.psd_path_in_zip.display().to_string());
         }
+        favorite.character_name = sanitize_character_name(favorite.character_name);
         favorite.mascot_scale = sanitize_scale(favorite.mascot_scale);
         favorite.favorite_ensemble_position =
             sanitize_position(favorite.favorite_ensemble_position);
@@ -47,6 +48,13 @@ fn same_favorite_identity(left: &FavoriteEnsembleEntry, right: &FavoriteEnsemble
 
 fn sanitize_scale(scale: Option<f32>) -> Option<f32> {
     scale.filter(|value| value.is_finite() && *value > 0.0)
+}
+
+fn sanitize_character_name(character_name: Option<String>) -> Option<String> {
+    character_name.and_then(|name| {
+        let trimmed = name.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    })
 }
 
 fn sanitize_position(position: Option<[f32; 2]>) -> Option<[f32; 2]> {

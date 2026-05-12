@@ -28,6 +28,8 @@ const FAVORITE_ENSEMBLE_CONTENT_BOUNDS_ALPHA_THRESHOLD: u8 = 1;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub(crate) struct FavoriteEnsembleEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) character_name: Option<String>,
     pub(crate) zip_path: PathBuf,
     pub(crate) psd_path_in_zip: PathBuf,
     #[serde(default)]
@@ -49,6 +51,7 @@ pub(crate) struct FavoriteEnsembleLayoutEntry {
 
 #[derive(Debug)]
 pub(crate) struct FavoriteEnsembleMember {
+    pub(crate) character_name: Option<String>,
     pub(crate) zip_path: PathBuf,
     pub(crate) psd_path_in_zip: PathBuf,
     pub(crate) image: MascotImageData,
@@ -394,6 +397,7 @@ fn build_favorite_ensemble(rendered: Vec<RenderedFavorite>) -> FavoriteEnsemble 
                     .favorite_ensemble_position
                     .unwrap_or([0.0, 0.0]);
                 FavoriteEnsembleMember {
+                    character_name: favorite.entry.character_name,
                     zip_path: favorite.entry.zip_path,
                     psd_path_in_zip: favorite.entry.psd_path_in_zip,
                     canvas_position: [x - min_x, y - min_y],

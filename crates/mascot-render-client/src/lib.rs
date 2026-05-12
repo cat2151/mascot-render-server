@@ -16,7 +16,8 @@ pub use client::{
     preview_mouth_flap_timeline_request, preview_target_mascot_render_server,
     preview_target_mascot_render_server_at, set_single_character_mode_mascot_render_server,
     set_single_character_mode_mascot_render_server_at, set_vpt_ensemble_mascot_render_server,
-    set_vpt_ensemble_mascot_render_server_at, show_mascot_render_server,
+    set_vpt_ensemble_mascot_render_server_at, set_vpt_ensemble_members_mascot_render_server,
+    set_vpt_ensemble_members_mascot_render_server_at, show_mascot_render_server,
     show_mascot_render_server_at, wait_for_mascot_render_server_healthcheck_at,
     MASCOT_RENDER_SERVER_PORT, PREVIEW_MOUTH_FLAP_DURATION_MS, PREVIEW_MOUTH_FLAP_FPS,
 };

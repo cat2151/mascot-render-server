@@ -352,6 +352,7 @@ fn performance_action(command: &MascotControlCommand) -> Option<&'static str> {
         MascotControlCommand::PreviewTarget { .. } => Some("preview_target"),
         MascotControlCommand::SetEnsembleMode { .. } => Some("set_ensemble_mode"),
         MascotControlCommand::SetVptEnsemble { .. } => Some("set_vpt_ensemble"),
+        MascotControlCommand::SetVptEnsembleMembers { .. } => Some("set_vpt_ensemble_members"),
         MascotControlCommand::PlayTimeline { request, .. }
             if request
                 .steps

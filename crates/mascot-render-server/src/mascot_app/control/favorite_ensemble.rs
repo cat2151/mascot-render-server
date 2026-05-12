@@ -7,8 +7,9 @@ use mascot_render_protocol::{ServerEnsembleMode, VptEnsembleRequest};
 use super::super::character::{resolve_character_skin, ResolvedCharacterSkin};
 use super::super::persistence::persist_ensemble_mode;
 use super::super::MascotApp;
+use crate::app_support::path_modified_at;
 use crate::favorite_ensemble::{
-    load_vpt_ensemble_entries, save_vpt_ensemble, FavoriteEnsembleEntry,
+    load_vpt_ensemble_entries, save_vpt_ensemble, vpt_ensemble_path, FavoriteEnsembleEntry,
 };
 
 impl MascotApp {
@@ -28,9 +29,32 @@ impl MascotApp {
     ) -> Result<()> {
         let entries = self.resolve_vpt_ensemble_entries(request)?;
         save_vpt_ensemble(&entries).context("failed to save vpt ensemble entries")?;
-        self.apply_ensemble_mode(ctx, MascotEnsembleMode::Vpt, "control_command")?;
+        if self.config.ensemble_mode == MascotEnsembleMode::Vpt {
+            self.reload_vpt_ensemble_scene(ctx)?;
+        } else {
+            self.apply_ensemble_mode(ctx, MascotEnsembleMode::Vpt, "control_command")?;
+        }
         log_server_info(format!(
             "trigger=control_command action=set_vpt_ensemble result=applied character_count={} entry_count={}",
+            request.character_names.len(),
+            entries.len()
+        ));
+        Ok(())
+    }
+
+    pub(super) fn set_vpt_ensemble_members(
+        &mut self,
+        ctx: &egui::Context,
+        request: &VptEnsembleRequest,
+    ) -> Result<()> {
+        let entries = self.resolve_vpt_ensemble_entries(request)?;
+        save_vpt_ensemble(&entries).context("failed to save vpt ensemble entries")?;
+        let display_reloaded = self.config.ensemble_mode == MascotEnsembleMode::Vpt;
+        if display_reloaded {
+            self.reload_vpt_ensemble_scene(ctx)?;
+        }
+        log_server_info(format!(
+            "trigger=control_command action=set_vpt_ensemble_members result=applied character_count={} entry_count={} display_reloaded={display_reloaded}",
             request.character_names.len(),
             entries.len()
         ));
@@ -112,6 +136,16 @@ impl MascotApp {
         }
         Ok(entries)
     }
+
+    fn reload_vpt_ensemble_scene(&mut self, ctx: &egui::Context) -> Result<()> {
+        let previous_layout = self.window_layout;
+        self.favorite_ensemble = self.load_active_ensemble_scene(ctx)?;
+        self.favorite_ensemble_modified_at = path_modified_at(&vpt_ensemble_path());
+        let diagnostics = self.refresh_window_layout(ctx, previous_layout);
+        self.log_refresh_window_layout("control_command", diagnostics);
+        ctx.request_repaint();
+        Ok(())
+    }
 }
 
 fn core_ensemble_mode(mode: ServerEnsembleMode) -> MascotEnsembleMode {
@@ -130,6 +164,7 @@ fn vpt_entry_from_resolved(
         entry.zip_path == resolved.zip_path && entry.psd_path_in_zip == resolved.psd_path_in_zip
     });
     FavoriteEnsembleEntry {
+        character_name: Some(resolved.character_name.clone()),
         zip_path: resolved.zip_path.clone(),
         psd_path_in_zip: resolved.psd_path_in_zip.clone(),
         psd_file_name: resolved

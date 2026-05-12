@@ -17,6 +17,7 @@ pub(super) struct ReloadInputs {
 pub(super) fn describe_motion_timeline_request(request: &MotionTimelineRequest) -> String {
     let mut shake_steps = 0usize;
     let mut mouth_flap_steps = 0usize;
+    let target = request.target_character_name.as_deref().unwrap_or("-");
 
     for step in &request.steps {
         match step.kind {
@@ -27,19 +28,19 @@ pub(super) fn describe_motion_timeline_request(request: &MotionTimelineRequest) 
 
     if mouth_flap_steps > 0 && shake_steps == 0 {
         format!(
-            "口パクしました: steps={} mouth_flap_steps={}",
+            "口パクしました: steps={} mouth_flap_steps={} target_character_name={target}",
             request.steps.len(),
             mouth_flap_steps
         )
     } else if shake_steps > 0 && mouth_flap_steps == 0 {
         format!(
-            "揺れモーションを開始しました: steps={} shake_steps={}",
+            "揺れモーションを開始しました: steps={} shake_steps={} target_character_name={target}",
             request.steps.len(),
             shake_steps
         )
     } else {
         format!(
-            "モーションタイムラインを開始しました: steps={} shake_steps={} mouth_flap_steps={}",
+            "モーションタイムラインを開始しました: steps={} shake_steps={} mouth_flap_steps={} target_character_name={target}",
             request.steps.len(),
             shake_steps,
             mouth_flap_steps

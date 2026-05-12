@@ -66,6 +66,7 @@ pub enum ServerCommandKind {
     Timeline,
     SetEnsembleMode,
     SetVptEnsemble,
+    SetVptEnsembleMembers,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

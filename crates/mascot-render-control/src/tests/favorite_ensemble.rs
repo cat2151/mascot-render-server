@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use mascot_render_client::{
     mascot_render_server_healthcheck_at, set_single_character_mode_mascot_render_server_at,
-    set_vpt_ensemble_mascot_render_server_at,
+    set_vpt_ensemble_mascot_render_server_at, set_vpt_ensemble_members_mascot_render_server_at,
 };
 use mascot_render_protocol::{
     ServerCommandKind, ServerCommandStage, ServerEnsembleMode, ServerStatusSnapshot,
@@ -83,6 +83,48 @@ fn mascot_control_server_accepts_set_vpt_ensemble() {
         .join()
         .expect("set vpt ensemble request thread should complete")
         .expect("set vpt ensemble request should succeed");
+}
+
+#[test]
+fn mascot_control_server_accepts_set_vpt_ensemble_members() {
+    let (tx, rx) = mpsc::channel();
+    let status_store = test_status_store();
+    let (address, _handle) = start_mascot_control_server_on(
+        SocketAddr::from(([127, 0, 0, 1], 0)),
+        tx,
+        status_store.clone(),
+        empty_psd_file_names,
+    )
+    .expect("should start mascot control server");
+    wait_for_healthcheck(address);
+
+    let character_names = vec!["ずんだもん".to_string(), "四国めたん".to_string()];
+    let request_thread = {
+        let character_names = character_names.clone();
+        thread::spawn(move || {
+            set_vpt_ensemble_members_mascot_render_server_at(address, &character_names)
+        })
+    };
+    let command = rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("set vpt ensemble members command should arrive");
+
+    assert_eq!(
+        command,
+        MascotControlCommand::set_vpt_ensemble_members(VptEnsembleRequest { character_names })
+    );
+    let status = status_store.snapshot().expect("status should be readable");
+    let current = status
+        .current_command
+        .expect("set vpt ensemble members should be current command");
+    assert_eq!(current.kind, ServerCommandKind::SetVptEnsembleMembers);
+    assert_eq!(current.stage, ServerCommandStage::Queued);
+
+    command.finish(Ok(()));
+    request_thread
+        .join()
+        .expect("set vpt ensemble members request thread should complete")
+        .expect("set vpt ensemble members request should succeed");
 }
 
 #[test]

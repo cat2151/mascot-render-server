@@ -86,5 +86,6 @@ fn shake_timeline_request() -> MotionTimelineRequest {
             duration_ms: SHAKE_DURATION_MS,
             fps: SHAKE_FPS,
         }],
+        target_character_name: None,
     }
 }
