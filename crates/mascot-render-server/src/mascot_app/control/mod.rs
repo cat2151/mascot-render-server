@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use eframe::egui;
 use mascot_render_control::{log_server_info, MascotControlCommand};
-use mascot_render_core::MascotConfig;
+use mascot_render_core::{MascotConfig, MascotEnsembleMode};
 use mascot_render_protocol::{MotionTimelineKind, MotionTimelineRequest};
 use mascot_render_server::apply_motion_timeline_request;
 
@@ -168,6 +168,9 @@ impl MascotApp {
         if step.kind != MotionTimelineKind::MouthFlap {
             return false;
         }
+        if !should_consume_targeted_mouth_flap_timeline(request, self.config.ensemble_mode) {
+            return false;
+        }
 
         let Some(favorite_ensemble) = self.favorite_ensemble.as_mut() else {
             log_server_info(format!(
@@ -220,6 +223,26 @@ fn request_contains_mouth_flap(request: &MotionTimelineRequest) -> bool {
         .steps
         .iter()
         .any(|step| step.kind == MotionTimelineKind::MouthFlap)
+}
+
+fn should_consume_targeted_mouth_flap_timeline(
+    request: &MotionTimelineRequest,
+    ensemble_mode: MascotEnsembleMode,
+) -> bool {
+    request.target_character_name.is_some()
+        && matches!(ensemble_mode, MascotEnsembleMode::Vpt)
+        && request
+            .steps
+            .first()
+            .is_some_and(|step| step.kind == MotionTimelineKind::MouthFlap)
+}
+
+#[cfg(test)]
+pub(crate) fn should_consume_targeted_mouth_flap_timeline_for_test(
+    request: &MotionTimelineRequest,
+    ensemble_mode: MascotEnsembleMode,
+) -> bool {
+    should_consume_targeted_mouth_flap_timeline(request, ensemble_mode)
 }
 
 fn elapsed_ms_since(started_at: Instant) -> u64 {

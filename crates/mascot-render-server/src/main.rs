@@ -28,6 +28,9 @@ mod cli_tests;
 #[path = "tests/context_menu_shortcut.rs"]
 mod context_menu_shortcut_tests;
 #[cfg(test)]
+#[path = "tests/control.rs"]
+mod control_tests;
+#[cfg(test)]
 #[path = "tests/favorite_ensemble.rs"]
 mod favorite_ensemble_tests;
 #[cfg(test)]

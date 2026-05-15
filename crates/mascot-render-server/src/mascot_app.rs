@@ -74,6 +74,8 @@ pub(crate) use context_menu_shortcut::{
     placement_context_menu_action_for_key_for_test, PlacementContextMenuAction,
 };
 #[cfg(test)]
+pub(crate) use control::should_consume_targeted_mouth_flap_timeline_for_test;
+#[cfg(test)]
 pub(crate) use ensemble::member_phase_offset_ratio;
 use ensemble::FavoriteEnsembleScene;
 #[cfg(test)]
