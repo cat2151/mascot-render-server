@@ -10,12 +10,13 @@ use mascot_render_core::{
 use mascot_render_protocol::VisualSizePx;
 use mascot_render_server::{AlphaBounds, PlacementPlanTargetInput};
 
+use super::mouth_flap_state::{active_skin_state, ActiveSkinState};
 use crate::app_support::{cached_skin_from_image, CachedSkin};
+use crate::ensemble::{Ensemble, EnsembleMember};
 use crate::eye_blink::EyeBlinkLoop;
 use crate::eye_blink_timing::always_idle_sink_for_blink_median;
-use crate::favorite_ensemble::{FavoriteEnsemble, FavoriteEnsembleMember};
 
-pub(super) struct FavoriteEnsembleMemberScene {
+pub(super) struct EnsembleMemberScene {
     pub(super) character_name: Option<String>,
     pub(super) zip_path: PathBuf,
     pub(super) psd_path_in_zip: PathBuf,
@@ -23,20 +24,22 @@ pub(super) struct FavoriteEnsembleMemberScene {
     pub(super) base_size: Vec2,
     pub(super) open_skin: CachedSkin,
     pub(super) closed_skin: Option<CachedSkin>,
+    mouth_open_skin: Option<CachedSkin>,
+    mouth_closed_skin: Option<CachedSkin>,
     pub(super) motion: MotionState,
     pub(super) eye_blink: EyeBlinkLoop,
     pub(super) phase_offset_ratio: f32,
 }
 
-pub(super) struct FavoriteEnsembleScene {
-    pub(super) members: Vec<FavoriteEnsembleMemberScene>,
+pub(super) struct EnsembleScene {
+    pub(super) members: Vec<EnsembleMemberScene>,
     canvas_size: Vec2,
 }
 
-impl FavoriteEnsembleScene {
+impl EnsembleScene {
     pub(super) fn from_loaded(
         ctx: &egui::Context,
-        ensemble: FavoriteEnsemble,
+        ensemble: Ensemble,
         always_idle_sink_enabled: bool,
         now: Instant,
     ) -> Self {
@@ -118,6 +121,18 @@ impl FavoriteEnsembleScene {
         true
     }
 
+    pub(super) fn mouth_flap_is_open(&mut self, now: Instant) -> Option<bool> {
+        let mut any_closed = false;
+        for member in &mut self.members {
+            match member.mouth_flap_is_open(now) {
+                Some(true) => return Some(true),
+                Some(false) => any_closed = true,
+                None => {}
+            }
+        }
+        any_closed.then_some(false)
+    }
+
     pub(super) fn repaint_after(
         &mut self,
         now: Instant,
@@ -156,16 +171,16 @@ impl FavoriteEnsembleScene {
 
 fn member_scene_from_loaded(
     ctx: &egui::Context,
-    member: FavoriteEnsembleMember,
+    member: EnsembleMember,
     always_idle_sink_enabled: bool,
     now: Instant,
     member_index: usize,
     member_count: usize,
-) -> FavoriteEnsembleMemberScene {
+) -> EnsembleMemberScene {
     let phase_offset_ratio = member_phase_offset_ratio(member_index, member_count);
     let mut motion = MotionState::new_with_idle_phase_offset(phase_offset_ratio);
     motion.set_always_idle_sink_enabled(always_idle_sink_enabled, now);
-    FavoriteEnsembleMemberScene {
+    EnsembleMemberScene {
         character_name: member.character_name,
         zip_path: member.zip_path,
         psd_path_in_zip: member.psd_path_in_zip,
@@ -174,6 +189,14 @@ fn member_scene_from_loaded(
         open_skin: cached_skin_from_image(ctx, &member.image),
         closed_skin: member
             .closed_image
+            .as_ref()
+            .map(|image| cached_skin_from_image(ctx, image)),
+        mouth_open_skin: member
+            .mouth_open_image
+            .as_ref()
+            .map(|image| cached_skin_from_image(ctx, image)),
+        mouth_closed_skin: member
+            .mouth_closed_image
             .as_ref()
             .map(|image| cached_skin_from_image(ctx, image)),
         motion,
@@ -186,9 +209,35 @@ fn member_scene_from_loaded(
     }
 }
 
-impl FavoriteEnsembleMemberScene {
+impl EnsembleMemberScene {
     pub(super) fn character_name(&self) -> Option<&str> {
         self.character_name.as_deref()
+    }
+
+    pub(super) fn active_skin(&mut self, blink_closed: bool, now: Instant) -> &CachedSkin {
+        match active_skin_state(
+            self.has_mouth_flap_skin(),
+            &mut self.motion,
+            blink_closed,
+            now,
+        ) {
+            ActiveSkinState::MouthOpen => self.mouth_open_skin.as_ref().unwrap_or(&self.open_skin),
+            ActiveSkinState::MouthClosed => {
+                self.mouth_closed_skin.as_ref().unwrap_or(&self.open_skin)
+            }
+            ActiveSkinState::BlinkClosed => self.closed_skin.as_ref().unwrap_or(&self.open_skin),
+            ActiveSkinState::Open => &self.open_skin,
+        }
+    }
+
+    fn has_mouth_flap_skin(&self) -> bool {
+        self.mouth_open_skin.is_some() || self.mouth_closed_skin.is_some()
+    }
+
+    fn mouth_flap_is_open(&mut self, now: Instant) -> Option<bool> {
+        self.has_mouth_flap_skin()
+            .then(|| self.motion.mouth_flap_is_open(now))
+            .flatten()
     }
 
     fn placement_plan_target(
@@ -277,11 +326,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn favorite_ensemble_plan_targets_include_each_member_source_key() {
+    fn ensemble_plan_targets_include_each_member_source_key() {
         let ctx = egui::Context::default();
-        let scene = FavoriteEnsembleScene::from_loaded(
+        let scene = EnsembleScene::from_loaded(
             &ctx,
-            FavoriteEnsemble {
+            Ensemble {
                 canvas_size: [30.0, 20.0],
                 members: vec![
                     member("a.zip", "a.psd", [0.0, 0.0], [10.0, 20.0]),
@@ -303,15 +352,15 @@ mod tests {
     }
 
     #[test]
-    fn favorite_ensemble_triggers_mouth_flap_for_named_member_only() {
+    fn ensemble_triggers_mouth_flap_for_named_member_only() {
         let ctx = egui::Context::default();
         let mut first = member("a.zip", "a.psd", [0.0, 0.0], [10.0, 20.0]);
         first.character_name = Some("ずんだもん".to_string());
         let mut second = member("b.zip", "b.psd", [10.0, 0.0], [20.0, 20.0]);
         second.character_name = Some("四国めたん".to_string());
-        let mut scene = FavoriteEnsembleScene::from_loaded(
+        let mut scene = EnsembleScene::from_loaded(
             &ctx,
-            FavoriteEnsemble {
+            Ensemble {
                 canvas_size: [30.0, 20.0],
                 members: vec![first, second],
             },
@@ -330,18 +379,62 @@ mod tests {
         assert!(scene.members[1].motion.is_active());
     }
 
+    #[test]
+    fn ensemble_member_active_skin_prefers_mouth_flap_over_blink() {
+        let ctx = egui::Context::default();
+        let mut member = member("a.zip", "a.psd", [0.0, 0.0], [10.0, 20.0]);
+        member.closed_image = Some(image("blink-closed", [10.0, 20.0]));
+        member.mouth_open_image = Some(image("mouth-open", [10.0, 20.0]));
+        member.mouth_closed_image = Some(image("mouth-closed", [10.0, 20.0]));
+        let now = Instant::now();
+        let mut scene = EnsembleScene::from_loaded(
+            &ctx,
+            Ensemble {
+                canvas_size: [10.0, 20.0],
+                members: vec![member],
+            },
+            false,
+            now,
+        );
+
+        scene.members[0]
+            .motion
+            .trigger_mouth_flap(now, Duration::from_secs(1), 4);
+
+        assert_eq!(
+            scene.members[0].active_skin(true, now).path.clone(),
+            PathBuf::from("mouth-open.png")
+        );
+        assert_eq!(
+            scene.members[0]
+                .active_skin(true, now + Duration::from_millis(250))
+                .path
+                .clone(),
+            PathBuf::from("mouth-closed.png")
+        );
+        assert_eq!(
+            scene.members[0]
+                .active_skin(true, now + Duration::from_secs(1))
+                .path
+                .clone(),
+            PathBuf::from("blink-closed.png")
+        );
+    }
+
     fn member(
         zip_path: &str,
         psd_path_in_zip: &str,
         canvas_position: [f32; 2],
         base_size: [f32; 2],
-    ) -> FavoriteEnsembleMember {
-        FavoriteEnsembleMember {
+    ) -> EnsembleMember {
+        EnsembleMember {
             character_name: None,
             zip_path: PathBuf::from(zip_path),
             psd_path_in_zip: PathBuf::from(psd_path_in_zip),
             image: image(zip_path, base_size),
             closed_image: None,
+            mouth_open_image: None,
+            mouth_closed_image: None,
             base_size,
             canvas_position,
         }

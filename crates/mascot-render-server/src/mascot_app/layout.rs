@@ -45,9 +45,9 @@ impl MascotApp {
     ) -> RefreshWindowLayoutDiagnostics {
         let viewport_info = current_viewport_info(ctx);
         let selected_anchor_kind = self.placement_state.selected_anchor_kind;
-        self.window_layout = if let Some(favorite_ensemble) = &self.favorite_ensemble {
-            self.base_size = favorite_ensemble.scaled_canvas_size(self.scale);
-            ensemble_window_layout(self.base_size, favorite_ensemble.image_size(), &self.config)
+        self.window_layout = if let Some(ensemble_scene) = &self.ensemble_scene {
+            self.base_size = ensemble_scene.scaled_canvas_size(self.scale);
+            ensemble_window_layout(self.base_size, ensemble_scene.image_size(), &self.config)
         } else {
             let content_bounds = self.window_content_bounds();
             MascotWindowLayout::new(
@@ -91,8 +91,8 @@ impl MascotApp {
     }
 
     pub(super) fn window_content_bounds(&self) -> AlphaBounds {
-        if let Some(favorite_ensemble) = &self.favorite_ensemble {
-            return favorite_ensemble.content_bounds();
+        if let Some(ensemble_scene) = &self.ensemble_scene {
+            return ensemble_scene.content_bounds();
         }
         let mut bounds = self.open_skin.content_bounds;
         if let Some(closed_skin) = &self.closed_skin {

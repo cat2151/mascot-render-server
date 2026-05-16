@@ -14,7 +14,8 @@ use crate::eye_blink_timing::always_idle_sink_for_blink_median;
 
 use super::{
     click_interaction_hit_test, keyboard_scale_steps, logging::ScaleChangeTrigger,
-    scroll_scale_steps, should_log_rendered_skin, should_refresh_auxiliary_skins_now, MascotApp,
+    mouth_flap_state::mouth_flap_skin_state, scroll_scale_steps, should_log_rendered_skin,
+    should_refresh_auxiliary_skins_now, MascotApp,
 };
 
 impl App for MascotApp {
@@ -105,8 +106,8 @@ impl App for MascotApp {
             self.config.always_idle_sink,
             self.eye_blink.current_median_ms(),
         );
-        if self.favorite_ensemble.is_some() {
-            // favorite ensemble では単一の表示 PNG を表せないため、単体 skin 用の重複抑止状態を戻す。
+        if self.ensemble_scene.is_some() {
+            // ensemble では単一の表示 PNG を表せないため、単体 skin 用の重複抑止状態を戻す。
             self.clear_last_logged_skin_path();
             self.transparent_hit_test
                 .update(TransparentHitTestUpdate { now });
@@ -118,11 +119,11 @@ impl App for MascotApp {
                 .to_vec2();
             let scale = self.scale.max(0.01);
             let response = {
-                let favorite_ensemble = self
-                    .favorite_ensemble
+                let ensemble_scene = self
+                    .ensemble_scene
                     .as_mut()
-                    .expect("favorite_ensemble checked above");
-                egui::Area::new("favorite-ensemble".into())
+                    .expect("ensemble_scene checked above");
+                egui::Area::new("ensemble-scene".into())
                     .fixed_pos(Pos2::ZERO)
                     .show(ctx, |ui| {
                         ui.set_min_size(self.window_layout.window_size());
@@ -133,7 +134,7 @@ impl App for MascotApp {
                         let pointer_pos = response.interact_pointer_pos();
                         let mut handled_click = false;
 
-                        for member in favorite_ensemble.members.iter_mut() {
+                        for member in ensemble_scene.members.iter_mut() {
                             let blink_closed =
                                 member.closed_skin.is_some() && member.eye_blink.is_closed(now);
                             let always_idle_sink = always_idle_sink_for_blink_median(
@@ -151,17 +152,14 @@ impl App for MascotApp {
                             let image_rect =
                                 transformed_image_rect(member_base_size, member_transform)
                                     .translate(member_origin);
-                            let active_skin = if blink_closed {
-                                member.closed_skin.as_ref().unwrap_or(&member.open_skin)
-                            } else {
-                                &member.open_skin
-                            };
+                            let phase_offset_ratio = member.phase_offset_ratio;
+                            let active_skin = member.active_skin(blink_closed, now);
 
                             if let Some(bend_transform) =
                                 self.config.always_bend.enabled.then(|| {
                                     always_bend::sample_always_bend(
                                         now - self.always_bend_started_at,
-                                        member.phase_offset_ratio,
+                                        phase_offset_ratio,
                                         image_rect,
                                         self.config.always_bend,
                                     )
@@ -221,16 +219,20 @@ impl App for MascotApp {
                 self.record_and_log_status_error(format!("{error:#}"));
             }
 
+            let ensemble_mouth_flap_open = self
+                .ensemble_scene
+                .as_mut()
+                .and_then(|ensemble_scene| ensemble_scene.mouth_flap_is_open(now));
             self.refresh_status_snapshot(
                 ctx,
                 self.config.png_path.clone(),
                 blink_closed,
-                mouth_flap_open,
+                ensemble_mouth_flap_open,
             );
             let repaint_after = self
-                .favorite_ensemble
+                .ensemble_scene
                 .as_mut()
-                .expect("favorite_ensemble should still exist")
+                .expect("ensemble_scene should still exist")
                 .repaint_after(
                     now,
                     self.config.bounce,
@@ -420,23 +422,4 @@ impl MascotApp {
         self.record_status_error(message.clone());
         log_server_error(message);
     }
-}
-
-fn mouth_flap_skin_state(
-    has_mouth_flap_skin: bool,
-    motion: &mut super::MotionState,
-    now: Instant,
-) -> Option<bool> {
-    has_mouth_flap_skin
-        .then(|| motion.mouth_flap_is_open(now))
-        .flatten()
-}
-
-#[cfg(test)]
-pub(crate) fn mouth_flap_skin_state_for_test(
-    has_mouth_flap_skin: bool,
-    motion: &mut super::MotionState,
-    now: Instant,
-) -> Option<bool> {
-    mouth_flap_skin_state(has_mouth_flap_skin, motion, now)
 }

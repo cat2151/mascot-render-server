@@ -1,39 +1,34 @@
-use super::FavoriteEnsembleEntry;
+use super::EnsembleEntry;
 
-pub(super) fn sanitize_favorites(
-    favorites: Vec<FavoriteEnsembleEntry>,
-) -> Vec<FavoriteEnsembleEntry> {
+pub(super) fn sanitize_ensemble_entries(entries: Vec<EnsembleEntry>) -> Vec<EnsembleEntry> {
     let mut sanitized = Vec::new();
-    for mut favorite in favorites {
-        if favorite.zip_path.as_os_str().is_empty()
-            || favorite.psd_path_in_zip.as_os_str().is_empty()
-        {
+    for mut entry in entries {
+        if entry.zip_path.as_os_str().is_empty() || entry.psd_path_in_zip.as_os_str().is_empty() {
             continue;
         }
-        if favorite.psd_file_name.is_empty() {
-            favorite.psd_file_name = favorite
+        if entry.psd_file_name.is_empty() {
+            entry.psd_file_name = entry
                 .psd_path_in_zip
                 .file_name()
                 .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_else(|| favorite.psd_path_in_zip.display().to_string());
+                .unwrap_or_else(|| entry.psd_path_in_zip.display().to_string());
         }
-        favorite.character_name = sanitize_character_name(favorite.character_name);
-        favorite.mascot_scale = sanitize_scale(favorite.mascot_scale);
-        favorite.favorite_ensemble_position =
-            sanitize_position(favorite.favorite_ensemble_position);
+        entry.character_name = sanitize_character_name(entry.character_name);
+        entry.mascot_scale = sanitize_scale(entry.mascot_scale);
+        entry.favorite_ensemble_position = sanitize_position(entry.favorite_ensemble_position);
         if let Some(index) = sanitized
             .iter()
-            .position(|saved: &FavoriteEnsembleEntry| same_favorite_identity(saved, &favorite))
+            .position(|saved: &EnsembleEntry| same_ensemble_entry_identity(saved, &entry))
         {
-            sanitized[index] = favorite;
+            sanitized[index] = entry;
         } else {
-            sanitized.push(favorite);
+            sanitized.push(entry);
         }
     }
     sanitized
 }
 
-fn same_favorite_identity(left: &FavoriteEnsembleEntry, right: &FavoriteEnsembleEntry) -> bool {
+fn same_ensemble_entry_identity(left: &EnsembleEntry, right: &EnsembleEntry) -> bool {
     left.zip_path == right.zip_path
         && left.psd_path_in_zip == right.psd_path_in_zip
         && left.visibility_overrides.len() == right.visibility_overrides.len()
@@ -62,8 +57,8 @@ fn sanitize_position(position: Option<[f32; 2]>) -> Option<[f32; 2]> {
 }
 
 #[cfg(test)]
-pub(crate) fn sanitize_favorites_for_test(
-    favorites: Vec<FavoriteEnsembleEntry>,
-) -> Vec<FavoriteEnsembleEntry> {
-    sanitize_favorites(favorites)
+pub(crate) fn sanitize_ensemble_entries_for_test(
+    entries: Vec<EnsembleEntry>,
+) -> Vec<EnsembleEntry> {
+    sanitize_ensemble_entries(entries)
 }

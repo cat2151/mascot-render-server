@@ -4,31 +4,27 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use super::sanitize::sanitize_favorites;
-use super::FavoriteEnsembleEntry;
+use super::sanitize::sanitize_ensemble_entries;
+use super::EnsembleEntry;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(default, deny_unknown_fields)]
-struct FavoritesFile {
-    favorites: Vec<FavoriteEnsembleEntry>,
+struct EnsembleFile {
+    favorites: Vec<EnsembleEntry>,
 }
 
-pub(crate) fn load_favorites(path: &Path) -> Result<Vec<FavoriteEnsembleEntry>> {
+pub(crate) fn load_ensemble_entries(path: &Path) -> Result<Vec<EnsembleEntry>> {
     if !path.exists() {
         return Ok(Vec::new());
     }
 
-    let bytes = fs::read_to_string(path).with_context(|| {
-        format!(
-            "failed to read favorite ensemble entries {}",
-            path.display()
-        )
-    })?;
-    match toml::from_str::<FavoritesFile>(&bytes) {
-        Ok(file) => Ok(sanitize_favorites(file.favorites)),
+    let bytes = fs::read_to_string(path)
+        .with_context(|| format!("failed to read ensemble entries {}", path.display()))?;
+    match toml::from_str::<EnsembleFile>(&bytes) {
+        Ok(file) => Ok(sanitize_ensemble_entries(file.favorites)),
         Err(error) => {
             eprintln!(
-                "favorite ensemble ignored invalid favorites cache {}: {error:#}",
+                "ensemble ignored invalid entries cache {}: {error:#}",
                 path.display()
             );
             Ok(Vec::new())
@@ -36,46 +32,30 @@ pub(crate) fn load_favorites(path: &Path) -> Result<Vec<FavoriteEnsembleEntry>> 
     }
 }
 
-pub(crate) fn write_favorites(path: &Path, favorites: &[FavoriteEnsembleEntry]) -> Result<()> {
+pub(crate) fn write_ensemble_entries(path: &Path, entries: &[EnsembleEntry]) -> Result<()> {
     if let Some(parent) = path.parent().filter(|path| !path.as_os_str().is_empty()) {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
     }
-    let file = FavoritesFile {
-        favorites: favorites.to_vec(),
+    let file = EnsembleFile {
+        favorites: entries.to_vec(),
     };
-    let toml =
-        toml::to_string_pretty(&file).context("failed to serialize favorite ensemble entries")?;
-    fs::write(path, toml).with_context(|| {
-        format!(
-            "failed to write favorite ensemble entries {}",
-            path.display()
-        )
-    })
+    let toml = toml::to_string_pretty(&file).context("failed to serialize ensemble entries")?;
+    fs::write(path, toml)
+        .with_context(|| format!("failed to write ensemble entries {}", path.display()))
 }
 
-pub(crate) fn patch_favorite_ensemble_positions(
-    path: &Path,
-    updates: &[FavoriteEnsembleEntry],
-) -> Result<()> {
-    let raw = fs::read_to_string(path).with_context(|| {
-        format!(
-            "failed to read favorite ensemble entries {}",
-            path.display()
-        )
-    })?;
-    let patched = patch_favorite_ensemble_positions_toml(&raw, updates)?;
-    fs::write(path, patched).with_context(|| {
-        format!(
-            "failed to write favorite ensemble entries {}",
-            path.display()
-        )
-    })
+pub(crate) fn patch_ensemble_positions(path: &Path, updates: &[EnsembleEntry]) -> Result<()> {
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("failed to read ensemble entries {}", path.display()))?;
+    let patched = patch_ensemble_positions_toml(&raw, updates)?;
+    fs::write(path, patched)
+        .with_context(|| format!("failed to write ensemble entries {}", path.display()))
 }
 
-pub(crate) fn patch_favorite_ensemble_positions_toml(
+pub(crate) fn patch_ensemble_positions_toml(
     raw: &str,
-    updates: &[FavoriteEnsembleEntry],
+    updates: &[EnsembleEntry],
 ) -> Result<String> {
     let mut value = toml::from_str::<toml::Value>(raw)
         .context("failed to parse favorites TOML while patching ensemble positions")?;
@@ -116,7 +96,7 @@ pub(crate) fn patch_favorite_ensemble_positions_toml(
     toml::to_string_pretty(&value).context("failed to serialize patched favorites TOML")
 }
 
-fn favorite_entry_matches_update(value: &toml::Value, update: &FavoriteEnsembleEntry) -> bool {
+fn favorite_entry_matches_update(value: &toml::Value, update: &EnsembleEntry) -> bool {
     let Some(table) = value.as_table() else {
         return false;
     };
@@ -152,7 +132,7 @@ fn table_visibility_overrides(value: Option<&toml::Value>) -> Vec<(usize, bool)>
                         Ok(layer_index) => layer_index,
                         Err(_) => {
                             eprintln!(
-                                "favorite ensemble ignored invalid layer_index {} while matching visibility_overrides",
+                                "ensemble ignored invalid layer_index {} while matching visibility_overrides",
                                 layer_index_value
                             );
                             return None;

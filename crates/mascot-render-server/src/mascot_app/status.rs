@@ -69,7 +69,7 @@ impl MascotApp {
             snapshot.configured_psd_path_in_zip = self.config.psd_path_in_zip.clone();
             snapshot.displayed_png_path = displayed_png_path.clone();
             snapshot.ensemble_mode = server_ensemble_mode(self.config.ensemble_mode);
-            snapshot.ensemble_loaded = self.favorite_ensemble.is_some();
+            snapshot.ensemble_loaded = self.ensemble_scene.is_some();
             snapshot.scale = self.scale;
             snapshot.motion = ServerMotionStatus {
                 active: self.motion.is_active(),

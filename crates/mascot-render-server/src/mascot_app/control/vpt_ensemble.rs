@@ -1,27 +1,17 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use eframe::egui;
 use mascot_render_control::log_server_info;
 use mascot_render_core::{LayerVisibilityOverride, MascotEnsembleMode};
-use mascot_render_protocol::{ServerEnsembleMode, VptEnsembleRequest};
+use mascot_render_protocol::VptEnsembleRequest;
 
 use super::super::character::{resolve_character_skin, ResolvedCharacterSkin};
-use super::super::persistence::persist_ensemble_mode;
 use super::super::MascotApp;
 use crate::app_support::path_modified_at;
-use crate::favorite_ensemble::{
-    load_vpt_ensemble_entries, save_vpt_ensemble, vpt_ensemble_path, FavoriteEnsembleEntry,
+use crate::ensemble::{
+    load_vpt_ensemble_entries, save_vpt_ensemble, vpt_ensemble_path, EnsembleEntry,
 };
 
 impl MascotApp {
-    pub(super) fn set_ensemble_mode_from_control(
-        &mut self,
-        ctx: &egui::Context,
-        mode: ServerEnsembleMode,
-    ) -> Result<()> {
-        let mode = core_ensemble_mode(mode);
-        self.apply_ensemble_mode(ctx, mode, "control_command")
-    }
-
     pub(super) fn set_vpt_ensemble(
         &mut self,
         ctx: &egui::Context,
@@ -61,55 +51,10 @@ impl MascotApp {
         Ok(())
     }
 
-    pub(in crate::mascot_app) fn apply_ensemble_mode(
-        &mut self,
-        ctx: &egui::Context,
-        mode: MascotEnsembleMode,
-        trigger: &str,
-    ) -> Result<()> {
-        let previous_mode = self.config.ensemble_mode;
-        if previous_mode == mode {
-            return Ok(());
-        }
-
-        log_server_info(format!(
-            "trigger={trigger} action=set_ensemble_mode previous_mode={previous_mode:?} requested_mode={mode:?} 適用を開始しました: config_path={}",
-            self.config_path.display()
-        ));
-        persist_ensemble_mode(&self.config_path, mode).with_context(|| {
-            format!(
-                "failed to persist ensemble mode {mode:?} to {}",
-                self.config_path.display()
-            )
-        })?;
-        self.config_modified_at = None;
-        self.reload_config_if_needed(ctx).with_context(|| {
-            format!(
-                "failed to apply ensemble mode {mode:?} from {}",
-                self.config_path.display()
-            )
-        })?;
-
-        if self.config.ensemble_mode != mode {
-            bail!(
-                "ensemble_mode remained {:?} after setting {:?} via {}",
-                self.config.ensemble_mode,
-                mode,
-                self.config_path.display()
-            );
-        }
-
-        log_server_info(format!(
-            "trigger={trigger} action=set_ensemble_mode result=applied previous_mode={previous_mode:?} mode={mode:?} config_path={}",
-            self.config_path.display()
-        ));
-        Ok(())
-    }
-
     fn resolve_vpt_ensemble_entries(
         &mut self,
         request: &VptEnsembleRequest,
-    ) -> Result<Vec<FavoriteEnsembleEntry>> {
+    ) -> Result<Vec<EnsembleEntry>> {
         let saved_entries = load_vpt_ensemble_entries().unwrap_or_else(|error| {
             log_server_info(format!(
                 "trigger=control_command action=set_vpt_ensemble stage=load_saved_positions result=ignored error={error:#}"
@@ -139,8 +84,8 @@ impl MascotApp {
 
     fn reload_vpt_ensemble_scene(&mut self, ctx: &egui::Context) -> Result<()> {
         let previous_layout = self.window_layout;
-        self.favorite_ensemble = self.load_active_ensemble_scene(ctx)?;
-        self.favorite_ensemble_modified_at = path_modified_at(&vpt_ensemble_path());
+        self.ensemble_scene = self.load_active_ensemble_scene(ctx)?;
+        self.ensemble_modified_at = path_modified_at(&vpt_ensemble_path());
         let diagnostics = self.refresh_window_layout(ctx, previous_layout);
         self.log_refresh_window_layout("control_command", diagnostics);
         ctx.request_repaint();
@@ -148,22 +93,14 @@ impl MascotApp {
     }
 }
 
-fn core_ensemble_mode(mode: ServerEnsembleMode) -> MascotEnsembleMode {
-    match mode {
-        ServerEnsembleMode::SingleCharacter => MascotEnsembleMode::SingleCharacter,
-        ServerEnsembleMode::Favorite => MascotEnsembleMode::Favorite,
-        ServerEnsembleMode::Vpt => MascotEnsembleMode::Vpt,
-    }
-}
-
 fn vpt_entry_from_resolved(
     resolved: &ResolvedCharacterSkin,
-    saved_entries: &[FavoriteEnsembleEntry],
-) -> FavoriteEnsembleEntry {
+    saved_entries: &[EnsembleEntry],
+) -> EnsembleEntry {
     let saved = saved_entries.iter().find(|entry| {
         entry.zip_path == resolved.zip_path && entry.psd_path_in_zip == resolved.psd_path_in_zip
     });
-    FavoriteEnsembleEntry {
+    EnsembleEntry {
         character_name: Some(resolved.character_name.clone()),
         zip_path: resolved.zip_path.clone(),
         psd_path_in_zip: resolved.psd_path_in_zip.clone(),

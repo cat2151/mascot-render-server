@@ -19,8 +19,7 @@ impl MascotApp {
         let next_config_modified_at = path_modified_at(&self.config_path);
         let next_runtime_state_modified_at = path_modified_at(&self.runtime_state_path);
         let ensemble_path = active_ensemble_path(self.config.ensemble_mode);
-        let next_favorite_ensemble_modified_at =
-            ensemble_path.as_deref().and_then(path_modified_at);
+        let next_ensemble_modified_at = ensemble_path.as_deref().and_then(path_modified_at);
         let next_psd_viewer_tui_activity_modified_at =
             path_modified_at(&psd_viewer_tui_activity_path(&self.config_path));
         let current_history_path = window_history_path(&self.config);
@@ -29,14 +28,14 @@ impl MascotApp {
             ReloadInputs {
                 config_modified_at: self.config_modified_at,
                 runtime_state_modified_at: self.runtime_state_modified_at,
-                favorite_ensemble_modified_at: self.favorite_ensemble_modified_at,
+                ensemble_modified_at: self.ensemble_modified_at,
                 psd_viewer_tui_activity_modified_at: self.psd_viewer_tui_activity_modified_at,
                 window_history_modified_at: self.window_history_modified_at,
             },
             ReloadInputs {
                 config_modified_at: next_config_modified_at,
                 runtime_state_modified_at: next_runtime_state_modified_at,
-                favorite_ensemble_modified_at: next_favorite_ensemble_modified_at,
+                ensemble_modified_at: next_ensemble_modified_at,
                 psd_viewer_tui_activity_modified_at: next_psd_viewer_tui_activity_modified_at,
                 window_history_modified_at: next_window_history_modified_at,
             },
@@ -66,13 +65,11 @@ impl MascotApp {
         let next_config_ensemble_modified_at = next_config_ensemble_path
             .as_deref()
             .and_then(path_modified_at);
-        let favorite_ensemble_file_changed =
-            self.favorite_ensemble_modified_at != next_config_ensemble_modified_at;
-        let favorite_ensemble_changed =
-            self.favorite_ensemble_modified_at != next_config_ensemble_modified_at;
+        let ensemble_file_changed = self.ensemble_modified_at != next_config_ensemble_modified_at;
+        let ensemble_changed = self.ensemble_modified_at != next_config_ensemble_modified_at;
         self.config_modified_at = next_config_modified_at;
         self.runtime_state_modified_at = next_runtime_state_modified_at;
-        self.favorite_ensemble_modified_at = next_config_ensemble_modified_at;
+        self.ensemble_modified_at = next_config_ensemble_modified_at;
         self.psd_viewer_tui_activity_modified_at = next_psd_viewer_tui_activity_modified_at;
 
         let ensemble_mode_changed = self.config.ensemble_mode != next_config.ensemble_mode;
@@ -91,8 +88,8 @@ impl MascotApp {
         self.config = next_config;
         self.motion
             .set_always_idle_sink_enabled(self.config.always_idle_sink_enabled, Instant::now());
-        if let Some(favorite_ensemble) = &mut self.favorite_ensemble {
-            favorite_ensemble
+        if let Some(ensemble_scene) = &mut self.ensemble_scene {
+            ensemble_scene
                 .set_always_idle_sink_enabled(self.config.always_idle_sink_enabled, Instant::now());
         }
         if png_changed || ensemble_mode_changed {
@@ -104,7 +101,7 @@ impl MascotApp {
         }
 
         if self.config.ensemble_mode.is_ensemble() {
-            if ensemble_mode_changed || favorite_ensemble_changed {
+            if ensemble_mode_changed || ensemble_changed {
                 let ensemble_path = active_ensemble_path(self.config.ensemble_mode);
                 work.update_stage(
                     "load_active_ensemble",
@@ -117,12 +114,12 @@ impl MascotApp {
                             .unwrap_or_else(|| "-".to_string())
                     ),
                 );
-                self.favorite_ensemble = self.load_active_ensemble_scene(ctx)?;
+                self.ensemble_scene = self.load_active_ensemble_scene(ctx)?;
             }
         } else if ensemble_mode_changed || png_changed {
-            self.favorite_ensemble = None;
+            self.ensemble_scene = None;
         }
-        if ensemble_mode_changed || favorite_ensemble_changed || png_changed || scale_changed {
+        if ensemble_mode_changed || ensemble_changed || png_changed || scale_changed {
             self.scale = active_display_scale(
                 &self.config,
                 self.open_skin.image_size[0],
@@ -144,8 +141,7 @@ impl MascotApp {
         }
 
         let mut restored_window_position = None;
-        if ensemble_mode_changed || favorite_ensemble_changed || png_changed || blink_source_changed
-        {
+        if ensemble_mode_changed || ensemble_changed || png_changed || blink_source_changed {
             self.queue_auxiliary_skin_refresh();
             ctx.request_repaint();
         }
@@ -182,14 +178,14 @@ impl MascotApp {
         work.update_stage(
             "refresh_window_layout",
             format!(
-                "png_changed={png_changed} ensemble_mode_changed={ensemble_mode_changed} favorite_ensemble_changed={favorite_ensemble_changed}"
+                "png_changed={png_changed} ensemble_mode_changed={ensemble_mode_changed} ensemble_changed={ensemble_changed}"
             ),
         );
         let layout_diagnostics = self.refresh_window_layout(ctx, previous_layout);
         self.log_hot_reload_context(
             config_file_changed,
             runtime_state_changed,
-            favorite_ensemble_file_changed,
+            ensemble_file_changed,
             psd_viewer_tui_activity_changed,
             window_history_file_changed,
             &previous_png_path,
@@ -198,7 +194,7 @@ impl MascotApp {
             previous_config_scale,
             png_changed,
             scale_changed,
-            favorite_ensemble_changed,
+            ensemble_changed,
             ensemble_mode_changed,
             blink_source_changed,
             history_path_changed,

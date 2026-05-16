@@ -1,7 +1,7 @@
-use crate::favorite_ensemble::{
-    fill_missing_positions, pack_positions_from_right, patch_favorite_ensemble_positions_toml,
-    sanitize_favorites_for_test, scaled_content_x_bounds, FavoriteEnsembleEntry,
-    FavoriteEnsembleLayoutEntry,
+use crate::ensemble::{
+    fill_missing_positions, pack_positions_from_right, patch_ensemble_positions_toml,
+    sanitize_ensemble_entries_for_test, scaled_content_x_bounds, EnsembleEntry,
+    EnsembleLayoutEntry,
 };
 use crate::mascot_app::{
     member_eye_blink_elapsed, member_eye_blink_seed, member_phase_offset_ratio,
@@ -11,19 +11,19 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 #[test]
-fn favorite_ensemble_packs_entries_from_right_edge_without_visible_horizontal_gaps() {
+fn ensemble_packs_entries_from_right_edge_without_visible_horizontal_gaps() {
     let positions = pack_positions_from_right(&[
-        FavoriteEnsembleLayoutEntry {
+        EnsembleLayoutEntry {
             size: [80.0, 120.0],
             content_x_bounds: [10.0, 70.0],
             position: None,
         },
-        FavoriteEnsembleLayoutEntry {
+        EnsembleLayoutEntry {
             size: [40.0, 60.0],
             content_x_bounds: [5.0, 35.0],
             position: None,
         },
-        FavoriteEnsembleLayoutEntry {
+        EnsembleLayoutEntry {
             size: [30.0, 90.0],
             content_x_bounds: [0.0, 20.0],
             position: None,
@@ -34,34 +34,34 @@ fn favorite_ensemble_packs_entries_from_right_edge_without_visible_horizontal_ga
     assert_eq!(
         positions[0],
         [40.0, 0.0],
-        "first favorite should align its visible right edge to the layout right edge"
+        "first entry should align its visible right edge to the layout right edge"
     );
     assert_eq!(
         positions[1],
         [15.0, 60.0],
-        "second favorite should continue leftward without a visible gap"
+        "second entry should continue leftward without a visible gap"
     );
     assert_eq!(
         positions[2],
         [0.0, 30.0],
-        "later favorites should keep filling leftward based on visible bounds"
+        "later entries should keep filling leftward based on visible bounds"
     );
 }
 
 #[test]
-fn favorite_ensemble_only_places_missing_entries_to_the_left_of_existing_layout() {
+fn ensemble_only_places_missing_entries_to_the_left_of_existing_layout() {
     let mut layout = vec![
-        FavoriteEnsembleLayoutEntry {
+        EnsembleLayoutEntry {
             size: [80.0, 120.0],
             content_x_bounds: [10.0, 70.0],
             position: Some([70.0, 0.0]),
         },
-        FavoriteEnsembleLayoutEntry {
+        EnsembleLayoutEntry {
             size: [40.0, 60.0],
             content_x_bounds: [5.0, 35.0],
             position: None,
         },
-        FavoriteEnsembleLayoutEntry {
+        EnsembleLayoutEntry {
             size: [30.0, 90.0],
             content_x_bounds: [10.0, 20.0],
             position: Some([40.0, 30.0]),
@@ -77,7 +77,7 @@ fn favorite_ensemble_only_places_missing_entries_to_the_left_of_existing_layout(
 }
 
 #[test]
-fn favorite_ensemble_patch_preserves_other_fields_and_existing_positions() {
+fn ensemble_patch_preserves_other_fields_and_existing_positions() {
     let raw = r#"
 [[favorites]]
 zip_path = "/workspace/a.zip"
@@ -94,7 +94,7 @@ psd_file_name = "face.psd"
 window_position = [10.0, 20.0]
     "#;
     let updates = vec![
-        FavoriteEnsembleEntry {
+        EnsembleEntry {
             character_name: None,
             zip_path: PathBuf::from("/workspace/a.zip"),
             psd_path_in_zip: PathBuf::from("a/body.psd"),
@@ -106,7 +106,7 @@ window_position = [10.0, 20.0]
             mascot_scale: None,
             favorite_ensemble_position: Some([999.0, 999.0]),
         },
-        FavoriteEnsembleEntry {
+        EnsembleEntry {
             character_name: None,
             zip_path: PathBuf::from("/workspace/b.zip"),
             psd_path_in_zip: PathBuf::from("b/face.psd"),
@@ -118,7 +118,7 @@ window_position = [10.0, 20.0]
     ];
 
     let patched =
-        patch_favorite_ensemble_positions_toml(raw, &updates).expect("should patch favorites TOML");
+        patch_ensemble_positions_toml(raw, &updates).expect("should patch ensemble entries TOML");
     let parsed: toml::Value = toml::from_str(&patched).expect("patched TOML should stay valid");
     let favorites = parsed["favorites"]
         .as_array()
@@ -143,9 +143,9 @@ window_position = [10.0, 20.0]
 }
 
 #[test]
-fn favorite_ensemble_scales_visible_content_x_bounds_from_alpha_pixels() {
+fn ensemble_scales_visible_content_x_bounds_from_alpha_pixels() {
     let bounds = scaled_content_x_bounds(
-        &sample_favorite_entry(Some(10.0)),
+        &sample_ensemble_entry(Some(10.0)),
         &MascotImageData {
             path: PathBuf::from("dummy-favorite.png"),
             width: 4,
@@ -162,9 +162,9 @@ fn favorite_ensemble_scales_visible_content_x_bounds_from_alpha_pixels() {
 }
 
 #[test]
-fn favorite_ensemble_uses_full_width_when_image_is_fully_transparent() {
+fn ensemble_uses_full_width_when_image_is_fully_transparent() {
     let bounds = scaled_content_x_bounds(
-        &sample_favorite_entry(Some(15.0)),
+        &sample_ensemble_entry(Some(15.0)),
         &MascotImageData {
             path: PathBuf::from("dummy-favorite.png"),
             width: 3,
@@ -178,7 +178,7 @@ fn favorite_ensemble_uses_full_width_when_image_is_fully_transparent() {
 }
 
 #[test]
-fn favorite_ensemble_member_phase_offsets_are_evenly_distributed() {
+fn ensemble_member_phase_offsets_are_evenly_distributed() {
     assert_eq!(member_phase_offset_ratio(0, 1), 0.0);
     assert_eq!(member_phase_offset_ratio(0, 3), 0.0);
     assert_eq!(member_phase_offset_ratio(1, 3), 1.0 / 3.0);
@@ -186,7 +186,7 @@ fn favorite_ensemble_member_phase_offsets_are_evenly_distributed() {
 }
 
 #[test]
-fn favorite_ensemble_member_eye_blink_elapsed_is_staggered() {
+fn ensemble_member_eye_blink_elapsed_is_staggered() {
     assert_eq!(member_eye_blink_elapsed(0, 1), Duration::ZERO);
     assert_eq!(member_eye_blink_elapsed(0, 3), Duration::ZERO);
     assert_eq!(
@@ -200,15 +200,15 @@ fn favorite_ensemble_member_eye_blink_elapsed_is_staggered() {
 }
 
 #[test]
-fn favorite_ensemble_member_eye_blink_seeds_are_distinct_per_member() {
+fn ensemble_member_eye_blink_seeds_are_distinct_per_member() {
     assert_ne!(member_eye_blink_seed(0, 3), member_eye_blink_seed(1, 3));
     assert_ne!(member_eye_blink_seed(1, 3), member_eye_blink_seed(2, 3));
 }
 
 #[test]
-fn favorite_ensemble_sanitize_deduplicates_equivalent_visibility_overrides() {
-    let sanitized = sanitize_favorites_for_test(vec![
-        FavoriteEnsembleEntry {
+fn ensemble_sanitize_deduplicates_equivalent_visibility_overrides() {
+    let sanitized = sanitize_ensemble_entries_for_test(vec![
+        EnsembleEntry {
             character_name: None,
             zip_path: PathBuf::from("dummy-a.zip"),
             psd_path_in_zip: PathBuf::from("dummy/body.psd"),
@@ -226,7 +226,7 @@ fn favorite_ensemble_sanitize_deduplicates_equivalent_visibility_overrides() {
             mascot_scale: Some(1.0),
             favorite_ensemble_position: Some([10.0, 20.0]),
         },
-        FavoriteEnsembleEntry {
+        EnsembleEntry {
             character_name: None,
             zip_path: PathBuf::from("dummy-a.zip"),
             psd_path_in_zip: PathBuf::from("dummy/body.psd"),
@@ -251,8 +251,8 @@ fn favorite_ensemble_sanitize_deduplicates_equivalent_visibility_overrides() {
     assert_eq!(sanitized[0].favorite_ensemble_position, Some([30.0, 40.0]));
 }
 
-fn sample_favorite_entry(mascot_scale: Option<f32>) -> FavoriteEnsembleEntry {
-    FavoriteEnsembleEntry {
+fn sample_ensemble_entry(mascot_scale: Option<f32>) -> EnsembleEntry {
+    EnsembleEntry {
         character_name: None,
         zip_path: PathBuf::from("dummy-a.zip"),
         psd_path_in_zip: PathBuf::from("dummy/body.psd"),

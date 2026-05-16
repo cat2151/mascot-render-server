@@ -336,11 +336,11 @@ impl MascotApp {
 
     fn current_plan_targets(&self, ctx: &egui::Context) -> Vec<PlacementPlanTargetInput> {
         if self.config.ensemble_mode.is_ensemble() {
-            if let Some(favorite_ensemble) = &self.favorite_ensemble {
+            if let Some(ensemble_scene) = &self.ensemble_scene {
                 let anchors = self.current_anchor_positions(ctx);
                 let bottom_center = anchor_position(anchors, PlacementAnchorKind::BottomCenter);
                 let inner_origin = bottom_center - self.window_layout.bottom_center_anchor_offset();
-                let targets = favorite_ensemble.placement_plan_targets(
+                let targets = ensemble_scene.placement_plan_targets(
                     inner_origin,
                     self.window_layout.canvas_origin_offset(self.base_size),
                     self.scale,

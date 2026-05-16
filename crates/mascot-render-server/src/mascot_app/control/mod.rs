@@ -11,8 +11,9 @@ use super::{CachedSkin, MascotApp};
 
 mod character_change;
 mod commit;
-mod favorite_ensemble;
+mod ensemble_mode;
 mod preview_target;
+mod vpt_ensemble;
 
 pub(super) struct PreparedSkinChange {
     next_config: MascotConfig,
@@ -94,11 +95,16 @@ impl MascotApp {
                 let timeline_summary = super::config::describe_motion_timeline_request(request);
                 let now = Instant::now();
                 if let Some(target_character_name) = request.target_character_name.as_deref() {
+                    let stage_started_at = Instant::now();
                     if self.apply_targeted_mouth_flap_timeline(
                         request,
                         target_character_name,
                         now,
                     ) {
+                        self.record_performance_stage(
+                            "apply_targeted_mouth_flap_timeline",
+                            elapsed_ms_since(stage_started_at),
+                        );
                         log_server_info(format!(
                             "trigger=control_command action=timeline {}",
                             timeline_summary
@@ -172,7 +178,7 @@ impl MascotApp {
             return false;
         }
 
-        let Some(favorite_ensemble) = self.favorite_ensemble.as_mut() else {
+        let Some(ensemble_scene) = self.ensemble_scene.as_mut() else {
             log_server_info(format!(
                 "trigger=control_command action=timeline target_character_name={} result=noop reason=vpt_member_not_found ensemble_mode={:?} member_count=0",
                 target_character_name,
@@ -180,8 +186,8 @@ impl MascotApp {
             ));
             return true;
         };
-        let member_count = favorite_ensemble.members.len();
-        let triggered = favorite_ensemble.trigger_mouth_flap_for_character(
+        let member_count = ensemble_scene.members.len();
+        let triggered = ensemble_scene.trigger_mouth_flap_for_character(
             target_character_name,
             now,
             Duration::from_millis(step.duration_ms),

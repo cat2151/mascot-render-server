@@ -1,9 +1,9 @@
 mod always_bend;
 mod app_support;
 mod cli;
+mod ensemble;
 mod eye_blink;
 mod eye_blink_timing;
-mod favorite_ensemble;
 mod mascot_app;
 mod mascot_scale;
 mod mouth_flap;
@@ -31,8 +31,8 @@ mod context_menu_shortcut_tests;
 #[path = "tests/control.rs"]
 mod control_tests;
 #[cfg(test)]
-#[path = "tests/favorite_ensemble.rs"]
-mod favorite_ensemble_tests;
+#[path = "tests/ensemble.rs"]
+mod ensemble_tests;
 #[cfg(test)]
 #[path = "tests/mascot_app_logging.rs"]
 mod mascot_app_logging_tests;
@@ -71,7 +71,7 @@ use anyhow::{anyhow, Result};
 use cli::{parse_cli, CliAction};
 use eframe::egui;
 use eframe::NativeOptions;
-use favorite_ensemble::load_active_ensemble;
+use ensemble::load_active_ensemble;
 use mascot_app::{MascotApp, MascotAppStartup};
 use mascot_render_control::{
     init_server_log, log_server_error, log_server_info, start_mascot_control_server_with_notify,
@@ -120,7 +120,7 @@ fn main() -> Result<()> {
     let config = load_mascot_config(&config_path)?;
     let core = Core::new(CoreConfig::default());
     let psd_file_name_catalog = PsdFileNameCatalog::load_startup_fixed(&core)?;
-    let favorite_ensemble = load_active_ensemble(&core, config.ensemble_mode)?;
+    let ensemble = load_active_ensemble(&core, config.ensemble_mode)?;
     let status_store = ServerStatusStore::new(ServerStatusSnapshot::starting(
         config_path.clone(),
         mascot_runtime_state_path(&config_path),
@@ -129,15 +129,15 @@ fn main() -> Result<()> {
         config.psd_path_in_zip.clone(),
     ));
     let image = load_mascot_image(&config.png_path)?;
-    let initial_window_layout = if let Some(favorite_ensemble) = &favorite_ensemble {
+    let initial_window_layout = if let Some(ensemble) = &ensemble {
         let scale = config.ensemble_scale.unwrap_or(1.0).max(0.01);
         let image_size = [
-            favorite_ensemble.canvas_size[0].ceil().max(1.0) as u32,
-            favorite_ensemble.canvas_size[1].ceil().max(1.0) as u32,
+            ensemble.canvas_size[0].ceil().max(1.0) as u32,
+            ensemble.canvas_size[1].ceil().max(1.0) as u32,
         ];
         let base_size = egui::Vec2::new(
-            (favorite_ensemble.canvas_size[0] * scale).max(1.0),
-            (favorite_ensemble.canvas_size[1] * scale).max(1.0),
+            (ensemble.canvas_size[0] * scale).max(1.0),
+            (ensemble.canvas_size[1] * scale).max(1.0),
         );
         MascotWindowLayout::new(
             base_size,
@@ -225,7 +225,7 @@ fn main() -> Result<()> {
                 config_path.clone(),
                 config,
                 image,
-                favorite_ensemble,
+                ensemble,
                 MascotAppStartup {
                     control_rx,
                     saved_window_position,

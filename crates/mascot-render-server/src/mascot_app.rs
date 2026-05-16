@@ -20,8 +20,8 @@ use mascot_render_server::{
 use crate::app_support::{
     cached_skin_from_image, path_modified_at, size_vec, window_title, CachedSkin,
 };
+use crate::ensemble::active_ensemble_path;
 use crate::eye_blink::EyeBlinkLoop;
-use crate::favorite_ensemble::active_ensemble_path;
 use crate::mascot_scale::{effective_scale, keyboard_scale_steps, scroll_scale_steps};
 use crate::SKIN_CACHE_CAPACITY;
 #[path = "mascot_app/character.rs"]
@@ -40,6 +40,8 @@ mod ensemble;
 mod layout;
 #[path = "mascot_app/logging/mod.rs"]
 mod logging;
+#[path = "mascot_app/mouth_flap_state.rs"]
+mod mouth_flap_state;
 #[path = "mascot_app/native_window.rs"]
 mod native_window;
 #[path = "mascot_app/persistence.rs"]
@@ -77,7 +79,7 @@ pub(crate) use context_menu_shortcut::{
 pub(crate) use control::should_consume_targeted_mouth_flap_timeline_for_test;
 #[cfg(test)]
 pub(crate) use ensemble::member_phase_offset_ratio;
-use ensemble::FavoriteEnsembleScene;
+use ensemble::EnsembleScene;
 #[cfg(test)]
 pub(crate) use ensemble::{member_eye_blink_elapsed, member_eye_blink_seed};
 use logging::should_log_rendered_skin;
@@ -91,14 +93,16 @@ pub(crate) use logging::{
     scale_layout_change_message_for_test, should_log_rendered_skin_for_test,
     RefreshWindowLayoutDiagnosticsForTest, ScaleChangeTriggerForTest, ScaleLayoutChangeForTest,
 };
+#[cfg(test)]
+pub(crate) use mouth_flap_state::{
+    active_skin_state_for_test, mouth_flap_skin_state_for_test, ActiveSkinState,
+};
 use native_window::NativeWindowHandle;
 #[cfg(test)]
 pub(crate) use persistence::{
     persist_ensemble_mode_for_test, persist_requested_character_change_for_test,
     verify_persisted_character_change_for_test,
 };
-#[cfg(test)]
-pub(crate) use runtime::mouth_flap_skin_state_for_test;
 #[cfg(test)]
 pub(crate) use scale::mouse_wheel_zoom_outer_position as mouse_wheel_zoom_outer_position_for_test;
 #[cfg(test)]
@@ -117,7 +121,7 @@ pub(crate) struct MascotApp {
     runtime_state_path: PathBuf,
     config_modified_at: Option<SystemTime>,
     runtime_state_modified_at: Option<SystemTime>,
-    favorite_ensemble_modified_at: Option<SystemTime>,
+    ensemble_modified_at: Option<SystemTime>,
     psd_viewer_tui_activity_modified_at: Option<SystemTime>,
     window_history_modified_at: Option<SystemTime>,
     config: MascotConfig,
@@ -128,7 +132,7 @@ pub(crate) struct MascotApp {
     mouth_open_skin: Option<CachedSkin>,
     mouth_closed_skin: Option<CachedSkin>,
     pending_auxiliary_skin_refresh: bool,
-    favorite_ensemble: Option<FavoriteEnsembleScene>,
+    ensemble_scene: Option<EnsembleScene>,
     scale: f32,
     pending_persisted_scale: Option<f32>,
     last_scale_change_at: Option<Instant>,
@@ -167,7 +171,7 @@ impl MascotApp {
         config_path: PathBuf,
         config: MascotConfig,
         image: MascotImageData,
-        favorite_ensemble_data: Option<crate::favorite_ensemble::FavoriteEnsemble>,
+        ensemble_data: Option<crate::ensemble::Ensemble>,
         startup: MascotAppStartup,
     ) -> Self {
         let MascotAppStartup {
@@ -180,24 +184,19 @@ impl MascotApp {
         let runtime_state_path = mascot_runtime_state_path(&config_path);
         let config_modified_at = path_modified_at(&config_path);
         let runtime_state_modified_at = path_modified_at(&runtime_state_path);
-        let favorite_ensemble_modified_at =
+        let ensemble_modified_at =
             active_ensemble_path(config.ensemble_mode).and_then(|path| path_modified_at(&path));
         let psd_viewer_tui_activity_modified_at =
             path_modified_at(&psd_viewer_tui_activity_path(&config_path));
         let open_skin = cached_skin_from_image(&cc.egui_ctx, &image);
-        let favorite_ensemble = favorite_ensemble_data.map(|ensemble| {
-            FavoriteEnsembleScene::from_loaded(
-                &cc.egui_ctx,
-                ensemble,
-                config.always_idle_sink_enabled,
-                now,
-            )
+        let ensemble_scene = ensemble_data.map(|ensemble| {
+            EnsembleScene::from_loaded(&cc.egui_ctx, ensemble, config.always_idle_sink_enabled, now)
         });
-        let base_size = favorite_ensemble
+        let base_size = ensemble_scene
             .as_ref()
             .map(|ensemble| ensemble.scaled_canvas_size(scale))
             .unwrap_or_else(|| size_vec(image.width, image.height, Some(scale)));
-        let initial_window_layout = favorite_ensemble
+        let initial_window_layout = ensemble_scene
             .as_ref()
             .map(|ensemble| ensemble_window_layout(base_size, ensemble.image_size(), &config))
             .unwrap_or_else(|| {
@@ -233,7 +232,7 @@ impl MascotApp {
             runtime_state_path,
             config_modified_at,
             runtime_state_modified_at,
-            favorite_ensemble_modified_at,
+            ensemble_modified_at,
             psd_viewer_tui_activity_modified_at,
             window_history_modified_at,
             config,
@@ -244,7 +243,7 @@ impl MascotApp {
             mouth_open_skin: None,
             mouth_closed_skin: None,
             pending_auxiliary_skin_refresh: false,
-            favorite_ensemble,
+            ensemble_scene,
             scale,
             pending_persisted_scale: None,
             last_scale_change_at: None,
@@ -269,9 +268,8 @@ impl MascotApp {
         app.initialize_current_placement_state(saved_window_position);
         app.motion
             .set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);
-        if let Some(favorite_ensemble) = &mut app.favorite_ensemble {
-            favorite_ensemble
-                .set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);
+        if let Some(ensemble_scene) = &mut app.ensemble_scene {
+            ensemble_scene.set_always_idle_sink_enabled(app.config.always_idle_sink_enabled, now);
         }
         let _ = app.refresh_window_layout(&cc.egui_ctx, app.window_layout);
         app.transparent_hit_test.update(TransparentHitTestUpdate {

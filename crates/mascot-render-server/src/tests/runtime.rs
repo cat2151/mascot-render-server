@@ -2,7 +2,9 @@ use std::time::{Duration, Instant};
 
 use mascot_render_core::MotionState;
 
-use crate::mascot_app::mouth_flap_skin_state_for_test;
+use crate::mascot_app::{
+    active_skin_state_for_test, mouth_flap_skin_state_for_test, ActiveSkinState,
+};
 
 #[test]
 fn mouth_flap_skin_state_requires_available_skin_and_active_motion() {
@@ -41,5 +43,51 @@ fn mouth_flap_skin_state_requires_available_skin_and_active_motion() {
             now + Duration::from_secs(5)
         ),
         None
+    );
+}
+
+#[test]
+fn active_skin_state_prefers_mouth_flap_over_blink() {
+    let now = Instant::now();
+    let mut inactive_motion = MotionState::new();
+    assert_eq!(
+        active_skin_state_for_test(false, &mut inactive_motion, true, now),
+        ActiveSkinState::BlinkClosed
+    );
+    assert_eq!(
+        active_skin_state_for_test(false, &mut inactive_motion, false, now),
+        ActiveSkinState::Open
+    );
+
+    let mut active_motion_without_skin = MotionState::new();
+    active_motion_without_skin.trigger_mouth_flap(now, Duration::from_secs(1), 4);
+    assert_eq!(
+        active_skin_state_for_test(false, &mut active_motion_without_skin, true, now),
+        ActiveSkinState::BlinkClosed
+    );
+
+    let mut active_motion_with_skin = MotionState::new();
+    active_motion_with_skin.trigger_mouth_flap(now, Duration::from_secs(1), 4);
+    assert_eq!(
+        active_skin_state_for_test(true, &mut active_motion_with_skin, true, now),
+        ActiveSkinState::MouthOpen
+    );
+    assert_eq!(
+        active_skin_state_for_test(
+            true,
+            &mut active_motion_with_skin,
+            true,
+            now + Duration::from_millis(250),
+        ),
+        ActiveSkinState::MouthClosed
+    );
+    assert_eq!(
+        active_skin_state_for_test(
+            true,
+            &mut active_motion_with_skin,
+            true,
+            now + Duration::from_secs(1),
+        ),
+        ActiveSkinState::BlinkClosed
     );
 }

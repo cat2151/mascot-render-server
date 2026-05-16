@@ -10,24 +10,27 @@ use mascot_render_server::alpha_bounds_from_mask;
 use serde::{Deserialize, Serialize};
 
 use crate::eye_blink::build_closed_eye_display_diff_with_document;
-#[path = "favorite_ensemble/persistence.rs"]
+use mouth_flap::render_mouth_flap_images_with_document;
+#[path = "ensemble/mouth_flap.rs"]
+mod mouth_flap;
+#[path = "ensemble/persistence.rs"]
 mod persistence;
-#[path = "favorite_ensemble/sanitize.rs"]
+#[path = "ensemble/sanitize.rs"]
 mod sanitize;
 #[cfg(test)]
-pub(crate) use persistence::patch_favorite_ensemble_positions_toml;
-use persistence::{load_favorites, patch_favorite_ensemble_positions, write_favorites};
+pub(crate) use persistence::patch_ensemble_positions_toml;
+use persistence::{load_ensemble_entries, patch_ensemble_positions, write_ensemble_entries};
 #[cfg(test)]
-pub(crate) use sanitize::sanitize_favorites_for_test;
+pub(crate) use sanitize::sanitize_ensemble_entries_for_test;
 
 const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";
 const VPT_ENSEMBLE_DIR: &str = "vpt-ensemble";
 const VPT_ENSEMBLE_FILE_NAME: &str = "ensemble.toml";
-const FAVORITE_ENSEMBLE_CONTENT_BOUNDS_ALPHA_THRESHOLD: u8 = 1;
+const ENSEMBLE_CONTENT_BOUNDS_ALPHA_THRESHOLD: u8 = 1;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub(crate) struct FavoriteEnsembleEntry {
+pub(crate) struct EnsembleEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) character_name: Option<String>,
     pub(crate) zip_path: PathBuf,
@@ -43,33 +46,37 @@ pub(crate) struct FavoriteEnsembleEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct FavoriteEnsembleLayoutEntry {
+pub(crate) struct EnsembleLayoutEntry {
     pub(crate) size: [f32; 2],
     pub(crate) content_x_bounds: [f32; 2],
     pub(crate) position: Option<[f32; 2]>,
 }
 
 #[derive(Debug)]
-pub(crate) struct FavoriteEnsembleMember {
+pub(crate) struct EnsembleMember {
     pub(crate) character_name: Option<String>,
     pub(crate) zip_path: PathBuf,
     pub(crate) psd_path_in_zip: PathBuf,
     pub(crate) image: MascotImageData,
     pub(crate) closed_image: Option<MascotImageData>,
+    pub(crate) mouth_open_image: Option<MascotImageData>,
+    pub(crate) mouth_closed_image: Option<MascotImageData>,
     pub(crate) base_size: [f32; 2],
     pub(crate) canvas_position: [f32; 2],
 }
 
 #[derive(Debug)]
-pub(crate) struct FavoriteEnsemble {
-    pub(crate) members: Vec<FavoriteEnsembleMember>,
+pub(crate) struct Ensemble {
+    pub(crate) members: Vec<EnsembleMember>,
     pub(crate) canvas_size: [f32; 2],
 }
 
-struct RenderedFavorite {
-    entry: FavoriteEnsembleEntry,
+struct RenderedEnsembleEntry {
+    entry: EnsembleEntry,
     image: MascotImageData,
     closed_image: Option<MascotImageData>,
+    mouth_open_image: Option<MascotImageData>,
+    mouth_closed_image: Option<MascotImageData>,
     base_size: [f32; 2],
 }
 
@@ -96,33 +103,33 @@ pub(crate) fn active_ensemble_path(mode: MascotEnsembleMode) -> Option<PathBuf> 
 pub(crate) fn load_active_ensemble(
     core: &Core,
     mode: MascotEnsembleMode,
-) -> Result<Option<FavoriteEnsemble>> {
+) -> Result<Option<Ensemble>> {
     let Some(path) = active_ensemble_path(mode) else {
         return Ok(None);
     };
     load_ensemble_from_path(core, path)
 }
 
-pub(crate) fn save_vpt_ensemble(entries: &[FavoriteEnsembleEntry]) -> Result<()> {
-    write_favorites(&vpt_ensemble_path(), entries)
+pub(crate) fn save_vpt_ensemble(entries: &[EnsembleEntry]) -> Result<()> {
+    write_ensemble_entries(&vpt_ensemble_path(), entries)
 }
 
-pub(crate) fn load_vpt_ensemble_entries() -> Result<Vec<FavoriteEnsembleEntry>> {
-    load_favorites(&vpt_ensemble_path())
+pub(crate) fn load_vpt_ensemble_entries() -> Result<Vec<EnsembleEntry>> {
+    load_ensemble_entries(&vpt_ensemble_path())
 }
 
 pub(crate) fn load_ensemble_from_path(
     core: &Core,
-    favorites_path: PathBuf,
-) -> Result<Option<FavoriteEnsemble>> {
-    let mut favorites = load_favorites(&favorites_path)?;
-    if favorites.is_empty() {
+    ensemble_path: PathBuf,
+) -> Result<Option<Ensemble>> {
+    let mut entries = load_ensemble_entries(&ensemble_path)?;
+    if entries.is_empty() {
         return Ok(None);
     }
 
-    let mut rendered = favorites
+    let mut rendered = entries
         .drain(..)
-        .map(|entry| render_favorite(core, entry))
+        .map(|entry| render_ensemble_entry(core, entry))
         .collect::<Result<Vec<_>>>()?;
     if rendered.is_empty() {
         return Ok(None);
@@ -133,12 +140,12 @@ pub(crate) fn load_ensemble_from_path(
         .map(layout_entry_from_rendered)
         .collect::<Vec<_>>();
     let updated_indices = fill_missing_positions(&mut layout_entries);
-    for (favorite, layout_entry) in rendered.iter_mut().zip(layout_entries) {
-        favorite.entry.favorite_ensemble_position = layout_entry.position;
+    for (rendered_entry, layout_entry) in rendered.iter_mut().zip(layout_entries) {
+        rendered_entry.entry.favorite_ensemble_position = layout_entry.position;
     }
     if !updated_indices.is_empty() {
-        patch_favorite_ensemble_positions(
-            &favorites_path,
+        patch_ensemble_positions(
+            &ensemble_path,
             &updated_indices
                 .into_iter()
                 .map(|index| rendered[index].entry.clone())
@@ -146,12 +153,10 @@ pub(crate) fn load_ensemble_from_path(
         )?;
     }
 
-    Ok(Some(build_favorite_ensemble(rendered)))
+    Ok(Some(build_ensemble(rendered)))
 }
 
-pub(crate) fn pack_positions_from_right(
-    layout_entries: &[FavoriteEnsembleLayoutEntry],
-) -> Vec<[f32; 2]> {
+pub(crate) fn pack_positions_from_right(layout_entries: &[EnsembleLayoutEntry]) -> Vec<[f32; 2]> {
     let total_visible_width = layout_entries.iter().map(visible_width).sum::<f32>();
     let max_height = layout_entries
         .iter()
@@ -169,9 +174,7 @@ pub(crate) fn pack_positions_from_right(
     positions
 }
 
-pub(crate) fn fill_missing_positions(
-    layout_entries: &mut [FavoriteEnsembleLayoutEntry],
-) -> Vec<usize> {
+pub(crate) fn fill_missing_positions(layout_entries: &mut [EnsembleLayoutEntry]) -> Vec<usize> {
     let missing_indices = layout_entries
         .iter()
         .enumerate()
@@ -213,7 +216,7 @@ pub(crate) fn fill_missing_positions(
 }
 
 fn pack_positions_with_right_edge(
-    layout_entries: &[FavoriteEnsembleLayoutEntry],
+    layout_entries: &[EnsembleLayoutEntry],
     right_edge: f32,
     bottom: f32,
 ) -> Vec<[f32; 2]> {
@@ -229,24 +232,24 @@ fn pack_positions_with_right_edge(
     positions
 }
 
-fn layout_entry_from_rendered(favorite: &RenderedFavorite) -> FavoriteEnsembleLayoutEntry {
-    FavoriteEnsembleLayoutEntry {
-        size: favorite.base_size,
+fn layout_entry_from_rendered(rendered_entry: &RenderedEnsembleEntry) -> EnsembleLayoutEntry {
+    EnsembleLayoutEntry {
+        size: rendered_entry.base_size,
         content_x_bounds: scaled_content_x_bounds(
-            &favorite.entry,
-            &favorite.image,
-            favorite.base_size,
+            &rendered_entry.entry,
+            &rendered_entry.image,
+            rendered_entry.base_size,
         ),
-        position: favorite.entry.favorite_ensemble_position,
+        position: rendered_entry.entry.favorite_ensemble_position,
     }
 }
 
-fn visible_width(entry: &FavoriteEnsembleLayoutEntry) -> f32 {
+fn visible_width(entry: &EnsembleLayoutEntry) -> f32 {
     (entry.content_x_bounds[1] - entry.content_x_bounds[0]).max(0.0)
 }
 
 pub(crate) fn scaled_content_x_bounds(
-    entry: &FavoriteEnsembleEntry,
+    entry: &EnsembleEntry,
     image: &MascotImageData,
     base_size: [f32; 2],
 ) -> [f32; 2] {
@@ -254,7 +257,7 @@ pub(crate) fn scaled_content_x_bounds(
     let Some(bounds) = alpha_bounds_from_mask(
         [image.width, image.height],
         &alpha_mask,
-        FAVORITE_ENSEMBLE_CONTENT_BOUNDS_ALPHA_THRESHOLD,
+        ENSEMBLE_CONTENT_BOUNDS_ALPHA_THRESHOLD,
     ) else {
         let reason = if alpha_mask.len() != image.width as usize * image.height as usize {
             format!(
@@ -267,7 +270,7 @@ pub(crate) fn scaled_content_x_bounds(
             "image is fully transparent".to_string()
         };
         eprintln!(
-            "favorite ensemble could not detect visible bounds for {} :: {} ({reason}); using full image width",
+            "ensemble could not detect visible bounds for {} :: {} ({reason}); using full image width",
             entry.zip_path.display(),
             entry.psd_path_in_zip.display()
         );
@@ -288,7 +291,7 @@ fn alpha_mask_from_image(image: &MascotImageData) -> Vec<u8> {
         .collect::<Vec<_>>()
 }
 
-fn render_favorite(core: &Core, entry: FavoriteEnsembleEntry) -> Result<RenderedFavorite> {
+fn render_ensemble_entry(core: &Core, entry: EnsembleEntry) -> Result<RenderedEnsembleEntry> {
     let display_diff = DisplayDiff {
         version: DISPLAY_DIFF_VERSION,
         visibility_overrides: entry.visibility_overrides.clone(),
@@ -301,14 +304,14 @@ fn render_favorite(core: &Core, entry: FavoriteEnsembleEntry) -> Result<Rendered
         })
         .with_context(|| {
             format!(
-                "failed to render favorite ensemble image {} :: {}",
+                "failed to render ensemble image {} :: {}",
                 entry.zip_path.display(),
                 entry.psd_path_in_zip.display()
             )
         })?;
     let image = load_mascot_image(&rendered.output_path).with_context(|| {
         format!(
-            "failed to load favorite ensemble PNG {} :: {} from {}",
+            "failed to load ensemble PNG {} :: {} from {}",
             entry.zip_path.display(),
             entry.psd_path_in_zip.display(),
             rendered.output_path.display()
@@ -318,92 +321,105 @@ fn render_favorite(core: &Core, entry: FavoriteEnsembleEntry) -> Result<Rendered
         .inspect_psd(&entry.zip_path, &entry.psd_path_in_zip)
         .with_context(|| {
             format!(
-                "failed to inspect favorite ensemble PSD {} :: {} for eye blink",
+                "failed to inspect ensemble PSD {} :: {} for auxiliary skins",
                 entry.zip_path.display(),
                 entry.psd_path_in_zip.display()
             )
         })?;
-    Ok(RenderedFavorite {
+    let closed_image = build_closed_eye_display_diff_with_document(
+        &entry.zip_path,
+        &entry.psd_path_in_zip,
+        &document,
+        &display_diff,
+    )?
+    .map(|closed_display_diff| {
+        core.render_png(RenderRequest {
+            zip_path: entry.zip_path.clone(),
+            psd_path_in_zip: entry.psd_path_in_zip.clone(),
+            display_diff: closed_display_diff,
+        })
+        .with_context(|| {
+            format!(
+                "failed to render ensemble closed-eye PNG {} :: {}",
+                entry.zip_path.display(),
+                entry.psd_path_in_zip.display()
+            )
+        })
+    })
+    .transpose()?
+    .filter(|rendered_closed| rendered_closed.output_path != rendered.output_path)
+    .map(|rendered_closed| {
+        load_mascot_image(&rendered_closed.output_path).with_context(|| {
+            format!(
+                "failed to load ensemble closed-eye PNG {} :: {} from {}",
+                entry.zip_path.display(),
+                entry.psd_path_in_zip.display(),
+                rendered_closed.output_path.display()
+            )
+        })
+    })
+    .transpose()?;
+    let mouth_flap_images = render_mouth_flap_images_with_document(
+        core,
+        &entry.zip_path,
+        &entry.psd_path_in_zip,
+        &document,
+        &display_diff,
+    )?;
+
+    Ok(RenderedEnsembleEntry {
         base_size: mascot_window_size(image.width, image.height, entry.mascot_scale),
-        closed_image: build_closed_eye_display_diff_with_document(
-            &entry.zip_path,
-            &entry.psd_path_in_zip,
-            &document,
-            &display_diff,
-        )?
-        .map(|closed_display_diff| {
-            core.render_png(RenderRequest {
-                zip_path: entry.zip_path.clone(),
-                psd_path_in_zip: entry.psd_path_in_zip.clone(),
-                display_diff: closed_display_diff,
-            })
-            .with_context(|| {
-                format!(
-                    "failed to render favorite ensemble closed-eye PNG {} :: {}",
-                    entry.zip_path.display(),
-                    entry.psd_path_in_zip.display()
-                )
-            })
-        })
-        .transpose()?
-        .filter(|rendered_closed| rendered_closed.output_path != rendered.output_path)
-        .map(|rendered_closed| {
-            load_mascot_image(&rendered_closed.output_path).with_context(|| {
-                format!(
-                    "failed to load favorite ensemble closed-eye PNG {} :: {} from {}",
-                    entry.zip_path.display(),
-                    entry.psd_path_in_zip.display(),
-                    rendered_closed.output_path.display()
-                )
-            })
-        })
-        .transpose()?,
+        closed_image,
+        mouth_open_image: mouth_flap_images.as_ref().map(|images| images.open.clone()),
+        mouth_closed_image: mouth_flap_images.map(|images| images.closed),
         entry,
         image,
     })
 }
 
-fn build_favorite_ensemble(rendered: Vec<RenderedFavorite>) -> FavoriteEnsemble {
+fn build_ensemble(rendered: Vec<RenderedEnsembleEntry>) -> Ensemble {
     let mut min_x = f32::INFINITY;
     let mut min_y = f32::INFINITY;
     let mut max_x = f32::NEG_INFINITY;
     let mut max_y = f32::NEG_INFINITY;
 
-    for favorite in &rendered {
-        let [x, y] = favorite
+    for rendered_entry in &rendered {
+        let [x, y] = rendered_entry
             .entry
             .favorite_ensemble_position
             .unwrap_or([0.0, 0.0]);
-        let [width, height] = favorite.base_size;
+        let [width, height] = rendered_entry.base_size;
         min_x = min_x.min(x);
         min_y = min_y.min(y);
         max_x = max_x.max(x + width);
         max_y = max_y.max(y + height);
     }
     if !min_x.is_finite() || !min_y.is_finite() || !max_x.is_finite() || !max_y.is_finite() {
-        return FavoriteEnsemble {
+        return Ensemble {
             members: Vec::new(),
             canvas_size: [1.0, 1.0],
         };
     }
 
-    FavoriteEnsemble {
+    Ensemble {
         canvas_size: [(max_x - min_x).max(1.0), (max_y - min_y).max(1.0)],
         members: rendered
             .into_iter()
-            .map(|favorite| {
-                let [x, y] = favorite
+            .map(|rendered_entry| {
+                let [x, y] = rendered_entry
                     .entry
                     .favorite_ensemble_position
                     .unwrap_or([0.0, 0.0]);
-                FavoriteEnsembleMember {
-                    character_name: favorite.entry.character_name,
-                    zip_path: favorite.entry.zip_path,
-                    psd_path_in_zip: favorite.entry.psd_path_in_zip,
+                EnsembleMember {
+                    character_name: rendered_entry.entry.character_name,
+                    zip_path: rendered_entry.entry.zip_path,
+                    psd_path_in_zip: rendered_entry.entry.psd_path_in_zip,
                     canvas_position: [x - min_x, y - min_y],
-                    base_size: favorite.base_size,
-                    closed_image: favorite.closed_image,
-                    image: favorite.image,
+                    base_size: rendered_entry.base_size,
+                    closed_image: rendered_entry.closed_image,
+                    mouth_open_image: rendered_entry.mouth_open_image,
+                    mouth_closed_image: rendered_entry.mouth_closed_image,
+                    image: rendered_entry.image,
                 }
             })
             .collect(),

@@ -6,10 +6,10 @@ use eframe::egui;
 use mascot_render_control::{log_server_info, log_server_performance_info};
 use mascot_render_core::{load_mascot_image_with_report, MascotConfig};
 
-use super::{CachedSkin, FavoriteEnsembleScene, MascotApp};
+use super::{CachedSkin, EnsembleScene, MascotApp};
 use crate::app_support::cached_skin_from_image_with_report;
+use crate::ensemble::load_active_ensemble;
 use crate::eye_blink::render_closed_eye_png;
-use crate::favorite_ensemble::load_active_ensemble;
 use crate::mouth_flap::render_mouth_flap_pngs;
 
 impl MascotApp {
@@ -114,10 +114,10 @@ impl MascotApp {
     pub(super) fn load_active_ensemble_scene(
         &mut self,
         ctx: &egui::Context,
-    ) -> Result<Option<FavoriteEnsembleScene>> {
+    ) -> Result<Option<EnsembleScene>> {
         Ok(
             load_active_ensemble(&self.core, self.config.ensemble_mode)?.map(|ensemble| {
-                FavoriteEnsembleScene::from_loaded(
+                EnsembleScene::from_loaded(
                     ctx,
                     ensemble,
                     self.config.always_idle_sink_enabled,

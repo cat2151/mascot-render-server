@@ -9,7 +9,7 @@ use super::effective_scale;
 pub(super) struct ReloadInputs {
     pub(super) config_modified_at: Option<SystemTime>,
     pub(super) runtime_state_modified_at: Option<SystemTime>,
-    pub(super) favorite_ensemble_modified_at: Option<SystemTime>,
+    pub(super) ensemble_modified_at: Option<SystemTime>,
     pub(super) psd_viewer_tui_activity_modified_at: Option<SystemTime>,
     pub(super) window_history_modified_at: Option<SystemTime>,
 }
@@ -67,7 +67,7 @@ pub(super) fn active_display_scale(config: &MascotConfig, width: u32, height: u3
 pub(super) fn should_reload_config(current: ReloadInputs, next: ReloadInputs) -> bool {
     current.config_modified_at != next.config_modified_at
         || current.runtime_state_modified_at != next.runtime_state_modified_at
-        || current.favorite_ensemble_modified_at != next.favorite_ensemble_modified_at
+        || current.ensemble_modified_at != next.ensemble_modified_at
         || current.psd_viewer_tui_activity_modified_at != next.psd_viewer_tui_activity_modified_at
         || current.window_history_modified_at != next.window_history_modified_at
 }
@@ -96,14 +96,14 @@ pub(crate) fn should_reload_config_for_test(
         ReloadInputs {
             config_modified_at: current[0],
             runtime_state_modified_at: current[1],
-            favorite_ensemble_modified_at: current[2],
+            ensemble_modified_at: current[2],
             psd_viewer_tui_activity_modified_at: current[3],
             window_history_modified_at: current[4],
         },
         ReloadInputs {
             config_modified_at: next[0],
             runtime_state_modified_at: next[1],
-            favorite_ensemble_modified_at: next[2],
+            ensemble_modified_at: next[2],
             psd_viewer_tui_activity_modified_at: next[3],
             window_history_modified_at: next[4],
         },
