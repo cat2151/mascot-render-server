@@ -1,7 +1,7 @@
 use crate::ensemble::{
-    fill_missing_positions, pack_positions_from_right, patch_ensemble_positions_toml,
-    sanitize_ensemble_entries_for_test, scaled_content_x_bounds, EnsembleEntry,
-    EnsembleLayoutEntry,
+    fill_missing_positions, normalize_vpt_positions_for_test, pack_positions_from_right,
+    patch_ensemble_positions_toml, sanitize_ensemble_entries_for_test, scaled_content_x_bounds,
+    EnsembleEntry, EnsembleLayoutEntry,
 };
 use crate::mascot_app::{
     member_eye_blink_elapsed, member_eye_blink_seed, member_phase_offset_ratio,
@@ -74,6 +74,56 @@ fn ensemble_only_places_missing_entries_to_the_left_of_existing_layout() {
     assert_eq!(layout[0].position, Some([70.0, 0.0]));
     assert_eq!(layout[1].position, Some([15.0, 60.0]));
     assert_eq!(layout[2].position, Some([40.0, 30.0]));
+}
+
+#[test]
+fn vpt_ensemble_repacks_all_entries_in_text_order() {
+    let mut layout = vec![
+        EnsembleLayoutEntry {
+            size: [80.0, 120.0],
+            content_x_bounds: [10.0, 70.0],
+            position: Some([361.0, 0.0]),
+        },
+        EnsembleLayoutEntry {
+            size: [40.0, 60.0],
+            content_x_bounds: [5.0, 35.0],
+            position: Some([-901.0, 0.0]),
+        },
+        EnsembleLayoutEntry {
+            size: [30.0, 90.0],
+            content_x_bounds: [0.0, 20.0],
+            position: Some([-2205.0, 0.0]),
+        },
+    ];
+
+    let updated = normalize_vpt_positions_for_test(&mut layout);
+
+    assert_eq!(updated, vec![0, 1, 2]);
+    assert_eq!(layout[0].position, Some([40.0, 0.0]));
+    assert_eq!(layout[1].position, Some([15.0, 60.0]));
+    assert_eq!(layout[2].position, Some([0.0, 30.0]));
+}
+
+#[test]
+fn vpt_ensemble_does_not_rewrite_already_compact_layout() {
+    let mut layout = vec![
+        EnsembleLayoutEntry {
+            size: [80.0, 120.0],
+            content_x_bounds: [10.0, 70.0],
+            position: Some([20.0, 0.0]),
+        },
+        EnsembleLayoutEntry {
+            size: [40.0, 60.0],
+            content_x_bounds: [5.0, 35.0],
+            position: Some([-5.0, 60.0]),
+        },
+    ];
+
+    let updated = normalize_vpt_positions_for_test(&mut layout);
+
+    assert!(updated.is_empty());
+    assert_eq!(layout[0].position, Some([20.0, 0.0]));
+    assert_eq!(layout[1].position, Some([-5.0, 60.0]));
 }
 
 #[test]

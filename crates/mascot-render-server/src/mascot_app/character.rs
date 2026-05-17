@@ -44,6 +44,25 @@ pub(super) fn resolve_character_skin(
     )
 }
 
+pub(super) fn resolve_character_skin_stably(
+    core: &Core,
+    character_name: &str,
+) -> Result<ResolvedCharacterSkin> {
+    let character_name = normalize_character_name(character_name)?;
+    let zip_entries = core.load_cached_zip_entries_snapshot().with_context(|| {
+        format!(
+            "failed to load cached zip entries while resolving character '{}' stably",
+            character_name
+        )
+    })?;
+    resolve_character_skin_from_entries(
+        &zip_entries,
+        character_name,
+        stable_character_seed(character_name),
+        &core.cache_dir().display().to_string(),
+    )
+}
+
 fn resolve_character_skin_from_entries(
     zip_entries: &[ZipEntry],
     character_name: &str,
@@ -102,7 +121,7 @@ fn character_skin_candidates(
     zip_entries: &[ZipEntry],
     character_name: &str,
 ) -> Vec<CharacterSkinCandidate> {
-    zip_entries
+    let mut candidates = zip_entries
         .iter()
         .flat_map(|zip_entry| {
             zip_entry
@@ -110,7 +129,14 @@ fn character_skin_candidates(
                 .iter()
                 .filter_map(move |psd| character_skin_candidate(zip_entry, psd, character_name))
         })
-        .collect()
+        .collect::<Vec<_>>();
+    candidates.sort_by(|left, right| {
+        left.zip_path
+            .cmp(&right.zip_path)
+            .then_with(|| left.psd_path_in_zip.cmp(&right.psd_path_in_zip))
+            .then_with(|| left.png_path.cmp(&right.png_path))
+    });
+    candidates
 }
 
 fn character_skin_candidate(
@@ -154,6 +180,18 @@ fn candidate_index_from_seed(candidate_count: usize, seed: u64) -> usize {
     value ^= value << 25;
     value ^= value >> 27;
     (value.wrapping_mul(2_685_821_657_736_338_717) as usize) % candidate_count
+}
+
+fn stable_character_seed(character_name: &str) -> u64 {
+    const FNV_OFFSET_BASIS: u64 = 14_695_981_039_346_656_037;
+    const FNV_PRIME: u64 = 1_099_511_628_211;
+
+    character_name
+        .as_bytes()
+        .iter()
+        .fold(FNV_OFFSET_BASIS, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME)
+        })
 }
 
 fn searchable_path_text(path: &Path) -> String {
@@ -219,4 +257,27 @@ pub(crate) fn resolve_character_skin_from_entries_for_test(
             )
         },
     )
+}
+
+#[cfg(test)]
+pub(crate) fn resolve_character_skin_stably_from_entries_for_test(
+    zip_entries: &[ZipEntry],
+    character_name: &str,
+) -> Result<(String, PathBuf, PathBuf, PathBuf, usize)> {
+    let character_name = normalize_character_name(character_name)?;
+    resolve_character_skin_from_entries(
+        zip_entries,
+        character_name,
+        stable_character_seed(character_name),
+        "test-cache",
+    )
+    .map(|resolved| {
+        (
+            resolved.character_name,
+            resolved.zip_path,
+            resolved.psd_path_in_zip,
+            resolved.png_path,
+            resolved.candidate_count,
+        )
+    })
 }

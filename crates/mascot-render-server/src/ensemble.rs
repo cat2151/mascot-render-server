@@ -17,11 +17,16 @@ mod mouth_flap;
 mod persistence;
 #[path = "ensemble/sanitize.rs"]
 mod sanitize;
+#[path = "ensemble/vpt_layout.rs"]
+mod vpt_layout;
 #[cfg(test)]
 pub(crate) use persistence::patch_ensemble_positions_toml;
 use persistence::{load_ensemble_entries, patch_ensemble_positions, write_ensemble_entries};
 #[cfg(test)]
 pub(crate) use sanitize::sanitize_ensemble_entries_for_test;
+use vpt_layout::normalize_vpt_positions;
+#[cfg(test)]
+pub(crate) use vpt_layout::normalize_vpt_positions_for_test;
 
 const FAVORITES_DIR: &str = "favorites";
 const FAVORITES_FILE_NAME: &str = "favorites.toml";
@@ -107,7 +112,7 @@ pub(crate) fn load_active_ensemble(
     let Some(path) = active_ensemble_path(mode) else {
         return Ok(None);
     };
-    load_ensemble_from_path(core, path)
+    load_ensemble_from_path(core, path, mode)
 }
 
 pub(crate) fn save_vpt_ensemble(entries: &[EnsembleEntry]) -> Result<()> {
@@ -121,6 +126,7 @@ pub(crate) fn load_vpt_ensemble_entries() -> Result<Vec<EnsembleEntry>> {
 pub(crate) fn load_ensemble_from_path(
     core: &Core,
     ensemble_path: PathBuf,
+    mode: MascotEnsembleMode,
 ) -> Result<Option<Ensemble>> {
     let mut entries = load_ensemble_entries(&ensemble_path)?;
     if entries.is_empty() {
@@ -139,18 +145,40 @@ pub(crate) fn load_ensemble_from_path(
         .iter()
         .map(layout_entry_from_rendered)
         .collect::<Vec<_>>();
-    let updated_indices = fill_missing_positions(&mut layout_entries);
+    let updated_indices = match mode {
+        MascotEnsembleMode::SingleCharacter => Vec::new(),
+        MascotEnsembleMode::Favorite => fill_missing_positions(&mut layout_entries),
+        MascotEnsembleMode::Vpt => normalize_vpt_positions(&mut layout_entries),
+    };
     for (rendered_entry, layout_entry) in rendered.iter_mut().zip(layout_entries) {
         rendered_entry.entry.favorite_ensemble_position = layout_entry.position;
     }
     if !updated_indices.is_empty() {
-        patch_ensemble_positions(
-            &ensemble_path,
-            &updated_indices
-                .into_iter()
-                .map(|index| rendered[index].entry.clone())
-                .collect::<Vec<_>>(),
-        )?;
+        match mode {
+            MascotEnsembleMode::Favorite => {
+                patch_ensemble_positions(
+                    &ensemble_path,
+                    &updated_indices
+                        .into_iter()
+                        .map(|index| rendered[index].entry.clone())
+                        .collect::<Vec<_>>(),
+                )?;
+            }
+            MascotEnsembleMode::Vpt => {
+                let entries = rendered
+                    .iter()
+                    .map(|rendered_entry| rendered_entry.entry.clone())
+                    .collect::<Vec<_>>();
+                write_ensemble_entries(&ensemble_path, &entries)?;
+                eprintln!(
+                    "vpt ensemble normalized member positions path={} updated_count={} member_count={}",
+                    ensemble_path.display(),
+                    updated_indices.len(),
+                    entries.len()
+                );
+            }
+            MascotEnsembleMode::SingleCharacter => {}
+        }
     }
 
     Ok(Some(build_ensemble(rendered)))

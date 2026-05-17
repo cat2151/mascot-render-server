@@ -5,6 +5,7 @@ use mascot_render_core::{PsdEntry, ZipEntry};
 use crate::mascot_app::{
     candidate_index_from_seed_for_test, character_skin_candidates_for_test,
     configured_character_name_for_status, resolve_character_skin_from_entries_for_test,
+    resolve_character_skin_stably_from_entries_for_test,
 };
 
 #[test]
@@ -103,6 +104,36 @@ fn resolving_multiple_candidates_selects_deterministically_for_tests() {
         resolved.3,
         PathBuf::from(format!("cache/{}/body.png", ["a", "b"][expected_index]))
     );
+}
+
+#[test]
+fn stable_character_resolver_selects_same_candidate_for_repeated_vpt_requests() {
+    let entries = vec![
+        zip_entry(
+            "assets/zip/ずんだもん-b.zip",
+            "extract/b",
+            vec![psd_entry(
+                "extract/b/ずんだもん/body.psd",
+                "cache/b/body.png",
+            )],
+        ),
+        zip_entry(
+            "assets/zip/ずんだもん-a.zip",
+            "extract/a",
+            vec![psd_entry(
+                "extract/a/ずんだもん/body.psd",
+                "cache/a/body.png",
+            )],
+        ),
+    ];
+
+    let first = resolve_character_skin_stably_from_entries_for_test(&entries, "ずんだもん")
+        .expect("stable vpt candidate should resolve");
+    let second = resolve_character_skin_stably_from_entries_for_test(&entries, "ずんだもん")
+        .expect("stable vpt candidate should resolve repeatedly");
+
+    assert_eq!(first, second);
+    assert_eq!(first.4, 2);
 }
 
 #[test]

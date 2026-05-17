@@ -64,6 +64,7 @@ mod window_position_reset;
 pub(crate) use character::{
     candidate_index_from_seed_for_test, character_skin_candidates_for_test,
     configured_character_name_for_status, resolve_character_skin_from_entries_for_test,
+    resolve_character_skin_stably_from_entries_for_test,
 };
 use config::{active_display_scale, should_refresh_auxiliary_skins_now};
 #[cfg(test)]

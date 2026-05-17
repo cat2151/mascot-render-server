@@ -4,7 +4,7 @@ use mascot_render_control::log_server_info;
 use mascot_render_core::{LayerVisibilityOverride, MascotEnsembleMode};
 use mascot_render_protocol::VptEnsembleRequest;
 
-use super::super::character::{resolve_character_skin, ResolvedCharacterSkin};
+use super::super::character::{resolve_character_skin_stably, ResolvedCharacterSkin};
 use super::super::MascotApp;
 use crate::app_support::path_modified_at;
 use crate::ensemble::{
@@ -64,7 +64,7 @@ impl MascotApp {
         let mut entries = Vec::with_capacity(request.character_names.len());
         for character_name in &request.character_names {
             let resolved =
-                resolve_character_skin(&self.core, character_name).with_context(|| {
+                resolve_character_skin_stably(&self.core, character_name).with_context(|| {
                     format!(
                         "failed to resolve vpt ensemble character: character_name={character_name}"
                     )
@@ -113,6 +113,6 @@ fn vpt_entry_from_resolved(
             .map(|entry| entry.visibility_overrides.clone())
             .unwrap_or_else(Vec::<LayerVisibilityOverride>::new),
         mascot_scale: saved.and_then(|entry| entry.mascot_scale),
-        favorite_ensemble_position: saved.and_then(|entry| entry.favorite_ensemble_position),
+        favorite_ensemble_position: None,
     }
 }
