@@ -31,7 +31,7 @@ pub(super) struct EnsembleMemberScene {
     pub(super) phase_offset_ratio: f32,
 }
 
-pub(super) struct EnsembleScene {
+pub(crate) struct EnsembleScene {
     pub(super) members: Vec<EnsembleMemberScene>,
     canvas_size: Vec2,
 }
@@ -121,6 +121,22 @@ impl EnsembleScene {
         true
     }
 
+    pub(super) fn trigger_bounce_for_character(
+        &mut self,
+        character_name: &str,
+        now: Instant,
+    ) -> bool {
+        let Some(member) = self
+            .members
+            .iter_mut()
+            .find(|member| member.character_name() == Some(character_name))
+        else {
+            return false;
+        };
+        member.motion.trigger_bounce(now);
+        true
+    }
+
     pub(super) fn mouth_flap_is_open(&mut self, now: Instant) -> Option<bool> {
         let mut any_closed = false;
         for member in &mut self.members {
@@ -166,6 +182,30 @@ impl EnsembleScene {
                 }
             })
             .min()
+    }
+}
+
+#[cfg(test)]
+impl EnsembleScene {
+    pub(crate) fn from_loaded_for_test(
+        ctx: &egui::Context,
+        ensemble: Ensemble,
+        always_idle_sink_enabled: bool,
+        now: Instant,
+    ) -> Self {
+        Self::from_loaded(ctx, ensemble, always_idle_sink_enabled, now)
+    }
+
+    pub(crate) fn trigger_bounce_for_character_for_test(
+        &mut self,
+        character_name: &str,
+        now: Instant,
+    ) -> bool {
+        self.trigger_bounce_for_character(character_name, now)
+    }
+
+    pub(crate) fn member_motion_is_active_for_test(&self, index: usize) -> bool {
+        self.members[index].motion.is_active()
     }
 }
 

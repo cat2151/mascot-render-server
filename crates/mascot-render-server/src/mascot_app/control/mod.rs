@@ -111,6 +111,18 @@ impl MascotApp {
                         ));
                         return Ok(());
                     }
+                    let stage_started_at = Instant::now();
+                    if self.apply_targeted_bounce_timeline(request, target_character_name, now) {
+                        self.record_performance_stage(
+                            "apply_targeted_bounce_timeline",
+                            elapsed_ms_since(stage_started_at),
+                        );
+                        log_server_info(format!(
+                            "trigger=control_command action=timeline {}",
+                            timeline_summary
+                        ));
+                        return Ok(());
+                    }
                 }
                 if request_contains_mouth_flap(request) {
                     let refresh_started_at = Instant::now();
@@ -208,6 +220,47 @@ impl MascotApp {
         true
     }
 
+    fn apply_targeted_bounce_timeline(
+        &mut self,
+        request: &MotionTimelineRequest,
+        target_character_name: &str,
+        now: Instant,
+    ) -> bool {
+        let Some(step) = request.steps.first() else {
+            return false;
+        };
+        if step.kind != MotionTimelineKind::Bounce {
+            return false;
+        }
+        if !should_consume_targeted_bounce_timeline(request, self.config.ensemble_mode) {
+            return false;
+        }
+
+        let Some(ensemble_scene) = self.ensemble_scene.as_mut() else {
+            log_server_info(format!(
+                "trigger=control_command action=timeline target_character_name={} result=noop reason=vpt_member_not_found ensemble_mode={:?} member_count=0",
+                target_character_name,
+                self.config.ensemble_mode
+            ));
+            return true;
+        };
+        let member_count = ensemble_scene.members.len();
+        let triggered = ensemble_scene.trigger_bounce_for_character(target_character_name, now);
+        if triggered {
+            log_server_info(format!(
+                "trigger=control_command action=timeline target_character_name={} result=targeted_bounce member_count={member_count}",
+                target_character_name
+            ));
+        } else {
+            log_server_info(format!(
+                "trigger=control_command action=timeline target_character_name={} result=noop reason=vpt_member_not_found ensemble_mode={:?} member_count={member_count}",
+                target_character_name,
+                self.config.ensemble_mode
+            ));
+        }
+        true
+    }
+
     fn ensure_mouth_flap_skins_for_timeline(&mut self, ctx: &egui::Context) -> Result<()> {
         if self.config.ensemble_mode.is_ensemble()
             || (self.mouth_open_skin.is_some() && self.mouth_closed_skin.is_some())
@@ -249,6 +302,26 @@ pub(crate) fn should_consume_targeted_mouth_flap_timeline_for_test(
     ensemble_mode: MascotEnsembleMode,
 ) -> bool {
     should_consume_targeted_mouth_flap_timeline(request, ensemble_mode)
+}
+
+fn should_consume_targeted_bounce_timeline(
+    request: &MotionTimelineRequest,
+    ensemble_mode: MascotEnsembleMode,
+) -> bool {
+    request.target_character_name.is_some()
+        && matches!(ensemble_mode, MascotEnsembleMode::Vpt)
+        && request
+            .steps
+            .first()
+            .is_some_and(|step| step.kind == MotionTimelineKind::Bounce)
+}
+
+#[cfg(test)]
+pub(crate) fn should_consume_targeted_bounce_timeline_for_test(
+    request: &MotionTimelineRequest,
+    ensemble_mode: MascotEnsembleMode,
+) -> bool {
+    should_consume_targeted_bounce_timeline(request, ensemble_mode)
 }
 
 fn elapsed_ms_since(started_at: Instant) -> u64 {

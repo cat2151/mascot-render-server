@@ -23,7 +23,11 @@ fn change_character_request_round_trips_as_json() {
 
 #[test]
 fn motion_timeline_request_round_trips_as_json() {
-    for kind in [MotionTimelineKind::Shake, MotionTimelineKind::MouthFlap] {
+    for kind in [
+        MotionTimelineKind::Shake,
+        MotionTimelineKind::MouthFlap,
+        MotionTimelineKind::Bounce,
+    ] {
         let request = MotionTimelineRequest {
             steps: vec![MotionTimelineStep {
                 kind,
@@ -39,6 +43,19 @@ fn motion_timeline_request_round_trips_as_json() {
 
         assert_eq!(decoded, request);
     }
+}
+
+#[test]
+fn motion_timeline_bounce_kind_serializes_as_snake_case() {
+    let step = MotionTimelineStep {
+        kind: MotionTimelineKind::Bounce,
+        duration_ms: 900,
+        fps: 60,
+    };
+
+    let json = serde_json::to_value(&step).expect("step should serialize");
+
+    assert_eq!(json["kind"], serde_json::json!("bounce"));
 }
 
 #[test]
@@ -130,17 +147,23 @@ fn validate_motion_timeline_request_rejects_zero_duration() {
 
 #[test]
 fn validate_motion_timeline_request_accepts_single_step() {
-    let request = MotionTimelineRequest {
-        steps: vec![MotionTimelineStep {
-            kind: MotionTimelineKind::MouthFlap,
-            duration_ms: 5_000,
-            fps: 20,
-        }],
-        target_character_name: None,
-    };
+    for kind in [
+        MotionTimelineKind::Shake,
+        MotionTimelineKind::MouthFlap,
+        MotionTimelineKind::Bounce,
+    ] {
+        let request = MotionTimelineRequest {
+            steps: vec![MotionTimelineStep {
+                kind,
+                duration_ms: 5_000,
+                fps: 20,
+            }],
+            target_character_name: None,
+        };
 
-    validate_motion_timeline_request(&request)
-        .expect("single-step motion timeline should be accepted");
+        validate_motion_timeline_request(&request)
+            .expect("single-step motion timeline should be accepted");
+    }
 }
 
 #[test]

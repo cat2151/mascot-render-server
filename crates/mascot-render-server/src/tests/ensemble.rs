@@ -1,14 +1,14 @@
 use crate::ensemble::{
     fill_missing_positions, normalize_vpt_positions_for_test, pack_positions_from_right,
     patch_ensemble_positions_toml, sanitize_ensemble_entries_for_test, scaled_content_x_bounds,
-    EnsembleEntry, EnsembleLayoutEntry,
+    Ensemble, EnsembleEntry, EnsembleLayoutEntry, EnsembleMember,
 };
 use crate::mascot_app::{
-    member_eye_blink_elapsed, member_eye_blink_seed, member_phase_offset_ratio,
+    member_eye_blink_elapsed, member_eye_blink_seed, member_phase_offset_ratio, EnsembleScene,
 };
 use mascot_render_core::{LayerVisibilityOverride, MascotImageData};
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[test]
 fn ensemble_packs_entries_from_right_edge_without_visible_horizontal_gaps() {
@@ -256,6 +256,30 @@ fn ensemble_member_eye_blink_seeds_are_distinct_per_member() {
 }
 
 #[test]
+fn ensemble_triggers_bounce_for_named_member_only() {
+    let ctx = eframe::egui::Context::default();
+    let mut first = sample_ensemble_member("a.zip", "a.psd", [0.0, 0.0], [10.0, 20.0]);
+    first.character_name = Some("ずんだもん".to_string());
+    let mut second = sample_ensemble_member("b.zip", "b.psd", [10.0, 0.0], [20.0, 20.0]);
+    second.character_name = Some("四国めたん".to_string());
+    let now = Instant::now();
+    let mut scene = EnsembleScene::from_loaded_for_test(
+        &ctx,
+        Ensemble {
+            canvas_size: [30.0, 20.0],
+            members: vec![first, second],
+        },
+        false,
+        now,
+    );
+
+    assert!(scene.trigger_bounce_for_character_for_test("四国めたん", now));
+
+    assert!(!scene.member_motion_is_active_for_test(0));
+    assert!(scene.member_motion_is_active_for_test(1));
+}
+
+#[test]
 fn ensemble_sanitize_deduplicates_equivalent_visibility_overrides() {
     let sanitized = sanitize_ensemble_entries_for_test(vec![
         EnsembleEntry {
@@ -310,6 +334,36 @@ fn sample_ensemble_entry(mascot_scale: Option<f32>) -> EnsembleEntry {
         visibility_overrides: Vec::new(),
         mascot_scale,
         favorite_ensemble_position: None,
+    }
+}
+
+fn sample_ensemble_member(
+    zip_path: &str,
+    psd_path_in_zip: &str,
+    canvas_position: [f32; 2],
+    base_size: [f32; 2],
+) -> EnsembleMember {
+    EnsembleMember {
+        character_name: None,
+        zip_path: PathBuf::from(zip_path),
+        psd_path_in_zip: PathBuf::from(psd_path_in_zip),
+        image: sample_image(zip_path, base_size),
+        closed_image: None,
+        mouth_open_image: None,
+        mouth_closed_image: None,
+        base_size,
+        canvas_position,
+    }
+}
+
+fn sample_image(path: &str, size: [f32; 2]) -> MascotImageData {
+    let width = size[0].ceil().max(1.0) as u32;
+    let height = size[1].ceil().max(1.0) as u32;
+    MascotImageData {
+        path: PathBuf::from(path).with_extension("png"),
+        width,
+        height,
+        rgba: vec![255; width as usize * height as usize * 4],
     }
 }
 

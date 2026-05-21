@@ -27,6 +27,7 @@ pub fn apply_motion_timeline_request(
         MotionTimelineKind::MouthFlap => {
             motion.trigger_mouth_flap(now, Duration::from_millis(step.duration_ms), step.fps)
         }
+        MotionTimelineKind::Bounce => motion.trigger_bounce(now),
     }
 
     Ok(())

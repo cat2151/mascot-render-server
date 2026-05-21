@@ -18,6 +18,46 @@ fn motion_state_alternates_between_animation_kinds() {
 }
 
 #[test]
+fn trigger_bounce_starts_bounce_without_advancing_click_cycle() {
+    let mut motion = MotionState::new();
+    let now = Instant::now();
+
+    motion.trigger_bounce(now);
+
+    assert!(motion.is_active());
+    assert_eq!(motion.next_animation_name(), "bounce");
+    let transform = motion.sample(
+        now + Duration::from_millis(180),
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
+    );
+    assert!(transform.offset_y < 0.0);
+}
+
+#[test]
+fn trigger_bounce_and_mouth_flap_can_run_together() {
+    let mut motion = MotionState::new();
+    let now = Instant::now();
+
+    motion.trigger_bounce(now);
+    motion.trigger_mouth_flap(now, Duration::from_secs(1), 4);
+
+    assert_eq!(motion.mouth_flap_is_open(now), Some(true));
+    let transform = motion.sample(
+        now + Duration::from_millis(180),
+        BounceAnimationConfig::default(),
+        SquashBounceAnimationConfig::default(),
+        IdleSinkAnimationConfig::default_for_always_bouncing(),
+    );
+    assert!(transform.offset_y < 0.0);
+    assert_eq!(
+        motion.mouth_flap_is_open(now + Duration::from_millis(250)),
+        Some(false)
+    );
+}
+
+#[test]
 fn bounce_transform_moves_image_upward() {
     let mut motion = MotionState::new();
     let now = Instant::now();

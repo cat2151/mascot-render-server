@@ -27,6 +27,7 @@ pub struct PreviewTargetRequest {
 pub enum MotionTimelineKind {
     Shake,
     MouthFlap,
+    Bounce,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -62,6 +63,7 @@ pub fn validate_motion_timeline_request(request: &MotionTimelineRequest) -> Resu
     match step.kind {
         MotionTimelineKind::Shake => Ok(()),
         MotionTimelineKind::MouthFlap => Ok(()),
+        MotionTimelineKind::Bounce => Ok(()),
     }
 }
 

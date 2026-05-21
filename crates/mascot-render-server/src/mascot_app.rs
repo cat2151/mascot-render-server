@@ -77,12 +77,16 @@ pub(crate) use context_menu_shortcut::{
     placement_context_menu_action_for_key_for_test, PlacementContextMenuAction,
 };
 #[cfg(test)]
-pub(crate) use control::should_consume_targeted_mouth_flap_timeline_for_test;
+pub(crate) use control::{
+    should_consume_targeted_bounce_timeline_for_test,
+    should_consume_targeted_mouth_flap_timeline_for_test,
+};
 #[cfg(test)]
 pub(crate) use ensemble::member_phase_offset_ratio;
+#[cfg(not(test))]
 use ensemble::EnsembleScene;
 #[cfg(test)]
-pub(crate) use ensemble::{member_eye_blink_elapsed, member_eye_blink_seed};
+pub(crate) use ensemble::{member_eye_blink_elapsed, member_eye_blink_seed, EnsembleScene};
 use logging::should_log_rendered_skin;
 #[cfg(test)]
 pub(crate) use logging::{

@@ -226,6 +226,10 @@ impl MotionState {
         });
     }
 
+    pub fn trigger_bounce(&mut self, now: Instant) {
+        self.active = Some(Self::start_animation(AnimationKind::Bounce, now, false));
+    }
+
     pub fn trigger_shake(
         &mut self,
         now: Instant,
