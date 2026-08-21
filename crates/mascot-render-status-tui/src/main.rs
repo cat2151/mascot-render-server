@@ -1,4 +1,5 @@
 mod actions;
+mod cli;
 mod performance_log;
 mod performance_log_style;
 mod poller;
@@ -16,8 +17,9 @@ mod tests;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
+use cli::{parse_cli, CliAction};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
-use mascot_render_core::mascot_config_path;
+use mascot_render_core::{check_workspace_update, mascot_config_path};
 use ratatui::Terminal;
 
 use actions::{TestPostAction, TestPostSync};
@@ -27,9 +29,22 @@ use startup::ServerStartupSync;
 use state::StatusTuiState;
 use terminal::{Backend, TerminalGuard};
 
+const BUILD_COMMIT_HASH: &str = env!("BUILD_COMMIT_HASH");
 const POLL_INTERVAL: Duration = Duration::from_millis(250);
 
 fn main() -> Result<()> {
+    match parse_cli(std::env::args_os())? {
+        CliAction::Run => {}
+        CliAction::Check => {
+            println!("{}", check_workspace_update(BUILD_COMMIT_HASH)?);
+            return Ok(());
+        }
+        CliAction::PrintHelp(help) => {
+            println!("{help}");
+            return Ok(());
+        }
+    }
+
     let mut terminal = TerminalGuard::new()?;
     let mut state = StatusTuiState::new();
     let config_path = mascot_config_path();

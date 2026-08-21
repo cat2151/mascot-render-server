@@ -2538,6 +2538,7 @@ name = "mascot-render-status-tui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "crossterm",
  "ctor",
  "mascot-render-client",
