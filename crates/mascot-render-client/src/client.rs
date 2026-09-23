@@ -10,7 +10,7 @@ use mascot_render_protocol::{
     ServerStatusSnapshot, VptEnsembleRequest,
 };
 
-pub const MASCOT_RENDER_SERVER_PORT: u16 = 62152;
+pub const MASCOT_RENDER_SERVER_PORT: u16 = 42152;
 pub const PREVIEW_MOUTH_FLAP_DURATION_MS: u64 = 5_000;
 pub const PREVIEW_MOUTH_FLAP_FPS: u16 = 4;
 
