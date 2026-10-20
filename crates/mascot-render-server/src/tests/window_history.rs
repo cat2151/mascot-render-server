@@ -191,6 +191,7 @@ fn mascot_config(zip_path: &str, psd_path_in_zip: &str) -> MascotConfig {
         ensemble_mode: MascotEnsembleMode::SingleCharacter,
         bounce: BounceAnimationConfig::default(),
         squash_bounce: SquashBounceAnimationConfig::default(),
+        musical_squash_bounce: SquashBounceAnimationConfig::default_for_musical(),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
     }
 }

@@ -2,8 +2,9 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread;
 
 use anyhow::Result;
-use mascot_render_control::sync_mascot_render_server_preview;
 use mascot_render_protocol::PreviewTargetRequest;
+
+use crate::server_preview_session::sync_preview_session;
 
 const SERVER_SYNC_ACTIVITY_MESSAGE: &str = "Starting mascot-render-server / syncing preview...";
 
@@ -12,6 +13,7 @@ pub(crate) struct ServerPreviewSyncState {
     desired_target: Option<PreviewTargetRequest>,
     active_target: Option<PreviewTargetRequest>,
     synced_target: Option<PreviewTargetRequest>,
+    failed_target: Option<PreviewTargetRequest>,
 }
 
 #[derive(Debug)]
@@ -27,6 +29,7 @@ pub(crate) struct ServerPreviewSync {
     generation: u64,
     result_tx: Sender<ServerPreviewSyncEvent>,
     result_rx: Receiver<ServerPreviewSyncEvent>,
+    initialized: bool,
 }
 
 impl ServerPreviewSync {
@@ -37,6 +40,7 @@ impl ServerPreviewSync {
             generation: 0,
             result_tx,
             result_rx,
+            initialized: false,
         }
     }
 
@@ -52,12 +56,15 @@ impl ServerPreviewSync {
                 Ok(event) if event.generation != self.generation => continue,
                 Ok(event) => match event.result {
                     Ok(()) => {
+                        self.initialized = true;
                         if let Some(next_target) = self.state.finish_success(event.target) {
                             self.spawn_sync(next_target);
                         }
                     }
                     Err(error) => {
-                        self.cancel();
+                        if let Some(next_target) = self.state.finish_failure(event.target) {
+                            self.spawn_sync(next_target);
+                        }
                         return Some(error);
                     }
                 },
@@ -76,13 +83,20 @@ impl ServerPreviewSync {
         self.drain_stale_events();
     }
 
+    pub(crate) fn retry(&mut self) {
+        self.cancel();
+        self.initialized = false;
+    }
+
     fn spawn_sync(&self, target: PreviewTargetRequest) {
         let result_tx = self.result_tx.clone();
         let generation = self.generation;
+        let initialize = !self.initialized;
         thread::spawn(move || {
-            let result = sync_mascot_render_server_preview(
+            let result = sync_preview_session(
                 &mascot_render_core::mascot_config_path(),
-                Some(&target),
+                &target,
+                initialize,
             );
             let _ = result_tx.send(ServerPreviewSyncEvent {
                 generation,
@@ -112,6 +126,7 @@ impl ServerPreviewSyncState {
     ) -> Option<PreviewTargetRequest> {
         self.active_target = None;
         self.synced_target = Some(target);
+        self.failed_target = None;
         self.schedule_next()
     }
 
@@ -119,10 +134,20 @@ impl ServerPreviewSyncState {
         self.active_target.is_some()
     }
 
+    pub(crate) fn finish_failure(
+        &mut self,
+        target: PreviewTargetRequest,
+    ) -> Option<PreviewTargetRequest> {
+        self.active_target = None;
+        self.failed_target = Some(target);
+        self.schedule_next()
+    }
+
     pub(crate) fn reset(&mut self) {
         self.desired_target = None;
         self.active_target = None;
         self.synced_target = None;
+        self.failed_target = None;
     }
 
     fn schedule_next(&mut self) -> Option<PreviewTargetRequest> {
@@ -136,6 +161,9 @@ impl ServerPreviewSyncState {
         };
 
         if self.synced_target.as_ref() == Some(&next_target) {
+            return None;
+        }
+        if self.failed_target.as_ref() == Some(&next_target) {
             return None;
         }
 

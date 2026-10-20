@@ -22,6 +22,7 @@ mod mascot_scale_tests;
 mod mouth_flap_tests;
 #[path = "selection_timing.rs"]
 mod selection_timing_tests;
+mod server_preview_session;
 #[path = "server_preview_sync.rs"]
 mod server_preview_sync_tests;
 #[path = "startup_loader.rs"]

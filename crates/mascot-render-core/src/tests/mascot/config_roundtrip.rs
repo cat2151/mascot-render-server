@@ -343,3 +343,86 @@ fn default_mascot_scale_targets_thirty_three_percent_of_screen_height() {
 
     assert!((scale - 0.288).abs() < 0.001, "unexpected scale: {scale}");
 }
+
+#[test]
+fn playback_motion_parameters_reload_independently_and_survive_target_writes() {
+    let root = workspace_cache_root().join("test-playback-motion-config");
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join("mascot.toml");
+    let target = MascotTarget {
+        png_path: root.join("render.png"),
+        scale: Some(0.45),
+        ensemble_scale: None,
+        zip_path: root.join("demo.zip"),
+        psd_path_in_zip: PathBuf::from("demo.psd"),
+        display_diff_path: None,
+    };
+    write_mascot_config(&path, &target).unwrap();
+    let original = load_mascot_config(&path).unwrap();
+    assert_eq!(original.musical_squash_bounce.duration_ms, 500);
+    assert_eq!(original.musical_squash_bounce.amplitude_px, 3.0);
+    assert_eq!(original.musical_squash_bounce.cycles, 1.0);
+    assert_eq!(original.musical_squash_bounce.damping, 2.0);
+    assert_eq!(original.musical_squash_bounce.squash_amount, 0.1);
+    assert_eq!(original.musical_squash_bounce.stretch_amount, 0.05);
+    let mut toml: toml::Value = toml::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    let playback = toml
+        .get_mut("musical_squash_bounce")
+        .unwrap()
+        .as_table_mut()
+        .unwrap();
+    playback.insert("duration_ms".into(), 920.into());
+    playback.insert("amplitude_px".into(), 61.0.into());
+    playback.insert("cycles".into(), 2.3.into());
+    playback.insert("damping".into(), 1.1.into());
+    playback.insert("squash_amount".into(), 0.25.into());
+    playback.insert("stretch_amount".into(), 0.03.into());
+    fs::write(&path, toml::to_string_pretty(&toml).unwrap()).unwrap();
+    let reloaded = load_mascot_config(&path).unwrap();
+    let motion = reloaded.musical_squash_bounce;
+    assert_eq!(motion.duration_ms, 920);
+    assert_eq!(motion.amplitude_px, 61.0);
+    assert_eq!(motion.cycles, 2.3);
+    assert_eq!(motion.damping, 1.1);
+    assert_eq!(motion.squash_amount, 0.25);
+    assert_eq!(motion.stretch_amount, 0.03);
+    assert_eq!(reloaded.squash_bounce, original.squash_bounce);
+    assert_eq!(reloaded.bounce, original.bounce);
+    let bounds = reloaded.squash_motion_bounds();
+    assert_eq!(bounds.amplitude_px, 61.0);
+    assert_eq!(bounds.squash_amount, 0.25);
+    assert_eq!(bounds.stretch_amount, original.squash_bounce.stretch_amount);
+    write_mascot_config(&path, &target).unwrap();
+    assert_eq!(
+        load_mascot_config(&path).unwrap().musical_squash_bounce,
+        motion
+    );
+}
+
+#[test]
+#[ignore = "requires REAL_MUSICAL_CONFIG_PATH and REAL_MUSICAL_STATE_PATH; reads real TOML with a runtime snapshot"]
+fn real_musical_config_loads_without_changing_existing_settings() {
+    let path = PathBuf::from(std::env::var_os("REAL_MUSICAL_CONFIG_PATH").unwrap());
+    let state = PathBuf::from(std::env::var_os("REAL_MUSICAL_STATE_PATH").unwrap());
+    let before = fs::read(&path).unwrap();
+    let runtime_bytes = fs::read(&state).unwrap();
+    let snapshot_path = mascot_runtime_state_path(&path);
+    fs::create_dir_all(snapshot_path.parent().unwrap()).unwrap();
+    fs::write(&snapshot_path, &runtime_bytes).unwrap();
+    let raw: toml::Value = toml::from_str(std::str::from_utf8(&before).unwrap()).unwrap();
+    let expected: crate::SquashBounceAnimationConfig =
+        raw["musical_squash_bounce"].clone().try_into().unwrap();
+    let click: crate::SquashBounceAnimationConfig =
+        raw["squash_bounce"].clone().try_into().unwrap();
+    for _ in 0..2 {
+        let loaded = load_mascot_config(&path).unwrap();
+        assert_eq!(loaded.musical_squash_bounce, expected);
+        assert_eq!(loaded.squash_bounce, click);
+        let pose = loaded
+            .musical_squash_bounce
+            .sample(std::time::Duration::ZERO);
+        assert!((pose.scale_y - (1.0 - expected.stretch_amount)).abs() < 0.00001);
+    }
+    assert_eq!(fs::read(&path).unwrap(), before);
+    assert_eq!(fs::read(&state).unwrap(), runtime_bytes);
+}

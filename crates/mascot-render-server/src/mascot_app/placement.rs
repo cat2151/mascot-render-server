@@ -208,7 +208,7 @@ impl MascotApp {
             next_skin.image_size,
             next_skin.content_bounds,
             self.config.bounce,
-            self.config.squash_bounce,
+            self.config.squash_motion_bounds(),
             self.config.always_idle_sink,
         );
         let anchor_plan = self.anchor_plan_for_targets(

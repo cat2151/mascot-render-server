@@ -7,13 +7,30 @@ use crate::{now_unix_ms, ServerStatusSnapshot};
 #[derive(Clone)]
 pub struct ServerStatusStore {
     inner: Arc<Mutex<ServerStatusSnapshot>>,
+    playback: Arc<Mutex<crate::playback::PlaybackSlot>>,
 }
 
 impl ServerStatusStore {
     pub fn new(snapshot: ServerStatusSnapshot) -> Self {
         Self {
             inner: Arc::new(Mutex::new(snapshot)),
+            playback: Default::default(),
         }
+    }
+
+    pub fn set_playback(&self, request: crate::PlaybackRequest) -> Result<()> {
+        self.playback
+            .lock()
+            .map_err(|e| anyhow!("playback store poisoned: {e}"))?
+            .update(request)
+    }
+    pub fn playback(&self) -> Result<Option<crate::PlaybackSnapshot>> {
+        Ok(self
+            .playback
+            .lock()
+            .map_err(|e| anyhow!("playback store poisoned: {e}"))?
+            .0
+            .clone())
     }
 
     pub fn snapshot(&self) -> Result<ServerStatusSnapshot> {

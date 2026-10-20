@@ -9,6 +9,7 @@ pub(crate) mod mouth_flap;
 mod preview;
 mod selection;
 mod startup;
+mod startup_cache;
 mod support;
 mod timing;
 
@@ -55,12 +56,6 @@ pub(crate) enum FocusPane {
     Layer,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PreviewBackend {
-    MascotServer,
-    Sixel,
-}
-
 #[derive(Debug)]
 pub(crate) struct App {
     status: String,
@@ -73,7 +68,6 @@ pub(crate) struct App {
     processing_layer_toggle: bool,
     startup_loading: bool,
     startup_notice: Option<String>,
-    preview_backend: PreviewBackend,
     terminal_focused: bool,
     help_overlay_visible: bool,
     eye_blink: Option<EyeBlinkAnimation>,
@@ -124,7 +118,6 @@ impl App {
             processing_layer_toggle: false,
             startup_loading: true,
             startup_notice: Some("Loading ZIP/PSD cache index in background...".to_string()),
-            preview_backend: PreviewBackend::MascotServer,
             terminal_focused: true,
             help_overlay_visible: false,
             eye_blink: None,

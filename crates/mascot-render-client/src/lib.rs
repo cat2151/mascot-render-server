@@ -6,6 +6,7 @@ mascot_render_test_support::install_test_data_root!();
 #[cfg(test)]
 mod tests;
 
+pub use client::sync_playback_at;
 pub use client::{
     change_character_mascot_render_server, change_character_mascot_render_server_at,
     hide_mascot_render_server, hide_mascot_render_server_at, mascot_render_server_address,

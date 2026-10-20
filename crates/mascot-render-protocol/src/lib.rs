@@ -1,4 +1,6 @@
 mod command;
+mod playback;
+pub use playback::{PlaybackRequest, PlaybackSnapshot, DEFAULT_MOUTH_FLAP_FPS, PLAYBACK_LEASE};
 mod status;
 mod store;
 

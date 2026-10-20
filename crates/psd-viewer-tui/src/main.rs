@@ -4,7 +4,9 @@ mod app;
 mod cli;
 mod display_diff_state;
 mod favorites;
+mod input;
 mod server_motion_sync;
+mod server_preview_session;
 mod server_preview_sync;
 mod terminal;
 mod tui_config;
@@ -31,6 +33,10 @@ use tui_sixel_preview::{build_picker, PreviewState};
 
 use activity_heartbeat::ActivityHeartbeat;
 use app::{spawn_startup_loader, App, StartupEvent};
+use input::{
+    is_favorite_ensemble_toggle_key, is_favorite_save_key, is_favorites_toggle_key,
+    is_layer_toggle_key, is_overlay_close_key, is_overlay_confirm_key,
+};
 use server_motion_sync::{shake_requested_status_message, ServerMotionSync};
 use server_preview_sync::ServerPreviewSync;
 use terminal::{Backend, TerminalGuard};
@@ -71,41 +77,6 @@ fn main() -> Result<()> {
     )
 }
 
-fn is_layer_toggle_key(key: &crossterm::event::KeyEvent) -> bool {
-    key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Char(' ') | KeyCode::Enter)
-}
-
-fn is_favorites_toggle_key(key: &crossterm::event::KeyEvent, favorites_visible: bool) -> bool {
-    if key.modifiers != KeyModifiers::NONE {
-        return false;
-    }
-
-    matches!(key.code, KeyCode::Char('v')) || favorites_visible && matches!(key.code, KeyCode::Esc)
-}
-
-fn is_overlay_close_key(key: &crossterm::event::KeyEvent, overlay_visible: bool) -> bool {
-    overlay_visible && key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Esc)
-}
-
-fn is_overlay_confirm_key(key: &crossterm::event::KeyEvent, overlay_visible: bool) -> bool {
-    overlay_visible && key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Enter)
-}
-
-fn is_favorite_save_key(
-    key: &crossterm::event::KeyEvent,
-    focus: app::FocusPane,
-    favorites_visible: bool,
-) -> bool {
-    key.modifiers == KeyModifiers::NONE
-        && matches!(key.code, KeyCode::Char('f'))
-        && !favorites_visible
-        && matches!(focus, app::FocusPane::Library | app::FocusPane::Layer)
-}
-
-fn is_favorite_ensemble_toggle_key(key: &crossterm::event::KeyEvent) -> bool {
-    key.modifiers == KeyModifiers::NONE && matches!(key.code, KeyCode::Char('e'))
-}
-
 fn run_app(
     terminal: &mut Terminal<Backend>,
     picker: &mut Option<ratatui_image::picker::Picker>,
@@ -125,7 +96,9 @@ fn run_app(
             eprintln!("{error:#}");
         }
         if let Some(error) = server_preview_sync.drain_completions() {
-            app.fallback_to_sixel_preview(format!("mascot-render-server sync failed: {error:#}"));
+            app.set_status_message(format!(
+                "mascot-render-server sync failed: {error:#}. Press r to retry."
+            ));
             eprintln!("{error:#}");
         }
 
@@ -220,6 +193,10 @@ fn run_app(
                 }
 
                 match key.code {
+                    KeyCode::Char('r') if key.modifiers == KeyModifiers::NONE => {
+                        server_preview_sync.retry();
+                        app.set_status_message("Retrying mascot-render-server preview...");
+                    }
                     KeyCode::Char('?') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                         app.toggle_help_overlay();
                     }

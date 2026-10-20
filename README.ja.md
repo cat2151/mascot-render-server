@@ -43,6 +43,8 @@ psd-viewer-tui
 - 服装やポーズのレイヤーを変更すると見た目が変わります
 - TUIでお気に入りを登録しておくと、server側がキャッシュを参照して1分ごとに別のお気に入りへshuffle再生します
 
+- cat-smf-editorの設定`Ctrl+, → b`／パレットの「ずんだもん演奏連動」をONにすると、表示中のずんだもんが演奏の四分音符ごとに通常のクリック反応を基にした演奏専用の伸縮（`musical_squash_bounce`設定。既定は500ms・上下移動3px・周期数1・減衰2・横0.1・縦0.05）を先頭から再生し、対象の歌唱音符区間で口画像を既定の4 fpsで切り替えます。伸縮の長さは変えず、次の拍で途中の動きを打ち切って再開します（120 BPMでは500msごと）。テンポ変更・途中再生・ループに追従します。口画像は既存の遅延生成を使い、準備中もeditorの演奏は進みます。連動のON/OFFはeditorが保存し、再起動時に復元します。停止・OFF・editor終了・通信断ではserverの演奏状態を解除し、姿・配置・server設定は保存し直しません。SMPTE divisionの拍同期は対象外です。
+
 - 詳しい機能は画面のhelpを参照ください
 
 ## 設定
@@ -55,6 +57,10 @@ psd-viewer-tui
         - trueにすると、UX検証用の左右 bend を常時再生します。
     - bend
         - `amplitude_ratio` で bend 幅をマスコット画像幅に対する比率で指定できます。デフォルトは `0.0075` です。
+    - musical_squash_bounce
+        - 演奏連動専用の伸縮です。`squash_bounce`（通常クリック時）とは独立しています。
+        - `duration_ms`（動きの長さ）、`amplitude_px`（上下移動量）、`cycles`（周期数）、`damping`（減衰）、`squash_amount`（横の広がり量）、`stretch_amount`（縦のつぶれ量）を直接編集できます。`algorithm` は現在 `squash_stretch` の1種類です。
+        - TOMLを保存すると自動で再読込します。毎拍先頭から再生するため、`duration_ms` が拍間隔より長ければ途中で打ち切ります。
     - idle_sink
         - always_idle_sink 専用の IdleSink 呼吸設定です。
         - デフォルトでは通常の squash_bounce より穏やかに沈み込み・持ち上がり、まばたき interval の中央値のゆらぎに合わせて少しずつテンポが変わります。
@@ -64,6 +70,7 @@ psd-viewer-tui
 - モジュラー
     - 再利用性を重視し、責務ごとの小さなクレートに分割して実装してあります。
 - server
+    - localhostの`POST /playback`は最新の演奏位置・拍速度・歌唱有効状態を保持し、750msの更新期限で解除します。口の開閉周期は連続した状態更新でリセットしません。既存の単発`/timeline`と別の一時状態であり、保存形式は変更しません。
     - visual-render-serverに徹する。セリフとmotionのオーケストレーション等の責務は、別の上位階層のアプリに持たせる考えです。
 - Sixel
     - デスクトップマスコットが万一動かない場合のフォールバック用で、terminalにマスコットのpreviewが表示されます。

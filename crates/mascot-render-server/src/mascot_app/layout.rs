@@ -55,7 +55,7 @@ impl MascotApp {
                 self.open_skin.image_size,
                 content_bounds,
                 self.config.bounce,
-                self.config.squash_bounce,
+                self.config.squash_motion_bounds(),
                 self.config.always_idle_sink,
             )
         };

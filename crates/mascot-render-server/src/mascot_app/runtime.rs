@@ -54,7 +54,11 @@ impl App for MascotApp {
         }
         self.apply_pending_restored_anchor_position(ctx);
 
+        let playback = self.playback_snapshot(ctx);
+        let playback_is_zundamon = self.playback_is_zundamon();
         let now = Instant::now();
+        let playback_transform =
+            super::playback::transform(playback.as_ref(), now, self.config.musical_squash_bounce);
         if let Err(error) = self.sync_window_history(ctx, now) {
             self.record_and_log_status_error(format!("{error:#}"));
         }
@@ -102,6 +106,11 @@ impl App for MascotApp {
             &mut self.motion,
             now,
         );
+        let mouth_flap_open = if playback_is_zundamon && playback.is_some() {
+            playback.as_ref().and_then(|p| p.mouth_open(now))
+        } else {
+            mouth_flap_open
+        };
         let always_idle_sink = always_idle_sink_for_blink_median(
             self.config.always_idle_sink,
             self.eye_blink.current_median_ms(),
@@ -147,13 +156,23 @@ impl App for MascotApp {
                                 self.config.squash_bounce,
                                 always_idle_sink,
                             );
+                            let member_transform = if member
+                                .character_name
+                                .as_deref()
+                                .is_some_and(|n| n.contains("ずんだもん"))
+                            {
+                                playback_transform.unwrap_or(member_transform)
+                            } else {
+                                member_transform
+                            };
                             let member_origin = canvas_origin + member.origin.to_vec2() * scale;
                             let member_base_size = member.base_size * scale;
                             let image_rect =
                                 transformed_image_rect(member_base_size, member_transform)
                                     .translate(member_origin);
                             let phase_offset_ratio = member.phase_offset_ratio;
-                            let active_skin = member.active_skin(blink_closed, now);
+                            let active_skin =
+                                member.playback_skin(playback.as_ref(), blink_closed, now);
 
                             if let Some(bend_transform) =
                                 self.config.always_bend.enabled.then(|| {
@@ -258,6 +277,11 @@ impl App for MascotApp {
             self.config.squash_bounce,
             always_idle_sink,
         );
+        let transform = if playback_is_zundamon {
+            playback_transform.unwrap_or(transform)
+        } else {
+            transform
+        };
         let image_rect = self.window_layout.image_rect(self.base_size, transform);
         let active_skin = if let Some(is_open) = mouth_flap_open {
             if is_open {
@@ -418,7 +442,7 @@ impl App for MascotApp {
 }
 
 impl MascotApp {
-    fn record_and_log_status_error(&self, message: String) {
+    pub(super) fn record_and_log_status_error(&self, message: String) {
         self.record_status_error(message.clone());
         log_server_error(message);
     }

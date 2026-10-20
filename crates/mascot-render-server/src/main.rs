@@ -144,7 +144,7 @@ fn main() -> Result<()> {
             image_size,
             AlphaBounds::full(image_size),
             config.bounce,
-            config.squash_bounce,
+            config.squash_motion_bounds(),
             config.always_idle_sink,
         )
     } else {
@@ -165,7 +165,7 @@ fn main() -> Result<()> {
             [image.width, image.height],
             initial_content_bounds,
             config.bounce,
-            config.squash_bounce,
+            config.squash_motion_bounds(),
             config.always_idle_sink,
         )
     };
@@ -237,3 +237,7 @@ fn main() -> Result<()> {
     .map_err(|error| anyhow!(error.to_string()))?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/playback.rs"]
+mod playback_tests;

@@ -36,6 +36,8 @@ fn sample_config() -> MascotConfig {
         ensemble_mode: MascotEnsembleMode::SingleCharacter,
         bounce: Default::default(),
         squash_bounce: Default::default(),
+        musical_squash_bounce: mascot_render_core::SquashBounceAnimationConfig::default_for_musical(
+        ),
         always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
     }
 }

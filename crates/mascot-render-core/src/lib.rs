@@ -10,6 +10,8 @@ mod mascot;
 mod mascot_motion;
 mod mascot_paths;
 mod model;
+#[path = "mascot/motion_bounds.rs"]
+mod motion_bounds;
 mod mouth_flap;
 mod psd;
 mod render;

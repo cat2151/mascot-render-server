@@ -12,7 +12,7 @@ use mascot_render_protocol::{
 
 pub const MASCOT_RENDER_SERVER_PORT: u16 = 42152;
 pub const PREVIEW_MOUTH_FLAP_DURATION_MS: u64 = 5_000;
-pub const PREVIEW_MOUTH_FLAP_FPS: u16 = 4;
+pub const PREVIEW_MOUTH_FLAP_FPS: u16 = mascot_render_protocol::DEFAULT_MOUTH_FLAP_FPS;
 
 const MASCOT_RENDER_SERVER_HOST: &str = "127.0.0.1";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
@@ -208,6 +208,15 @@ pub fn wait_for_mascot_render_server_healthcheck_at(
 
     Err(last_error
         .unwrap_or_else(|| anyhow!("timed out waiting for mascot-render-server at {address}")))
+}
+
+pub fn sync_playback_at(
+    address: SocketAddr,
+    request: &mascot_render_protocol::PlaybackRequest,
+) -> Result<()> {
+    request.validate()?;
+    let body = serde_json::to_vec(request)?;
+    send_http_request(address, "POST", "/playback", Some(&body), IO_TIMEOUT).map(|_| ())
 }
 
 fn send_http_request(

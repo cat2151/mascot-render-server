@@ -48,6 +48,8 @@ mod native_window;
 mod persistence;
 #[path = "mascot_app/placement.rs"]
 mod placement;
+#[path = "mascot_app/playback.rs"]
+pub(crate) mod playback;
 #[path = "mascot_app/reload.rs"]
 mod reload;
 #[path = "mascot_app/runtime.rs"]
@@ -146,6 +148,7 @@ pub(crate) struct MascotApp {
     base_size: Vec2,
     skin_cache: MascotSkinCache<CachedSkin>,
     motion: MotionState,
+    playback_skin_attempt: Option<PathBuf>,
     eye_blink: EyeBlinkLoop,
     favorite_shuffle: FavoriteShufflePlaylist,
     control_rx: Receiver<MascotControlCommand>,
@@ -210,7 +213,7 @@ impl MascotApp {
                     open_skin.image_size,
                     open_skin.content_bounds,
                     config.bounce,
-                    config.squash_bounce,
+                    config.squash_motion_bounds(),
                     config.always_idle_sink,
                 )
             });
@@ -257,6 +260,7 @@ impl MascotApp {
             base_size,
             skin_cache,
             motion: MotionState::new(),
+            playback_skin_attempt: None,
             eye_blink: EyeBlinkLoop::new(now),
             favorite_shuffle: FavoriteShufflePlaylist::new(now),
             control_rx,
@@ -303,7 +307,7 @@ fn ensemble_window_layout(
         image_size,
         AlphaBounds::full(image_size),
         config.bounce,
-        config.squash_bounce,
+        config.squash_motion_bounds(),
         config.always_idle_sink,
     )
 }

@@ -58,6 +58,7 @@ pub struct MascotConfig {
     pub ensemble_mode: MascotEnsembleMode,
     pub bounce: BounceAnimationConfig,
     pub squash_bounce: SquashBounceAnimationConfig,
+    pub musical_squash_bounce: SquashBounceAnimationConfig,
     pub always_idle_sink: IdleSinkAnimationConfig,
 }
 
@@ -136,6 +137,7 @@ pub fn load_mascot_config(config_path: &Path) -> Result<MascotConfig> {
         ensemble_mode: static_config.ensemble_mode,
         bounce: static_config.bounce,
         squash_bounce: static_config.squash_bounce,
+        musical_squash_bounce: static_config.musical_squash_bounce,
         always_idle_sink: static_config.always_idle_sink,
     })
 }

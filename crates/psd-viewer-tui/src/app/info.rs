@@ -3,7 +3,7 @@ use ratatui::text::{Line, Span};
 
 use mascot_render_core::{display_path, mascot_config_path, mascot_runtime_state_path};
 
-use crate::app::{App, PreviewBackend, MONOKAI_PINK, MONOKAI_YELLOW};
+use crate::app::{App, MONOKAI_PINK, MONOKAI_YELLOW};
 use crate::favorites::favorites_path;
 use crate::tui_config::{tui_config_path, tui_runtime_state_path};
 
@@ -70,12 +70,7 @@ impl App {
             )));
         }
 
-        lines.push(Line::from(match self.preview_backend {
-            PreviewBackend::MascotServer => {
-                "Preview Backend: mascot-render-server window".to_string()
-            }
-            PreviewBackend::Sixel => "Preview Backend: sixel in TUI".to_string(),
-        }));
+        lines.push(Line::from("Preview Backend: mascot-render-server window"));
         lines.push(Line::from(format!(
             "Mascot Scale: {} of original | TUI TOML: {}",
             self.mascot_scale
@@ -156,6 +151,7 @@ impl App {
             Line::from("t: mouth flap preview"),
             Line::from("m: eye blink preview"),
             Line::from("s: shake mascot"),
+            Line::from("r: retry mascot server preview after a sync failure"),
         ]
     }
 }

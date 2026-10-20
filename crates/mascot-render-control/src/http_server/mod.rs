@@ -1,4 +1,4 @@
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpStream};
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::thread;
@@ -29,6 +29,8 @@ const APPLY_WAIT_TIMEOUT: Duration = Duration::from_secs(15);
 type PsdFileNamesLoader = dyn Fn() -> Result<Vec<String>> + Send + Sync;
 
 mod http_protocol;
+mod listener;
+use listener::{accept_loop, bind_control_listener};
 mod vpt_ensemble;
 
 pub fn start_mascot_control_server(
@@ -94,61 +96,6 @@ pub(crate) fn start_mascot_control_server_on_with_notify(
     Ok((bound_address, handle))
 }
 
-fn bind_control_listener(address: SocketAddr) -> Result<TcpListener> {
-    TcpListener::bind(address).map_err(|error| match error.kind() {
-        std::io::ErrorKind::AddrInUse => anyhow!(
-            "failed to bind {address}: mascot-render-server may already be running on this port; reuse the existing server or stop it first"
-        ),
-        _ => anyhow!("failed to bind {address}: {error}"),
-    })
-}
-
-fn accept_loop(
-    listener: TcpListener,
-    command_tx: Sender<MascotControlCommand>,
-    status_store: ServerStatusStore,
-    psd_file_names: Arc<PsdFileNamesLoader>,
-    notify: Option<Arc<dyn Fn() + Send + Sync>>,
-) {
-    loop {
-        match listener.accept() {
-            Ok((mut stream, peer)) => {
-                if let Err(error) = stream.set_read_timeout(Some(IO_TIMEOUT)) {
-                    log_control_error(format!(
-                        "event=control_connection stage=set_read_timeout peer={peer} error={error}"
-                    ));
-                    continue;
-                }
-                if let Err(error) = stream.set_write_timeout(Some(IO_TIMEOUT)) {
-                    log_control_error(format!(
-                        "event=control_connection stage=set_write_timeout peer={peer} error={error}"
-                    ));
-                    continue;
-                }
-                if let Err(error) = handle_connection(
-                    &mut stream,
-                    peer,
-                    &command_tx,
-                    &status_store,
-                    psd_file_names.as_ref(),
-                    notify.as_ref(),
-                ) {
-                    log_control_error(format!(
-                        "event=control_connection stage=handle peer={peer} error={error:#}"
-                    ));
-                }
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                thread::sleep(ACCEPT_POLL_INTERVAL);
-            }
-            Err(error) => {
-                log_control_error(format!("event=control_accept stage=accept error={error}"));
-                thread::sleep(ACCEPT_POLL_INTERVAL);
-            }
-        }
-    }
-}
-
 fn handle_connection(
     stream: &mut TcpStream,
     peer: SocketAddr,
@@ -200,6 +147,15 @@ fn route_request(
 ) -> Result<HttpResponse> {
     let path = canonical_path(&request.path);
     match (request.method.as_str(), path.as_str()) {
+        ("POST", "/playback") => {
+            let playback: mascot_render_protocol::PlaybackRequest =
+                serde_json::from_slice(&request.body)?;
+            status_store.set_playback(playback)?;
+            if let Some(notify) = notify {
+                notify();
+            }
+            Ok(HttpResponse::ok_text("ok"))
+        }
         ("GET", "/health") => Ok(HttpResponse::ok_text("ok")),
         ("GET", "/psd-filenames") => {
             let psd_file_names =

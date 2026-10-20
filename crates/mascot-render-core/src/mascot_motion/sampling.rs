@@ -24,11 +24,12 @@ pub(super) fn sample_bounce(
 }
 
 pub(super) fn sample_squash_bounce(
-    now: Instant,
-    started_at: Instant,
+    elapsed: Duration,
     config: SquashBounceAnimationConfig,
 ) -> MotionTransform {
-    let t = animation_progress(now, started_at, config.duration_ms);
+    let t = (elapsed.as_secs_f32()
+        / Duration::from_millis(config.duration_ms.max(1)).as_secs_f32())
+    .clamp(0.0, 1.0);
     let envelope = (1.0 - t).powf(config.damping.max(0.0));
     let phase = std::f32::consts::PI * config.cycles.max(0.1) * t;
     let vertical = phase.sin().abs() * envelope;

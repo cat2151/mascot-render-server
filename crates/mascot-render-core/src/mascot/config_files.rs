@@ -21,6 +21,7 @@ pub(super) struct MascotStaticConfigFile {
     pub(super) ensemble_mode: MascotEnsembleMode,
     pub(super) bounce: BounceAnimationConfig,
     pub(super) squash_bounce: SquashBounceAnimationConfig,
+    pub(super) musical_squash_bounce: SquashBounceAnimationConfig,
     #[serde(rename = "idle_sink")]
     pub(super) always_idle_sink: IdleSinkAnimationConfig,
 }
@@ -35,6 +36,7 @@ impl Default for MascotStaticConfigFile {
             ensemble_mode: MascotEnsembleMode::SingleCharacter,
             bounce: BounceAnimationConfig::default(),
             squash_bounce: SquashBounceAnimationConfig::default(),
+            musical_squash_bounce: SquashBounceAnimationConfig::default_for_musical(),
             always_idle_sink: IdleSinkAnimationConfig::default_for_always_bouncing(),
         }
     }

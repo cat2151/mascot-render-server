@@ -113,6 +113,28 @@ fn scale_change_restarts_even_when_png_path_is_same() {
     );
 }
 
+#[test]
+fn failed_target_waits_for_explicit_retry_instead_of_looping() {
+    let mut state = ServerPreviewSyncState::default();
+    let target = preview_target("cache/first.png", None);
+    assert!(state.request(Some(target.clone())).is_some());
+    assert!(state.finish_failure(target.clone()).is_none());
+    assert!(state.request(Some(target.clone())).is_none());
+    assert!(!state.is_busy());
+    state.reset();
+    assert_eq!(state.request(Some(target.clone())), Some(target));
+}
+
+#[test]
+fn failure_of_old_selection_still_schedules_latest_selection() {
+    let mut state = ServerPreviewSyncState::default();
+    let first = preview_target("cache/first.png", None);
+    let latest = preview_target("cache/latest.png", None);
+    state.request(Some(first.clone()));
+    state.request(Some(latest.clone()));
+    assert_eq!(state.finish_failure(first), Some(latest));
+}
+
 fn preview_target(png_path: &str, scale: Option<f32>) -> PreviewTargetRequest {
     PreviewTargetRequest {
         png_path: PathBuf::from(png_path),

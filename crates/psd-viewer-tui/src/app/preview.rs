@@ -8,7 +8,7 @@ use crate::display_diff_state::{resolve_layer_rows, toggle_layer_override};
 
 use super::{
     support::{current_preview_status, psd_path_in_zip},
-    App, FocusPane, PreviewBackend, TimingLog,
+    App, FocusPane, TimingLog,
 };
 
 impl App {
@@ -23,13 +23,7 @@ impl App {
     }
 
     pub(crate) fn uses_server_preview(&self) -> bool {
-        self.preview_backend == PreviewBackend::MascotServer
-    }
-
-    pub(crate) fn fallback_to_sixel_preview(&mut self, reason: String) {
-        self.preview_backend = PreviewBackend::Sixel;
-        self.clear_preview_animations();
-        self.status = reason;
+        true
     }
 
     pub(crate) fn set_status_message(&mut self, status: impl Into<String>) {
