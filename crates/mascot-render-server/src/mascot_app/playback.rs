@@ -1,4 +1,5 @@
 use super::MascotApp;
+use crate::mouth_flap_frames::select_frame;
 use eframe::egui;
 use mascot_render_core::{MotionTransform, SquashBounceAnimationConfig};
 use mascot_render_protocol::PlaybackSnapshot;
@@ -29,17 +30,13 @@ impl MascotApp {
         );
         if name.as_deref().is_some_and(|n| n.contains("ずんだもん")) {
             if state.request.singing
-                && self.mouth_open_skin.is_none()
-                && self.mouth_closed_skin.is_none()
+                && self.mouth_flap_skins.is_none()
                 && self.playback_skin_attempt.as_ref() != Some(&self.config.png_path)
             {
                 self.playback_skin_attempt = Some(self.config.png_path.clone());
                 let config = self.config.clone();
                 match self.load_mouth_flap_skins_for_config(ctx, &config) {
-                    Ok((open, closed)) => {
-                        self.mouth_open_skin = open;
-                        self.mouth_closed_skin = closed;
-                    }
+                    Ok(skins) => self.mouth_flap_skins = skins,
                     Err(e) => {
                         self.record_and_log_status_error(format!("playback mouth skins: {e:#}"))
                     }
@@ -77,12 +74,13 @@ impl super::ensemble::EnsembleMemberScene {
             .is_some_and(|n| n.contains("ずんだもん"))
         {
             if let Some(state) = state.filter(|p| p.is_active(now)) {
-                return match state.mouth_open(now) {
-                    Some(true) => self.mouth_open_skin.as_ref().unwrap_or(&self.open_skin),
-                    Some(false) => self.mouth_closed_skin.as_ref().unwrap_or(&self.open_skin),
-                    None if blink => self.closed_skin.as_ref().unwrap_or(&self.open_skin),
-                    None => &self.open_skin,
-                };
+                return select_frame(
+                    &self.open_skin,
+                    self.closed_skin.as_ref(),
+                    self.mouth_flap_skins.as_ref(),
+                    state.mouth_open(now),
+                    blink,
+                );
             }
         }
         self.active_skin(blink, now)

@@ -21,8 +21,7 @@ impl MascotApp {
         self.open_skin = prepared.open_skin;
         self.closed_skin = prepared.closed_skin;
         self.closed_skin_unavailable = false;
-        self.mouth_open_skin = prepared.mouth_open_skin;
-        self.mouth_closed_skin = prepared.mouth_closed_skin;
+        self.mouth_flap_skins = prepared.mouth_flap_skins;
         self.scale = prepared.placement.scale;
         self.base_size = prepared.placement.base_size;
         let anchor_position = prepared.placement.anchor_position;
@@ -50,8 +49,7 @@ impl MascotApp {
         self.open_skin = prepared.open_skin;
         self.closed_skin = prepared.closed_skin;
         self.closed_skin_unavailable = false;
-        self.mouth_open_skin = prepared.mouth_open_skin;
-        self.mouth_closed_skin = prepared.mouth_closed_skin;
+        self.mouth_flap_skins = prepared.mouth_flap_skins;
         self.scale = prepared.placement.scale;
         self.base_size = prepared.placement.base_size;
         let anchor_position = prepared.placement.anchor_position;

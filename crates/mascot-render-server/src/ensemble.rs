@@ -1,20 +1,20 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use mascot_render_core::{
-    load_mascot_image, local_data_root, mascot_window_size, Core, DisplayDiff,
-    LayerVisibilityOverride, MascotEnsembleMode, MascotImageData, RenderRequest,
-    DISPLAY_DIFF_VERSION,
+    local_data_root, Core, LayerVisibilityOverride, MascotEnsembleMode, MascotImageData,
 };
 use mascot_render_server::alpha_bounds_from_mask;
 use serde::{Deserialize, Serialize};
 
-use crate::eye_blink::build_closed_eye_display_diff_with_document;
-use mouth_flap::render_mouth_flap_images_with_document;
+use crate::mouth_flap_frames::MouthFlapFrames;
+use render_entry::{render_ensemble_entry, RenderedEnsembleEntry};
 #[path = "ensemble/mouth_flap.rs"]
 mod mouth_flap;
 #[path = "ensemble/persistence.rs"]
 mod persistence;
+#[path = "ensemble/render_entry.rs"]
+mod render_entry;
 #[path = "ensemble/sanitize.rs"]
 mod sanitize;
 #[path = "ensemble/vpt_layout.rs"]
@@ -64,8 +64,7 @@ pub(crate) struct EnsembleMember {
     pub(crate) psd_path_in_zip: PathBuf,
     pub(crate) image: MascotImageData,
     pub(crate) closed_image: Option<MascotImageData>,
-    pub(crate) mouth_open_image: Option<MascotImageData>,
-    pub(crate) mouth_closed_image: Option<MascotImageData>,
+    pub(crate) mouth_flap_images: Option<MouthFlapFrames<MascotImageData>>,
     pub(crate) base_size: [f32; 2],
     pub(crate) canvas_position: [f32; 2],
 }
@@ -74,15 +73,6 @@ pub(crate) struct EnsembleMember {
 pub(crate) struct Ensemble {
     pub(crate) members: Vec<EnsembleMember>,
     pub(crate) canvas_size: [f32; 2],
-}
-
-struct RenderedEnsembleEntry {
-    entry: EnsembleEntry,
-    image: MascotImageData,
-    closed_image: Option<MascotImageData>,
-    mouth_open_image: Option<MascotImageData>,
-    mouth_closed_image: Option<MascotImageData>,
-    base_size: [f32; 2],
 }
 
 pub(crate) fn favorites_path() -> PathBuf {
@@ -319,92 +309,6 @@ fn alpha_mask_from_image(image: &MascotImageData) -> Vec<u8> {
         .collect::<Vec<_>>()
 }
 
-fn render_ensemble_entry(core: &Core, entry: EnsembleEntry) -> Result<RenderedEnsembleEntry> {
-    let display_diff = DisplayDiff {
-        version: DISPLAY_DIFF_VERSION,
-        visibility_overrides: entry.visibility_overrides.clone(),
-    };
-    let rendered = core
-        .render_png(RenderRequest {
-            zip_path: entry.zip_path.clone(),
-            psd_path_in_zip: entry.psd_path_in_zip.clone(),
-            display_diff: display_diff.clone(),
-        })
-        .with_context(|| {
-            format!(
-                "failed to render ensemble image {} :: {}",
-                entry.zip_path.display(),
-                entry.psd_path_in_zip.display()
-            )
-        })?;
-    let image = load_mascot_image(&rendered.output_path).with_context(|| {
-        format!(
-            "failed to load ensemble PNG {} :: {} from {}",
-            entry.zip_path.display(),
-            entry.psd_path_in_zip.display(),
-            rendered.output_path.display()
-        )
-    })?;
-    let document = core
-        .inspect_psd(&entry.zip_path, &entry.psd_path_in_zip)
-        .with_context(|| {
-            format!(
-                "failed to inspect ensemble PSD {} :: {} for auxiliary skins",
-                entry.zip_path.display(),
-                entry.psd_path_in_zip.display()
-            )
-        })?;
-    let closed_image = build_closed_eye_display_diff_with_document(
-        &entry.zip_path,
-        &entry.psd_path_in_zip,
-        &document,
-        &display_diff,
-    )?
-    .map(|closed_display_diff| {
-        core.render_png(RenderRequest {
-            zip_path: entry.zip_path.clone(),
-            psd_path_in_zip: entry.psd_path_in_zip.clone(),
-            display_diff: closed_display_diff,
-        })
-        .with_context(|| {
-            format!(
-                "failed to render ensemble closed-eye PNG {} :: {}",
-                entry.zip_path.display(),
-                entry.psd_path_in_zip.display()
-            )
-        })
-    })
-    .transpose()?
-    .filter(|rendered_closed| rendered_closed.output_path != rendered.output_path)
-    .map(|rendered_closed| {
-        load_mascot_image(&rendered_closed.output_path).with_context(|| {
-            format!(
-                "failed to load ensemble closed-eye PNG {} :: {} from {}",
-                entry.zip_path.display(),
-                entry.psd_path_in_zip.display(),
-                rendered_closed.output_path.display()
-            )
-        })
-    })
-    .transpose()?;
-    let mouth_flap_images = render_mouth_flap_images_with_document(
-        core,
-        &entry.zip_path,
-        &entry.psd_path_in_zip,
-        &document,
-        &display_diff,
-    )?;
-
-    Ok(RenderedEnsembleEntry {
-        base_size: mascot_window_size(image.width, image.height, entry.mascot_scale),
-        closed_image,
-        mouth_open_image: mouth_flap_images.as_ref().map(|images| images.open.clone()),
-        mouth_closed_image: mouth_flap_images.map(|images| images.closed),
-        entry,
-        image,
-    })
-}
-
 fn build_ensemble(rendered: Vec<RenderedEnsembleEntry>) -> Ensemble {
     let mut min_x = f32::INFINITY;
     let mut min_y = f32::INFINITY;
@@ -445,8 +349,7 @@ fn build_ensemble(rendered: Vec<RenderedEnsembleEntry>) -> Ensemble {
                     canvas_position: [x - min_x, y - min_y],
                     base_size: rendered_entry.base_size,
                     closed_image: rendered_entry.closed_image,
-                    mouth_open_image: rendered_entry.mouth_open_image,
-                    mouth_closed_image: rendered_entry.mouth_closed_image,
+                    mouth_flap_images: rendered_entry.mouth_flap_images,
                     image: rendered_entry.image,
                 }
             })

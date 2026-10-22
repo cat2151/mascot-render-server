@@ -1,5 +1,7 @@
 use mascot_render_core::MascotImageData;
 
+use crate::mouth_flap_frames::MouthFlapFrames;
+
 use super::*;
 
 #[test]
@@ -57,12 +59,16 @@ fn ensemble_triggers_mouth_flap_for_named_member_only() {
 }
 
 #[test]
-fn ensemble_member_active_skin_prefers_mouth_flap_over_blink() {
+fn ensemble_member_blinks_without_pausing_mouth_flap() {
     let ctx = egui::Context::default();
     let mut member = member("a.zip", "a.psd", [0.0, 0.0], [10.0, 20.0]);
     member.closed_image = Some(image("blink-closed", [10.0, 20.0]));
-    member.mouth_open_image = Some(image("mouth-open", [10.0, 20.0]));
-    member.mouth_closed_image = Some(image("mouth-closed", [10.0, 20.0]));
+    member.mouth_flap_images = Some(MouthFlapFrames {
+        open: image("mouth-open", [10.0, 20.0]),
+        closed: image("mouth-closed", [10.0, 20.0]),
+        blink_open: Some(image("blink-mouth-open", [10.0, 20.0])),
+        blink_closed: Some(image("blink-mouth-closed", [10.0, 20.0])),
+    });
     let now = Instant::now();
     let mut scene = EnsembleScene::from_loaded(
         &ctx,
@@ -80,11 +86,18 @@ fn ensemble_member_active_skin_prefers_mouth_flap_over_blink() {
 
     assert_eq!(
         scene.members[0].active_skin(true, now).path.clone(),
-        PathBuf::from("mouth-open.png")
+        PathBuf::from("blink-mouth-open.png")
     );
     assert_eq!(
         scene.members[0]
             .active_skin(true, now + Duration::from_millis(250))
+            .path
+            .clone(),
+        PathBuf::from("blink-mouth-closed.png")
+    );
+    assert_eq!(
+        scene.members[0]
+            .active_skin(false, now + Duration::from_millis(250))
             .path
             .clone(),
         PathBuf::from("mouth-closed.png")
@@ -110,8 +123,7 @@ fn member(
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         image: image(zip_path, base_size),
         closed_image: None,
-        mouth_open_image: None,
-        mouth_closed_image: None,
+        mouth_flap_images: None,
         base_size,
         canvas_position,
     }

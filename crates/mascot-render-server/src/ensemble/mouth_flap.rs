@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
 use mascot_render_core::{
@@ -6,10 +6,7 @@ use mascot_render_core::{
     DisplayDiff, MascotImageData, PsdDocument, RenderRequest,
 };
 
-pub(super) struct EnsembleMouthFlapImages {
-    pub(super) open: MascotImageData,
-    pub(super) closed: MascotImageData,
-}
+use crate::mouth_flap_frames::{render_closed_eye_mouth_frames, MouthFlapFrames};
 
 pub(super) fn render_mouth_flap_images_with_document(
     core: &Core,
@@ -17,7 +14,7 @@ pub(super) fn render_mouth_flap_images_with_document(
     psd_path_in_zip: &Path,
     document: &PsdDocument,
     base_variation: &DisplayDiff,
-) -> Result<Option<EnsembleMouthFlapImages>> {
+) -> Result<Option<MouthFlapFrames<MascotImageData>>> {
     let psd_file_name = psd_file_name(psd_path_in_zip)?;
     let target = match auto_generate_mouth_flap_target(document, base_variation) {
         Ok(target) => target,
@@ -40,7 +37,26 @@ pub(super) fn render_mouth_flap_images_with_document(
             )
         })?;
 
-    Ok(Some(EnsembleMouthFlapImages {
+    let (blink_open, blink_closed) = render_closed_eye_mouth_frames(
+        core,
+        zip_path,
+        psd_path_in_zip,
+        document,
+        &display_diffs.open,
+        &display_diffs.closed,
+    )?;
+    let load_blink_image = |png_path: PathBuf| {
+        load_mascot_image(&png_path).with_context(|| {
+            format!(
+                "failed to load ensemble closed-eye mouth PNG {} :: {} from {}",
+                zip_path.display(),
+                psd_path_in_zip.display(),
+                png_path.display()
+            )
+        })
+    };
+
+    Ok(Some(MouthFlapFrames {
         open: render_mouth_flap_image(core, zip_path, psd_path_in_zip, "open", display_diffs.open)?,
         closed: render_mouth_flap_image(
             core,
@@ -49,6 +65,8 @@ pub(super) fn render_mouth_flap_images_with_document(
             "closed",
             display_diffs.closed,
         )?,
+        blink_open: blink_open.map(load_blink_image).transpose()?,
+        blink_closed: blink_closed.map(load_blink_image).transpose()?,
     }))
 }
 

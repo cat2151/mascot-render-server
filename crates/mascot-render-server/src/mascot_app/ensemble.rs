@@ -10,11 +10,11 @@ use mascot_render_core::{
 use mascot_render_protocol::VisualSizePx;
 use mascot_render_server::{AlphaBounds, PlacementPlanTargetInput};
 
-use super::mouth_flap_state::{active_skin_state, ActiveSkinState};
 use crate::app_support::{cached_skin_from_image, CachedSkin};
 use crate::ensemble::{Ensemble, EnsembleMember};
 use crate::eye_blink::EyeBlinkLoop;
 use crate::eye_blink_timing::always_idle_sink_for_blink_median;
+use crate::mouth_flap_frames::{select_frame, MouthFlapFrames};
 
 pub(super) struct EnsembleMemberScene {
     pub(super) character_name: Option<String>,
@@ -24,8 +24,7 @@ pub(super) struct EnsembleMemberScene {
     pub(super) base_size: Vec2,
     pub(super) open_skin: CachedSkin,
     pub(super) closed_skin: Option<CachedSkin>,
-    pub(super) mouth_open_skin: Option<CachedSkin>,
-    pub(super) mouth_closed_skin: Option<CachedSkin>,
+    pub(super) mouth_flap_skins: Option<MouthFlapFrames<CachedSkin>>,
     pub(super) motion: MotionState,
     pub(super) eye_blink: EyeBlinkLoop,
     pub(super) phase_offset_ratio: f32,
@@ -231,14 +230,10 @@ fn member_scene_from_loaded(
             .closed_image
             .as_ref()
             .map(|image| cached_skin_from_image(ctx, image)),
-        mouth_open_skin: member
-            .mouth_open_image
+        mouth_flap_skins: member
+            .mouth_flap_images
             .as_ref()
-            .map(|image| cached_skin_from_image(ctx, image)),
-        mouth_closed_skin: member
-            .mouth_closed_image
-            .as_ref()
-            .map(|image| cached_skin_from_image(ctx, image)),
+            .map(|images| images.map(|image| cached_skin_from_image(ctx, image))),
         motion,
         eye_blink: EyeBlinkLoop::new_with_seed_and_elapsed(
             now,
@@ -255,23 +250,18 @@ impl EnsembleMemberScene {
     }
 
     pub(super) fn active_skin(&mut self, blink_closed: bool, now: Instant) -> &CachedSkin {
-        match active_skin_state(
-            self.has_mouth_flap_skin(),
-            &mut self.motion,
+        let mouth_open = self.mouth_flap_is_open(now);
+        select_frame(
+            &self.open_skin,
+            self.closed_skin.as_ref(),
+            self.mouth_flap_skins.as_ref(),
+            mouth_open,
             blink_closed,
-            now,
-        ) {
-            ActiveSkinState::MouthOpen => self.mouth_open_skin.as_ref().unwrap_or(&self.open_skin),
-            ActiveSkinState::MouthClosed => {
-                self.mouth_closed_skin.as_ref().unwrap_or(&self.open_skin)
-            }
-            ActiveSkinState::BlinkClosed => self.closed_skin.as_ref().unwrap_or(&self.open_skin),
-            ActiveSkinState::Open => &self.open_skin,
-        }
+        )
     }
 
     fn has_mouth_flap_skin(&self) -> bool {
-        self.mouth_open_skin.is_some() || self.mouth_closed_skin.is_some()
+        self.mouth_flap_skins.is_some()
     }
 
     fn mouth_flap_is_open(&mut self, now: Instant) -> Option<bool> {

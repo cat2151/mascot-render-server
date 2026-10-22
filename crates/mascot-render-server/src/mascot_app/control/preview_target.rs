@@ -155,8 +155,7 @@ impl MascotApp {
             next_config,
             open_skin,
             closed_skin: None,
-            mouth_open_skin: None,
-            mouth_closed_skin: None,
+            mouth_flap_skins: None,
             persisted_png_path: persisted.png_path,
         })
     }

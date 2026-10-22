@@ -9,11 +9,7 @@ use mascot_render_core::{
     RenderPngReport, RenderRequest, RenderedPng, ZipEntryLoadReport,
 };
 
-#[derive(Debug)]
-pub(crate) struct MouthFlapPngs {
-    pub(crate) open_png_path: PathBuf,
-    pub(crate) closed_png_path: PathBuf,
-}
+use crate::mouth_flap_frames::{render_closed_eye_mouth_frames, MouthFlapFrames};
 
 struct MouthFlapFrame {
     output_path: PathBuf,
@@ -25,7 +21,7 @@ pub(crate) fn render_mouth_flap_pngs(
     core: &Core,
     config: &MascotConfig,
     mut record_stage: impl FnMut(&'static str, u64),
-) -> Result<Option<MouthFlapPngs>> {
+) -> Result<Option<MouthFlapFrames<PathBuf>>> {
     let total_started_at = Instant::now();
     let psd_file_name = config
         .psd_path_in_zip
@@ -120,6 +116,14 @@ pub(crate) fn render_mouth_flap_pngs(
         display_diffs.closed.visibility_overrides.len(),
     ));
 
+    let (blink_open, blink_closed) = render_closed_eye_mouth_frames(
+        core,
+        &config.zip_path,
+        &config.psd_path_in_zip,
+        &document,
+        &display_diffs.open,
+        &display_diffs.closed,
+    )?;
     let open_frame = render_mouth_flap_frame(
         core,
         config,
@@ -159,9 +163,11 @@ pub(crate) fn render_mouth_flap_pngs(
         open_frame.output_path.display(),
         closed_frame.output_path.display(),
     ));
-    Ok(Some(MouthFlapPngs {
-        open_png_path: open_frame.output_path,
-        closed_png_path: closed_frame.output_path,
+    Ok(Some(MouthFlapFrames {
+        open: open_frame.output_path,
+        closed: closed_frame.output_path,
+        blink_open,
+        blink_closed,
     }))
 }
 

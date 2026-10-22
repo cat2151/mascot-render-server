@@ -106,10 +106,13 @@ impl MascotApp {
                 );
             }
         }
-        for (label, skin) in [
-            ("mouth-open", self.mouth_open_skin.as_ref()),
-            ("mouth-closed", self.mouth_closed_skin.as_ref()),
-        ] {
+        for (label, skin) in self
+            .mouth_flap_skins
+            .as_ref()
+            .map(|skins| skins.labeled())
+            .into_iter()
+            .flatten()
+        {
             let Some(skin) = skin else {
                 continue;
             };

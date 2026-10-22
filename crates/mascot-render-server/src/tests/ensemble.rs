@@ -349,8 +349,7 @@ fn sample_ensemble_member(
         psd_path_in_zip: PathBuf::from(psd_path_in_zip),
         image: sample_image(zip_path, base_size),
         closed_image: None,
-        mouth_open_image: None,
-        mouth_closed_image: None,
+        mouth_flap_images: None,
         base_size,
         canvas_position,
     }

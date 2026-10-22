@@ -11,6 +11,7 @@ use crate::app_support::cached_skin_from_image_with_report;
 use crate::ensemble::load_active_ensemble;
 use crate::eye_blink::render_closed_eye_png;
 use crate::mouth_flap::render_mouth_flap_pngs;
+use crate::mouth_flap_frames::MouthFlapFrames;
 
 impl MascotApp {
     pub(super) fn load_skin(&mut self, ctx: &egui::Context, png_path: &Path) -> Result<CachedSkin> {
@@ -163,8 +164,7 @@ impl MascotApp {
         self.eye_blink.reset(Instant::now());
         self.closed_skin = None;
         self.closed_skin_unavailable = false;
-        self.mouth_open_skin = None;
-        self.mouth_closed_skin = None;
+        self.mouth_flap_skins = None;
     }
 
     pub(super) fn load_closed_eye_skin_for_config(
@@ -190,9 +190,9 @@ impl MascotApp {
         &mut self,
         ctx: &egui::Context,
         config: &MascotConfig,
-    ) -> Result<(Option<CachedSkin>, Option<CachedSkin>)> {
+    ) -> Result<Option<MouthFlapFrames<CachedSkin>>> {
         if config.ensemble_mode.is_ensemble() {
-            return Ok((None, None));
+            return Ok(None);
         }
 
         let mut generation_stages = Vec::new();
@@ -203,23 +203,17 @@ impl MascotApp {
             self.record_performance_stage(stage, elapsed_ms);
         }
         let Some(mouth_flap_pngs) = result? else {
-            return Ok((None, None));
+            return Ok(None);
         };
 
-        let open_skin_started_at = Instant::now();
-        let open_skin = self.load_skin(ctx, &mouth_flap_pngs.open_png_path)?;
+        let load_skins_started_at = Instant::now();
+        let skins = mouth_flap_pngs.try_map(|png_path| self.load_skin(ctx, png_path))?;
         self.record_performance_stage(
-            "mouth_flap.load_open_skin",
-            elapsed_ms_since(open_skin_started_at),
-        );
-        let closed_skin_started_at = Instant::now();
-        let closed_skin = self.load_skin(ctx, &mouth_flap_pngs.closed_png_path)?;
-        self.record_performance_stage(
-            "mouth_flap.load_closed_skin",
-            elapsed_ms_since(closed_skin_started_at),
+            "mouth_flap.load_skins",
+            elapsed_ms_since(load_skins_started_at),
         );
 
-        Ok((Some(open_skin), Some(closed_skin)))
+        Ok(Some(skins))
     }
 }
 

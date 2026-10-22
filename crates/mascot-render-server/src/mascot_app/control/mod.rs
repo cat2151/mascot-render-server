@@ -8,6 +8,7 @@ use mascot_render_protocol::{MotionTimelineKind, MotionTimelineRequest};
 use mascot_render_server::apply_motion_timeline_request;
 
 use super::{CachedSkin, MascotApp};
+use crate::mouth_flap_frames::MouthFlapFrames;
 
 mod character_change;
 mod commit;
@@ -19,8 +20,7 @@ pub(super) struct PreparedSkinChange {
     next_config: MascotConfig,
     open_skin: CachedSkin,
     closed_skin: Option<CachedSkin>,
-    mouth_open_skin: Option<CachedSkin>,
-    mouth_closed_skin: Option<CachedSkin>,
+    mouth_flap_skins: Option<MouthFlapFrames<CachedSkin>>,
     placement: super::placement::PreparedPlacementChange,
     persisted_png_path: std::path::PathBuf,
 }
@@ -262,17 +262,12 @@ impl MascotApp {
     }
 
     fn ensure_mouth_flap_skins_for_timeline(&mut self, ctx: &egui::Context) -> Result<()> {
-        if self.config.ensemble_mode.is_ensemble()
-            || (self.mouth_open_skin.is_some() && self.mouth_closed_skin.is_some())
-        {
+        if self.config.ensemble_mode.is_ensemble() || self.mouth_flap_skins.is_some() {
             return Ok(());
         }
 
         let config = self.config.clone();
-        let (mouth_open_skin, mouth_closed_skin) =
-            self.load_mouth_flap_skins_for_config(ctx, &config)?;
-        self.mouth_open_skin = mouth_open_skin;
-        self.mouth_closed_skin = mouth_closed_skin;
+        self.mouth_flap_skins = self.load_mouth_flap_skins_for_config(ctx, &config)?;
         Ok(())
     }
 }

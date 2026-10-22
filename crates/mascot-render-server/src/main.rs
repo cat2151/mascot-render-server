@@ -7,6 +7,7 @@ mod eye_blink_timing;
 mod mascot_app;
 mod mascot_scale;
 mod mouth_flap;
+mod mouth_flap_frames;
 mod psd_file_name_catalog;
 mod ui_font;
 
@@ -241,3 +242,7 @@ fn main() -> Result<()> {
 #[cfg(test)]
 #[path = "tests/playback.rs"]
 mod playback_tests;
+
+#[cfg(test)]
+#[path = "tests/mouth_flap_frames.rs"]
+mod mouth_flap_frames_tests;

@@ -11,6 +11,7 @@ use mascot_render_server::{
 
 use crate::always_bend;
 use crate::eye_blink_timing::always_idle_sink_for_blink_median;
+use crate::mouth_flap_frames::select_frame;
 
 use super::{
     click_interaction_hit_test, keyboard_scale_steps, logging::ScaleChangeTrigger,
@@ -101,11 +102,8 @@ impl App for MascotApp {
             }
         }
         let blink_closed = blink_requested_closed && self.closed_skin.is_some();
-        let mouth_flap_open = mouth_flap_skin_state(
-            self.mouth_open_skin.is_some() || self.mouth_closed_skin.is_some(),
-            &mut self.motion,
-            now,
-        );
+        let mouth_flap_open =
+            mouth_flap_skin_state(self.mouth_flap_skins.is_some(), &mut self.motion, now);
         let mouth_flap_open = if playback_is_zundamon && playback.is_some() {
             playback.as_ref().and_then(|p| p.mouth_open(now))
         } else {
@@ -283,17 +281,13 @@ impl App for MascotApp {
             transform
         };
         let image_rect = self.window_layout.image_rect(self.base_size, transform);
-        let active_skin = if let Some(is_open) = mouth_flap_open {
-            if is_open {
-                self.mouth_open_skin.as_ref().unwrap_or(&self.open_skin)
-            } else {
-                self.mouth_closed_skin.as_ref().unwrap_or(&self.open_skin)
-            }
-        } else if blink_closed {
-            self.closed_skin.as_ref().unwrap_or(&self.open_skin)
-        } else {
-            &self.open_skin
-        };
+        let active_skin = select_frame(
+            &self.open_skin,
+            self.closed_skin.as_ref(),
+            self.mouth_flap_skins.as_ref(),
+            mouth_flap_open,
+            blink_closed,
+        );
         let should_log_active_skin = should_log_rendered_skin(
             self.last_logged_skin_path.as_deref(),
             active_skin.path.as_path(),

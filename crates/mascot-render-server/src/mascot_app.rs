@@ -23,6 +23,7 @@ use crate::app_support::{
 use crate::ensemble::active_ensemble_path;
 use crate::eye_blink::EyeBlinkLoop;
 use crate::mascot_scale::{effective_scale, keyboard_scale_steps, scroll_scale_steps};
+use crate::mouth_flap_frames::MouthFlapFrames;
 use crate::SKIN_CACHE_CAPACITY;
 #[path = "mascot_app/character.rs"]
 mod character;
@@ -101,9 +102,7 @@ pub(crate) use logging::{
     RefreshWindowLayoutDiagnosticsForTest, ScaleChangeTriggerForTest, ScaleLayoutChangeForTest,
 };
 #[cfg(test)]
-pub(crate) use mouth_flap_state::{
-    active_skin_state_for_test, mouth_flap_skin_state_for_test, ActiveSkinState,
-};
+pub(crate) use mouth_flap_state::mouth_flap_skin_state_for_test;
 use native_window::NativeWindowHandle;
 #[cfg(test)]
 pub(crate) use persistence::{
@@ -136,8 +135,7 @@ pub(crate) struct MascotApp {
     open_skin: CachedSkin,
     closed_skin: Option<CachedSkin>,
     closed_skin_unavailable: bool,
-    mouth_open_skin: Option<CachedSkin>,
-    mouth_closed_skin: Option<CachedSkin>,
+    mouth_flap_skins: Option<MouthFlapFrames<CachedSkin>>,
     pending_auxiliary_skin_refresh: bool,
     ensemble_scene: Option<EnsembleScene>,
     scale: f32,
@@ -248,8 +246,7 @@ impl MascotApp {
             open_skin,
             closed_skin: None,
             closed_skin_unavailable: false,
-            mouth_open_skin: None,
-            mouth_closed_skin: None,
+            mouth_flap_skins: None,
             pending_auxiliary_skin_refresh: false,
             ensemble_scene,
             scale,
